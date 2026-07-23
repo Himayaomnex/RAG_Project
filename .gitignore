@@ -6,8 +6,7 @@ test_qdrant
 test_qdrant/
 cache_metrics.json
 
-# Binary Word Transcripts (Keep local)
-*.docx
+# Temporary Microsoft Word Lock Files
 ~$*.docx
 
 # Temporary SQL & Scratch Files
