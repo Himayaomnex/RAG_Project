@@ -1,0 +1,22 @@
+# Local Databases & Metrics (Do not upload to Git)
+emb_cache*
+qdrant_storage
+qdrant_storage/
+test_qdrant
+test_qdrant/
+cache_metrics.json
+
+# Binary Word Transcripts (Keep local)
+*.docx
+~$*.docx
+
+# Temporary SQL & Scratch Files
+test_sql.txt
+EXPLANATION.md
+
+# Python Bytecode & System
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
+.vscode/
