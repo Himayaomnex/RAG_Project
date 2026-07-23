@@ -615,6 +615,12 @@ def main():
             for file in os.listdir("."):
                 if file.endswith('.docx') and not file.startswith('~$'):
                     docx_files.append(file)
+            if os.path.exists("transcripts"):
+                for file in os.listdir("transcripts"):
+                    if file.endswith('.docx') and not file.startswith('~$'):
+                        full_p = os.path.join("transcripts", file)
+                        if full_p not in docx_files:
+                            docx_files.append(full_p)
             
         if docx_files:
             print(f"Found {len(docx_files)} Word document(s) to process:")

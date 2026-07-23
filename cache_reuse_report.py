@@ -25,7 +25,7 @@ def generate_reuse_report():
         total_cached_vectors = len(db)
         
     # 2. Total Transcript Files & Chunks (Directly measured from .docx files)
-    docx_files = glob.glob("*.docx")
+    docx_files = glob.glob("*.docx") + glob.glob("transcripts/*.docx")
     total_chunks = 0
     file_breakdown = []
     
