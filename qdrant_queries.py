@@ -492,11 +492,17 @@ def main():
     vector_size = 384
     client = QdrantClient(path="qdrant_storage")
     
-    # 1. Collect local docx files in the current folder
+    # 1. Collect local docx files in the current folder and transcripts subfolder
     local_docx_files = []
     for file in os.listdir("."):
         if file.endswith('.docx') and not file.startswith('~$'):
             local_docx_files.append(file)
+    if os.path.exists("transcripts"):
+        for file in os.listdir("transcripts"):
+            if file.endswith('.docx') and not file.startswith('~$'):
+                full_p = os.path.join("transcripts", file)
+                if full_p not in local_docx_files:
+                    local_docx_files.append(full_p)
             
     # Check if collection already exists and is populated
     collection_exists = client.collection_exists(collection_name)
