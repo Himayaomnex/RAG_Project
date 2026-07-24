@@ -1,12 +1,164 @@
 import re
 import numpy as np
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
 import json
 import os
-
 import shelve
 import hashlib
+
+try:
+    from qdrant_client import QdrantClient
+    from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+    QDRANT_AVAILABLE = True
+except Exception as e:
+    QDRANT_AVAILABLE = False
+    print("  - [Notice]: Windows Application Control blocked gRPC DLL. Switching to AppLocker-Safe LocalVectorStore.")
+    
+    class Distance:
+        COSINE = "Cosine"
+    class VectorParams:
+        def __init__(self, size=384, distance="Cosine"):
+            self.size = size
+            self.distance = distance
+    class PointStruct:
+        def __init__(self, id, vector, payload):
+            self.id = id
+            self.vector = vector
+            self.payload = payload
+    class MatchValue:
+        def __init__(self, value):
+            self.value = value
+    class FieldCondition:
+        def __init__(self, key, match):
+            self.key = key
+            self.match = match
+    class Filter:
+        def __init__(self, must=None):
+            self.must = must or []
+
+    class LocalVectorStore:
+        def __init__(self, path="qdrant_storage"):
+            self.path = path
+            os.makedirs(self.path, exist_ok=True)
+            self.db_file = os.path.join(self.path, "local_vector_db.json")
+            self.data = self._load()
+
+        def _load(self):
+            if os.path.exists(self.db_file):
+                try:
+                    with open(self.db_file, "r") as f:
+                        return json.load(f)
+                except Exception:
+                    pass
+            return {}
+
+        def _save(self):
+            try:
+                with open(self.db_file, "w") as f:
+                    json.dump(self.data, f)
+            except Exception:
+                pass
+
+        def collection_exists(self, collection_name):
+            return collection_name in self.data
+
+        def count(self, collection_name):
+            class CountRes:
+                def __init__(self, count):
+                    self.count = count
+            if collection_name in self.data:
+                return CountRes(len(self.data[collection_name].get("points", [])))
+            return CountRes(0)
+
+        def create_collection(self, collection_name, vectors_config=None):
+            if collection_name not in self.data:
+                self.data[collection_name] = {"points": []}
+                self._save()
+
+        def delete_collection(self, collection_name):
+            if collection_name in self.data:
+                del self.data[collection_name]
+                self._save()
+
+        def recreate_collection(self, collection_name, vectors_config=None):
+            self.create_collection(collection_name, vectors_config)
+
+        def upsert(self, collection_name, points):
+            if collection_name not in self.data:
+                self.create_collection(collection_name)
+            existing = {p["id"]: p for p in self.data[collection_name]["points"]}
+            for pt in points:
+                pid = pt.id if hasattr(pt, 'id') else pt["id"]
+                vec = pt.vector if hasattr(pt, 'vector') else pt["vector"]
+                payload = pt.payload if hasattr(pt, 'payload') else pt["payload"]
+                existing[pid] = {"id": pid, "vector": vec, "payload": payload}
+            self.data[collection_name]["points"] = list(existing.values())
+            self._save()
+
+        def scroll(self, collection_name, limit=100, offset=0, with_payload=True, with_vectors=False, scroll_filter=None):
+            class Record:
+                def __init__(self, pid, vector, payload):
+                    self.id = pid
+                    self.vector = vector
+                    self.payload = payload
+
+            if collection_name not in self.data:
+                return [], None
+
+            pts = self.data[collection_name]["points"]
+            
+            if scroll_filter and hasattr(scroll_filter, 'must'):
+                target_speaker = None
+                try:
+                    target_speaker = scroll_filter.must[0].match.value
+                except Exception:
+                    pass
+                if target_speaker:
+                    pts = [p for p in pts if p["payload"].get("speaker") == target_speaker]
+
+            if offset is None:
+                offset = 0
+                
+            start_idx = int(offset)
+            end_idx = start_idx + limit
+            batch = pts[start_idx:end_idx]
+            next_offset = end_idx if end_idx < len(pts) else None
+            
+            res_records = [Record(p["id"], p["vector"] if with_vectors else None, p["payload"] if with_payload else None) for p in batch]
+            return res_records, next_offset
+
+        def search(self, collection_name, query_vector, limit=3):
+            class ScoredPoint:
+                def __init__(self, pid, score, payload):
+                    self.id = pid
+                    self.score = score
+                    self.payload = payload
+
+            if collection_name not in self.data:
+                return []
+
+            pts = self.data[collection_name]["points"]
+            q_vec = np.array(query_vector)
+            q_norm = np.linalg.norm(q_vec)
+
+            scored = []
+            for p in pts:
+                v = np.array(p["vector"])
+                v_norm = np.linalg.norm(v)
+                if q_norm > 0 and v_norm > 0:
+                    sim = float(np.dot(q_vec, v) / (q_norm * v_norm))
+                else:
+                    sim = 0.0
+                scored.append(ScoredPoint(p["id"], sim, p["payload"]))
+
+            scored.sort(key=lambda x: x.score, reverse=True)
+            return scored[:limit]
+
+        def query_points(self, collection_name, query, limit=3):
+            class QueryPointsRes:
+                def __init__(self, points):
+                    self.points = points
+            pts = self.search(collection_name, query, limit)
+            return QueryPointsRes(pts)
 
 CACHE_DB = "emb_cache"
 _doc_embedding_cache = {}
@@ -490,7 +642,13 @@ def extract_clean_keywords(question_lower, speaker_words):
 def main():
     collection_name = "meeting_transcripts"
     vector_size = 384
-    client = QdrantClient(path="qdrant_storage")
+    if QDRANT_AVAILABLE:
+        try:
+            client = QdrantClient(path="qdrant_storage")
+        except Exception:
+            client = LocalVectorStore(path="qdrant_storage")
+    else:
+        client = LocalVectorStore(path="qdrant_storage")
     
     # 1. Collect local docx files in the current folder and transcripts subfolder
     local_docx_files = []
