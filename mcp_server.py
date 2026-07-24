@@ -11,11 +11,13 @@ import sys
 import os
 import json
 import sqlite3
-from qdrant_client import QdrantClient
-
-# Import RAG pipeline components
+# Import RAG pipeline components safely with AppLocker fallback
 sys.path.append(os.path.dirname(__file__))
-from qdrant_queries import get_embedding, extract_clean_keywords, call_llm_api
+from qdrant_queries import (
+    get_embedding, extract_clean_keywords, call_llm_api,
+    QDRANT_AVAILABLE, QdrantClient, LocalVectorStore,
+    Filter, FieldCondition, MatchValue
+)
 
 # Valid Enterprise Auth Tokens
 VALID_AUTH_TOKENS = {
@@ -41,8 +43,16 @@ def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", 
         
     print(f"[MCP Request Authenticated]: {user_info}")
     
-    # Initialize Qdrant Client
-    client = QdrantClient(path=os.path.join(os.path.dirname(__file__), "qdrant_storage"))
+    # Initialize Qdrant Client with AppLocker fallback
+    storage_path = os.path.join(os.path.dirname(__file__), "qdrant_storage")
+    if QDRANT_AVAILABLE:
+        try:
+            client = QdrantClient(path=storage_path)
+        except Exception:
+            client = LocalVectorStore(path=storage_path)
+    else:
+        client = LocalVectorStore(path=storage_path)
+
     collection_name = "meeting_transcripts"
     
     if not client.collection_exists(collection_name):
@@ -51,7 +61,6 @@ def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", 
     # Scroll points for target speaker if provided
     retrieved_points = []
     if speaker:
-        from qdrant_client.models import Filter, FieldCondition, MatchValue
         scroll_filter = Filter(must=[FieldCondition(key="speaker", match=MatchValue(value=speaker))])
         if date:
             scroll_filter.must.append(FieldCondition(key="date", match=MatchValue(value=date)))

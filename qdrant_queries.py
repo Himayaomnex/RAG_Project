@@ -160,6 +160,8 @@ except Exception as e:
             pts = self.search(collection_name, query, limit)
             return QueryPointsRes(pts)
 
+    QdrantClient = LocalVectorStore
+
 CACHE_DB = "emb_cache"
 _doc_embedding_cache = {}
 
