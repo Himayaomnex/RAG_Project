@@ -147,6 +147,24 @@ try:
         """MCP Tool 6: Extracts action items (cron jobs, setup.py, MCP servers) from meeting history."""
         return mcp_search_transcripts(auth_token, topic="action items setup.py cron job mcp server")
 
+    @mcp.tool()
+    def evaluate_teammate_performance(auth_token: str, teammate_name: str) -> str:
+        """MCP Tool 7 (Mentor Agent): Generates performance evaluation report for a teammate."""
+        is_valid, user_info = verify_auth_token(auth_token)
+        if not is_valid:
+            return f"[MCP AUTH ERROR]: {user_info}"
+        from agents.mentor_agent import run_mentor_agent
+        return run_mentor_agent(f"Evaluate performance of {teammate_name}", target_member=teammate_name)
+
+    @mcp.tool()
+    def scan_codebase_and_generate_quiz(auth_token: str, file_name: str = "qdrant_queries.py") -> str:
+        """MCP Tool 8 (Teammates/Mentor Agent): Scans code files and generates testing questions."""
+        is_valid, user_info = verify_auth_token(auth_token)
+        if not is_valid:
+            return f"[MCP AUTH ERROR]: {user_info}"
+        from agents.mentor_agent import run_mentor_agent
+        return run_mentor_agent(f"Generate quiz questions for file {file_name}")
+
 except ImportError:
     pass
 
