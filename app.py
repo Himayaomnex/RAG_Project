@@ -15,7 +15,7 @@ from router import route_request
 
 # Streamlit Page Config
 st.set_page_config(
-    page_title="Enterprise Multi-Agent RAG System",
+    page_title="Multi-Agent RAG System",
     page_icon="🤖",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -55,7 +55,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # App Header
-st.title("🤖 Enterprise Multi-Agent RAG System")
+st.title("🤖 Multi-Agent RAG System")
 st.caption("Powered by FastMCP, Qdrant Vector DB, SHA-256 Caching, and Groq Llama 3.3")
 
 # Sidebar Configuration
