@@ -53,32 +53,57 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
         
     evidence_str = "\n".join(evidence_text) if evidence_text else "No specific transcript turns recorded."
     
-    # Branch A: Technical Quiz Generation for Siddharth
+    # Branch A: Technical Assessment Matrix & Testing Guide for Siddharth
     if any(word in prompt_lower for word in ["quiz", "questions", "test", "question"]):
         llm_prompt = f"""
 You are the Mentor Evaluation Agent serving Siddharth (Mentor).
-Generate 3-5 technical testing questions to evaluate {target_member}'s understanding of RAG, MCP, and AI architecture based on their contributions:
-
-Transcript Evidence for {target_member}:
-{evidence_str}
-
-Format output as a structured Quiz Guide for Siddharth with question + key evaluation answer.
-"""
-    # Branch B: Member Performance Evaluation Report
-    else:
-        llm_prompt = f"""
-You are the Mentor Evaluation Agent serving Siddharth (Mentor).
-Evaluate {target_member}'s performance, technical progress, and contributions based on the following transcript evidence:
+Generate a **TECHNICAL ASSESSMENT MATRIX & QUESTION GUIDE** to test {target_member}'s understanding of RAG, MCP, and AI architecture based on their work:
 
 Target Member: {target_member}
 Transcript Evidence:
 {evidence_str}
 
-Provide a structured Evaluation Report covering:
-1. Technical Contributions & Milestones
-2. Architectural Comprehension
-3. Areas of Growth
-4. Overall Rating & Recommendations for Siddharth.
+Format your output STRICTLY as a Markdown Assessment Matrix Table:
+
+# TECHNICAL ASSESSMENT MATRIX: {target_member.upper()}
+
+| Test Topic | Specific Question for Siddharth to Ask | Expected Answer / Evaluation Criteria |
+| :--- | :--- | :--- |
+| 1. RAG & Vector Caching | [Question 1] | [Expected answer] |
+| 2. MCP Server Auth & Tools | [Question 2] | [Expected answer] |
+| 3. System Scaling & Concurrency | [Question 3] | [Expected answer] |
+
+### Evaluation Goal for Siddharth:
+Assess depth of technical understanding during 1-on-1 review.
+"""
+    # Branch B: Member Performance Evaluation Report with Evaluation Matrix
+    else:
+        llm_prompt = f"""
+You are the Mentor Evaluation Agent serving Siddharth (Mentor).
+Evaluate {target_member}'s performance based on transcript evidence and output a formal **QUANTITATIVE EVALUATION MATRIX TABLE**.
+
+Target Member: {target_member}
+Transcript Evidence:
+{evidence_str}
+
+Format your output STRICTLY with a Markdown Evaluation Matrix Table like this:
+
+# MENTOR EVALUATION SCORECARD MATRIX: {target_member.upper()}
+
+| Evaluation Dimension | Score (1-5) | Specific Evidence & Observations |
+| :--- | :---: | :--- |
+| 1. Technical Execution & Delivery | X / 5.0 | [Observations based on evidence] |
+| 2. Architectural Comprehension | X / 5.0 | [Observations based on evidence] |
+| 3. Problem-Solving & Autonomy | X / 5.0 | [Observations based on evidence] |
+| 4. Communication & Clarity | X / 5.0 | [Observations based on evidence] |
+| 5. Initiative & Team Impact | X / 5.0 | [Observations based on evidence] |
+
+**OVERALL WEIGHTED SCORE:** X / 5.0  
+**PERFORMANCE GRADE:** [Exceeding Expectations / Meeting Expectations / Needs Focus]
+
+### 💡 Key Recommendations for Siddharth:
+- [Actionable mentor recommendation 1]
+- [Actionable mentor recommendation 2]
 """
         
     return call_llm_api(llm_prompt)

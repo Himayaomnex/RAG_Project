@@ -12,6 +12,10 @@ Demonstrates all 5 workflows across the 3 specialized agents:
 import sys
 import os
 import time
+
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
+
 from router import route_request
 
 def print_header(title: str):
