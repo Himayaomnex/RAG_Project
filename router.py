@@ -27,24 +27,21 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
     print(f"\n[Router.py Dispatching Request]: Role='{user_role}' | Prompt='{user_prompt}'")
     print("=" * 80)
     
-    # Explicit Role Routing
+    # Priority 1: Check Intent for Performance Evaluation & Quizzes -> Mentor Agent
+    if any(word in prompt_lower for word in ["evaluate", "performance", "score", "rating", "quiz", "questions", "test"]):
+        return run_mentor_agent(user_prompt, target_member=target_member or (role_lower if role_lower in ["himaya", "ganesh", "dakshinya"] else ""))
+
+    # Priority 2: Check Intent for Manager Status & Action Items -> Manager Agent
+    if any(word in prompt_lower for word in ["action item", "status", "summary", "project update", "roadblock"]):
+        return run_manager_agent(user_prompt, target_member=target_member)
+
+    # Priority 3: Role-Based Routing
     if role_lower in ["manager", "project_lead"]:
         return run_manager_agent(user_prompt, target_member=target_member)
-        
     elif role_lower in ["siddharth", "mentor", "evaluator"]:
         return run_mentor_agent(user_prompt, target_member=target_member)
-        
-    elif role_lower in ["himaya", "ganesh", "dakshinya", "teammate", "intern"]:
-        return run_teammates_agent(user_prompt, user_name=user_role.capitalize())
-        
-    # Auto Role Detection based on Prompt Intent
     else:
-        if any(word in prompt_lower for word in ["evaluate", "performance", "score", "quiz"]):
-            return run_mentor_agent(user_prompt, target_member=target_member)
-        elif any(word in prompt_lower for word in ["code", "explain", "how does", "reading"]):
-            return run_teammates_agent(user_prompt, user_name="Teammate")
-        else:
-            return run_manager_agent(user_prompt, target_member=target_member)
+        return run_teammates_agent(user_prompt, user_name=user_role.capitalize())
 
 if __name__ == "__main__":
     print(route_request("What are the action items for the team?", user_role="manager"))
