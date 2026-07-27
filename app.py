@@ -84,17 +84,13 @@ if st.sidebar.button("📝 Evaluate Dakshinya"):
     st.session_state["user_prompt"] = "Evaluate performance of Dakshinya Nachimuthu"
     st.session_state["selected_role"] = "siddharth"
 
+if st.sidebar.button("👤 Evaluate Ganesh"):
+    st.session_state["user_prompt"] = "Evaluate performance of Ganesh Krishna"
+    st.session_state["selected_role"] = "siddharth"
+
 if st.sidebar.button("📋 Team Action Items"):
     st.session_state["user_prompt"] = "What are the project updates and action items for the team?"
     st.session_state["selected_role"] = "manager"
-
-if st.sidebar.button("❓ Quiz Questions for Ganesh"):
-    st.session_state["user_prompt"] = "Generate 3 technical testing quiz questions for Ganesh"
-    st.session_state["selected_role"] = "siddharth"
-
-if st.sidebar.button("💻 Explain LocalVectorStore"):
-    st.session_state["user_prompt"] = "Explain how LocalVectorStore works in qdrant_queries.py"
-    st.session_state["selected_role"] = "himaya"
 
 # Metrics Banner
 col1, col2, col3, col4 = st.columns(4)
@@ -106,6 +102,26 @@ with col3:
     st.markdown('<div class="metric-card"><h3>5.3 ms</h3><p>Retrieval Speed</p></div>', unsafe_allow_html=True)
 with col4:
     st.markdown('<div class="metric-card"><h3>$0.00</h3><p>API Cache Cost</p></div>', unsafe_allow_html=True)
+
+# Architecture Diagram Expander
+with st.expander("📐 View System Architecture Diagram", expanded=False):
+    st.markdown("""
+```mermaid
+graph TD
+    User([👤 User]) --> Router[Router.py<br/>Role Dispatcher]
+    subgraph Agent_Layer [Agent Layer]
+        Manager[📊 Manager Agent]
+        Mentor[🧙‍♂️ Mentor Agent]
+        Teammates[💻 Teammates Agent]
+    end
+    Router --> Agent_Layer
+    Agent_Layer --> Skills[Shared Skills Layer]
+    Skills --> FastMCP[FastMCP Server]
+    FastMCP --> RAG[RAG Engine<br/>qdrant_queries.py + Qdrant + SQLite + emb_cache]
+    RAG --> LLM[Groq / Gemini LLM]
+    LLM --> Response([Final Response])
+```
+""")
 
 st.markdown("---")
 
