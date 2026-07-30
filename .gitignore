@@ -11,7 +11,7 @@ cache_metrics.json
 
 # Temporary SQL & Scratch Files
 test_sql.txt
-EXPLANATION.md
+transcripts.db
 
 # Python Bytecode & System
 __pycache__/

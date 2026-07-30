@@ -9,23 +9,17 @@ for Himaya, Ganesh, and Dakshinya across Microsoft Teams transcripts.
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from qdrant_queries import get_embedding, extract_clean_keywords, call_llm_api, QDRANT_AVAILABLE, QdrantClient, LocalVectorStore
+from qdrant_queries import get_embedding, extract_clean_keywords, call_llm_api, QDRANT_AVAILABLE, QdrantClient, LocalVectorStore, Filter, FieldCondition, MatchValue
 
 def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
     """
     Manager Agent execution logic:
-    - Analyzes manager requests for meeting summaries, team status, and action items.
-    - If request requires performance evaluation, delegates to Mentor Agent.
+    - Analyzes manager requests for meeting summaries, team status, milestones, and action items.
+    - Formats output for Iyappan Sir focusing on Completed Accomplishments, Active Workstreams, and Action Items.
     """
     prompt_lower = user_prompt.lower()
     
-    # Delegate evaluation requests to Mentor Agent
-    if any(word in prompt_lower for word in ["evaluate", "performance", "how has", "performing", "score", "rating"]):
-        from agents.mentor_agent import run_mentor_agent
-        print("  - [Manager Agent]: Evaluation request detected. Delegating to Mentor Agent...")
-        return run_mentor_agent(user_prompt, target_member=target_member)
-        
-    print("  - [Manager Agent]: Processing meeting status / action item request...")
+    print("  - [Manager Agent]: Processing project status & team action items for Manager...")
     
     storage_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "qdrant_storage")
     if QDRANT_AVAILABLE:
@@ -38,29 +32,49 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
         
     collection_name = "meeting_transcripts"
     
-    # Query Qdrant vector index for project updates and action items
-    query_vec = get_embedding(user_prompt)
-    search_res = client.query_points(collection_name=collection_name, query=query_vec, limit=4)
-    
+    # Retrieve transcript evidence for ALL team members across collection
     context_chunks = []
-    for pt in search_res.points:
-        payload = pt.payload
-        context_chunks.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | {payload.get('speaker', 'Unknown')}]: {payload.get('text', '').strip()}")
+    for member_name in ["Himaya Perumal", "Ganesh Krishna", "Dakshinya Nachimuthu", "Siddharth Saminathan"]:
+        s_filter = Filter(must=[FieldCondition(key="speaker", match=MatchValue(value=member_name))])
+        recs, _ = client.scroll(collection_name=collection_name, limit=10, scroll_filter=s_filter)
+        for pt in recs:
+            payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
+            clean_text = payload.get('text', '').strip()
+            if len(clean_text) > 20:
+                context_chunks.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | Speaker: {payload.get('speaker', 'Unknown')}]: {clean_text[:250]}")
         
-    context_str = "\n\n".join(context_chunks)
+    from prompt_builder import EnterprisePromptBuilder
     
-    llm_prompt = f"""
-You are the Manager Agent for an enterprise software team.
-Based on the following meeting transcript context, summarize the team project status, completed milestones, and action items.
-
-User Question: "{user_prompt}"
-
-Meeting Evidence:
-{context_str}
-
-Provide a concise, professional summary for the Manager.
-"""
-    return call_llm_api(llm_prompt)
+    prompt_builder = (
+        EnterprisePromptBuilder(agent_type="manager", user_id="Iyappan Sir", role="manager")
+        .add_security_guardrails("Iyappan Sir", "manager")
+        .add_hallucination_and_failure_policy()
+        .add_reasoning_and_thinking_policy()
+        .add_metadata_context("aqua_rag_team", "July 2026 Meetings")
+        .add_agent_role("manager")
+        .add_tool_descriptions()
+        .add_rag_context(context_chunks[:25])
+        .add_citation_rules()
+        .add_response_schema(
+            "Format your executive status summary for Iyappan Sir clearly:\n\n"
+            "### 📈 Executive Project Status Summary\n"
+            "[High-level overview of active team projects, pipeline developments, and overall progress]\n\n"
+            "### ✅ Completed Milestones & Accomplishments\n"
+            "- **Himaya Perumal**: [Key technical tasks and project contributions from transcripts]\n"
+            "- **Ganesh Krishna**: [Key technical tasks and project contributions from transcripts]\n"
+            "- **Dakshinya Nachimuthu**: [Key technical tasks and project contributions from transcripts]\n\n"
+            "### 📌 Next Steps & Action Items\n"
+            "- [Specific, constructive action item assigned per member based on transcript evidence]\n"
+            "- [Specific, constructive action item assigned per member based on transcript evidence]\n\n"
+            "Do NOT include harsh numerical scorecard ratings or negative labels. Focus strictly on constructive deliverables and milestone progress."
+        )
+        .add_user_query(user_prompt)
+    )
+    llm_prompt = prompt_builder.build()
+    res = call_llm_api(llm_prompt)
+    if not res:
+        res = "### 📈 Executive Status Summary & Team Deliverables\n\n" + "\n\n".join(context_chunks[:15])
+    return res
 
 if __name__ == "__main__":
     test_query = "What are the action items and project updates for the team?"

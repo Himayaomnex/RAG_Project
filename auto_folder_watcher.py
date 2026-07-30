@@ -19,6 +19,8 @@ from qdrant_queries import main as run_rag_indexing, load_transcript_from_docx
 
 DOWNLOADS_DIR = str(Path.home() / "Downloads")
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
+TRANSCRIPTS_DIR = os.path.join(PROJECT_DIR, "transcripts")
+os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
 def is_valid_teams_transcript(file_path: str) -> bool:
     """
@@ -66,7 +68,7 @@ def watch_downloads_folder():
                     print(f"   [IGNORED NON-TRANSCRIPT WORD FILE]: '{filename}' (Not a Teams Transcript)")
                     continue
                     
-                dest_path = os.path.join(PROJECT_DIR, filename)
+                dest_path = os.path.join(TRANSCRIPTS_DIR, filename)
                 print(f"\n[NEW TEAMS TRANSCRIPT VERIFIED & DETECTED]: '{filename}'")
                 time.sleep(1) # Ensure download finishes
                 
