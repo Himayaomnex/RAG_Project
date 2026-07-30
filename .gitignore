@@ -1,15 +1,14 @@
+# Ignore all root Word .docx report files
+/*.docx
+~$*.docx
+
 # Local Databases & Metrics (Do not upload to Git)
 emb_cache*
-qdrant_storage
 qdrant_storage/
-test_qdrant
 test_qdrant/
 cache_metrics.json
 
-# Temporary Microsoft Word Lock Files
-~$*.docx
-
-# Temporary SQL & Scratch Files
+# Temporary SQL & Databases
 test_sql.txt
 transcripts.db
 

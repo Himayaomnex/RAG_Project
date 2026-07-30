@@ -1,4 +1,4 @@
-# Enterprise Multi-Agent Teams Transcript RAG System
+# Multi-Agent Teams Transcript RAG System
 
 An enterprise-grade, privacy-first Retrieval-Augmented Generation (RAG) system and Model Context Protocol (MCP) server designed to parse, index, search, and synthesize Microsoft Teams meeting transcripts (`.docx`).
 
