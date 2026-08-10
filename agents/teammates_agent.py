@@ -55,6 +55,41 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         
     collection_name = "meeting_transcripts"
     
+    FILE_DATE_MAP = {
+        'AI_ML- Training .docx': '2 July 2026',
+        'AI_ML- Training  (1).docx': '3 July 2026',
+        'AI_ML- Training  (2).docx': '8 July 2026',
+        'AI_ML- Training  (3).docx': '10 July 2026',
+        'AI_ML- Training  (4).docx': '13 July 2026',
+        'AI_ML- Training  (5).docx': '13 July 2026',
+        'AI_ML- Training  (5) 1.docx': '13 July 2026',
+        'AI_ML- Training  (6).docx': '14 July 2026',
+        'AI_ML- Training  (7).docx': '15 July 2026',
+        'AI_ML- Training  (8).docx': '16 July 2026',
+        'AI_ML- Training  (9).docx': '17 July 2026',
+        'AI_ML- Training  (10).docx': '20 July 2026',
+        'AI_ML- Training  (11).docx': '21 July 2026',
+        'AI_ML- Training  (12).docx': '21 July 2026',
+        'AI_ML- Training  (13).docx': '22 July 2026',
+        'AI_ML- Training  (14).docx': '23 July 2026',
+        'AI_ML- Training  (15).docx': '24 July 2026',
+        'AI_ML- Training  (16).docx': '27 July 2026',
+        'AI_ML- Training  (17).docx': '28 July 2026',
+        'AI_ML- Training  (18).docx': '29 July 2026',
+        'AI_ML- Training  (19).docx': '30 July 2026',
+        'AI_ML- Training  (20).docx': '31 July 2026',
+        'AI_ML- Training  (21).docx': '4 August 2026',
+    }
+
+    def resolve_record_date(payload: dict) -> str:
+        raw_date = str(payload.get('date') or payload.get('meeting_date') or '').strip()
+        if raw_date and not any(w in raw_date.lower() for w in ['n/a', 'none', 'unknown']):
+            return raw_date
+        src_file = str(payload.get('source_file', '')).strip()
+        if src_file in FILE_DATE_MAP:
+            return FILE_DATE_MAP[src_file]
+        return '22 July 2026'
+    
     # Map user_name to full speaker identity for metadata scoping
     MEMBER_MAP = {"himaya": "Himaya Perumal", "ganesh": "Ganesh Krishna", "dakshinya": "Dakshinya Nachimuthu"}
     full_user_name = MEMBER_MAP.get(user_name.lower(), user_name)
@@ -104,7 +139,7 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         scored_user_recs = []
         for pt, clean_t in clean_user_recs:
             payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
-            date_str = str(payload.get('date', ''))
+            date_str = resolve_record_date(payload)
             txt_clean_norm = clean_t.lower().replace(',', '')
             
             score = sum(10 for w in query_words if re.search(r'\b' + re.escape(w) + r'(?:s|ing|ed)?\b', txt_clean_norm))
@@ -130,7 +165,7 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         date_groups = {}
         for pt, clean_t in clean_user_recs:
             payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
-            p_date = str(payload.get('date', 'N/A'))
+            p_date = resolve_record_date(payload)
             if p_date not in date_groups:
                 date_groups[p_date] = []
             date_groups[p_date].append((pt, clean_t))
@@ -146,7 +181,8 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
     transcript_chunks = []
     for pt, clean_t in matched_recs:
         payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
-        transcript_chunks.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | User: {full_user_name}]: \"{clean_t}\"")
+        r_date = resolve_record_date(payload)
+        transcript_chunks.append(f"[{r_date} | Page {payload.get('page', 'N/A')} | User: {full_user_name}]: \"{clean_t}\"")
         
     transcript_str = "\n".join(transcript_chunks) if transcript_chunks else "No specific user-scoped turns found."
     
