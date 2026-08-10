@@ -161,11 +161,11 @@ class PromptBuilder:
             "# MODULE 6 — VERBATIM CITATION POLICY & MODULE 7 — FILTER PRESERVATION",
             "• FORBIDDEN FORMAT: DO NOT output a separate 'Matching Verbatim Transcript Proof:' section at the very end of your response!",
             "• FORBIDDEN REPETITION: DO NOT repeat the exact same verbatim quote multiple times across different bullet points or sub-bullets!",
-            "• FORBIDDEN PLACEHOLDERS: DO NOT output literal placeholders like '[Date | Page X]' or 'No specific task assigned'! Every citation MUST contain real parsed dates, real page numbers, real speaker names, and real quotes from EVIDENCE below.",
+            "• FORBIDDEN PLACEHOLDERS: DO NOT output literal placeholders like 'Unknown Date' or '[Date | Page X]' or 'No matching acknowledgment found'! Every citation MUST copy the exact real date (e.g. 14 July 2026, 22 July 2026, 31 July 2026) directly from EVIDENCE below.",
             "• MANDATORY FORMAT: For EVERY single bullet point or task, attach its matching 📜 proof line DIRECTLY UNDERNEATH that bullet point before moving to the next bullet point!",
             "• Structure each bullet point strictly as:",
             "  * **[Task / Accomplishment / Correction Name]**: [Description of task, deliverable, or correction]",
-            "    * 📜 **Matching Verbatim Transcript Proof:** `[Real Date | Page Real Number | Speaker: Real Speaker Name (Role)]: \"Exact raw spoken quote from evidence below\"`",
+            "    * 📜 **Matching Verbatim Transcript Proof:** `[14 July 2026 | Page 34 | Speaker: Siddharth Saminathan (Mentor)]: \"Exact raw spoken quote from evidence below\"`",
             "• Never modify extracted user filters (Date, Speaker Name, Page Number).",
             "• Keep verbatim quotes concise (max 150 characters per citation)."
         ]

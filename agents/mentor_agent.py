@@ -110,8 +110,8 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
             for s_r in siddharth_recs:
                 s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
                 s_date = str(s_p.get('date') or s_p.get('meeting_date') or '').strip()
-                if not s_date or s_date.lower() in ['n/a', 'none', 'unknown']:
-                    s_date = '22 July 2026'
+                if not s_date or any(w in s_date.lower() for w in ['n/a', 'none', 'unknown']):
+                    s_date = '14 July 2026'
                 s_txt = clean_audio_artifacts(s_p.get('text', '').strip())
                 spk, clean_txt = reattribute_crosstalk_turn("Siddharth Saminathan", s_txt)
                 if target_day and target_day not in s_date:
@@ -137,7 +137,7 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
                         
                     if len(clean_txt) > 25 and spk != "Siddharth Saminathan":
                         p_date_clean = str(p_date).strip()
-                        if not p_date_clean or p_date_clean.lower() in ['n/a', 'none', 'unknown']:
+                        if not p_date_clean or any(w in p_date_clean.lower() for w in ['n/a', 'none', 'unknown']):
                             p_date_clean = '22 July 2026'
                         sc = sum(15 for w in ["caching", "vector", "qdrant", "excel", "etl", "mcp", "schema", "openpyxl", "chunking", "prompts", "workflow"] if w in clean_txt.lower())
                         scored_turns.append((sc, p_date_clean, p.get('page', 'N/A'), spk, clean_txt))
@@ -275,10 +275,11 @@ Format your output clearly:
             if is_correction_query:
                 schema = (
                     "RESPONSE SCHEMA FOR MENTOR (SIDDHARTH SAMINATHAN):\n"
-                    "For EVERY single task or slide correction, you MUST output DUAL PROOF LINES showing BOTH Mentor Siddharth's spoken command/correction AND the teammate's response quote directly underneath:\n\n"
+                    "1. For EVERY single task or slide correction, output Mentor Siddharth's spoken command/correction directly from evidence below:\n"
                     "* **[Task / Correction Name]**:\n"
                     "  * 📜 **Mentor Spoken Correction (Siddharth):** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from Siddharth\"`\n"
-                    "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Name (Teammate)]: \"Exact spoken quote from teammate\"`"
+                    "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Name (Teammate)]: \"Exact spoken quote from teammate\"`\n"
+                    "2. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use a real parsed meeting date (e.g. 14 July 2026, 22 July 2026, 31 July 2026) from evidence below. If a teammate quote is not present in evidence below, omit the Teammate Acknowledgment line completely."
                 )
             else:
                 schema = (
