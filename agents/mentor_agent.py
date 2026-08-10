@@ -352,27 +352,25 @@ Format your output clearly:
             return call_llm_api(llm_prompt)
         
     # Scroll points for target member AND Mentor Siddharth across transcripts (scans limit=3000)
-    # First-Principles Human Date Extraction Engine (Handles: 31st, 23rd, 27th, 23 July, July 31st, 31/07/2026, 31-07)
+    # First-Principles Human Date Extraction Engine (Handles: 4 August, 04/08/2026, 31st, 23rd, 27th, 23 July, July 31st, 31/07/2026, 31-07)
     import re
-    date_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?[/\-\s](0?7|july)', prompt_lower) or \
-                 re.search(r'(july)[/\-\s](\d{1,2})(?:st|nd|rd|th)?', prompt_lower) or \
+    date_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?[/\-\s](0?[78]|july|jul|august|aug)', prompt_lower) or \
+                 re.search(r'(july|jul|august|aug)[/\-\s](\d{1,2})(?:st|nd|rd|th)?', prompt_lower) or \
                  re.search(r'\b(\d{1,2})(st|nd|rd|th)\b', prompt_lower)
     
     target_day = ""
+    target_month_str = "July"
     if date_match:
         digits = [g for g in date_match.groups() if g and g.isdigit()]
         if digits:
-            target_day = str(int(digits[0])) # Normalizes "07" or "31" to integer string "31"
+            target_day = str(int(digits[0])) # Normalizes "04" or "31" to integer string "4" or "31"
+        if any(w in prompt_lower for w in ["august", "aug", "/08", "-08"]):
+            target_month_str = "August"
 
     # Scroll points for target member AND Mentor Siddharth across transcripts (scans limit=6000)
     retrieved_records = []
     offset = None
-    must_conds = []
-    if target_day:
-        must_conds.append(FieldCondition(key="date", match=MatchValue(value=f"{target_day} July 2026")))
-        
     scroll_filter = Filter(
-        must=must_conds if must_conds else None,
         should=[
             FieldCondition(key="speaker", match=MatchValue(value=target_member)),
             FieldCondition(key="speaker", match=MatchValue(value="Siddharth Saminathan"))
@@ -385,22 +383,20 @@ Format your output clearly:
         if offset is None or not r_batch or len(retrieved_records) >= 6000:
             break
 
-    # Filter records strictly by date if a specific date was requested
+    # Filter records strictly by date using resolve_record_date
     if target_day and retrieved_records:
         date_filtered = []
         for r in retrieved_records:
             p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-            p_date = str(p.get('date', ''))
-            # Match 31 July, 31/07, 31-07, 31 2026
-            if re.search(r'\b' + target_day + r'(?:st|nd|rd|th)?\b', p_date, re.IGNORECASE) or \
-               f"{target_day} July" in p_date or f"{target_day}/07" in p_date or f"{target_day}-07" in p_date:
+            p_date = resolve_record_date(p)
+            if target_month_str.lower() in p_date.lower() and re.search(r'\b' + target_day + r'\b', p_date):
                 date_filtered.append(r)
         
         if date_filtered:
             retrieved_records = date_filtered
         else:
             # STRICT DATE FALLBACK: No records found for that exact requested date!
-            return f"❌ **Anti-Hallucination Policy Triggered:** No transcript evidence found for **{target_member}** on **{target_day} July 2026**."
+            return f"❌ **Anti-Hallucination Policy Triggered:** No transcript evidence found for **{target_member}** on **{target_day} {target_month_str} 2026**."
 
     # Comprehensive stop words set (pronouns, question words, verbs, dates, and names)
     stop_words = {
@@ -410,25 +406,20 @@ Format your output clearly:
         "you", "your", "me", "my", "he", "she", "his", "her", "they", "them", "their", "we", "us", "our",
         "can", "could", "would", "should", "does", "done", "doing", "have", "has", "had", "this", "that"
     }
-    prompt_words = [w for w in re.findall(r'\b[a-zA-Z]{3,}\b', prompt_lower) if w not in stop_words]
-
-    # Topic-specific chunk filtering (Flexible multi-keyword retrieval)
-    if prompt_words and retrieved_records:
-        topic_matched_records = []
+    # Prioritize target member turns first, then mentor turns
+    if target_member and retrieved_records:
+        target_m_recs = []
+        mentor_s_recs = []
         for r in retrieved_records:
-            p_text = (r.payload.get('text', '') if hasattr(r, 'payload') else r.get('payload', {}).get('text', '')).lower()
-            # Match any word from prompt_words in text
-            if any(re.search(r'\b' + re.escape(word) + r'\b', p_text) for word in prompt_words):
-                topic_matched_records.append(r)
-        
-        if topic_matched_records:
-            retrieved_records = topic_matched_records[:15]
-        else:
-            # STRICT ANTI-HALLUCINATION FALLBACK: No topic match found!
-            missing_topic = " ".join([w.upper() if len(w) <= 4 else w.capitalize() for w in prompt_words])
-            return f"❌ **Anti-Hallucination Policy Triggered:** No transcript evidence found for **'{missing_topic}'** in {target_member}'s meeting records."
+            p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
+            s = p.get('speaker', '')
+            if s == target_member:
+                target_m_recs.append(r)
+            elif s == "Siddharth Saminathan":
+                mentor_s_recs.append(r)
+        retrieved_records = (target_m_recs + mentor_s_recs)[:25]
     else:
-        retrieved_records = retrieved_records[:15]
+        retrieved_records = retrieved_records[:25]
         
     date_note = ""
     evidence_text = []
@@ -446,7 +437,8 @@ Format your output clearly:
                 continue
             seen_keys.add(txt_key)
             role_lbl = "(Mentor)" if "siddharth" in spk.lower() else "(Teammate)"
-            evidence_text.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | Speaker: {spk} {role_lbl}]: \"{clean_text}\"")
+            r_date = resolve_record_date(payload)
+            evidence_text.append(f"[{r_date} | Page {payload.get('page', 'N/A')} | Speaker: {spk} {role_lbl}]: \"{clean_text}\"")
         
     evidence_str = "\n".join(evidence_text) if evidence_text else "Active contributor across meeting sessions."
     # Branch A: Technical Quiz / Question Guide for Siddharth
