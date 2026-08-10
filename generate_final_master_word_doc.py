@@ -47,7 +47,7 @@ r1.font.size = Pt(14)
 r1.font.bold = True
 r1.font.color.rgb = RGBColor(14, 56, 122)
 
-img_path = r"C:\Users\Omnex\.gemini\antigravity-ide\brain\3f8efc03-ec37-4d57-a983-6ad20233a8dc\perfect_siddharth_architecture_flowchart_1785344325924.png"
+img_path = r"C:\Users\Omnex\.gemini\antigravity-ide\brain\3f8efc03-ec37-4d57-a983-6ad20233a8dc\updated_direct_metadata_architecture_flowchart_1785400357963.png"
 if os.path.exists(img_path):
     p_img = doc.add_paragraph()
     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER

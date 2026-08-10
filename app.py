@@ -25,35 +25,81 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom Styling (Dark Mode & Premium Aesthetics)
+# Custom Styling (Dark Mode, Glassmorphism & Modern Typography)
 st.markdown("""
 <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+    
     .main {
         background-color: #0E1117;
     }
+    
     .stApp {
-        background: linear-gradient(135deg, #0e1117 0%, #161b22 100%);
+        background: radial-gradient(circle at 50% -20%, #1a2333 0%, #0e1117 70%);
     }
+    
     .metric-card {
-        background: rgba(22, 27, 34, 0.8);
-        border: 1px solid #30363d;
-        border-radius: 10px;
-        padding: 15px;
+        background: rgba(22, 27, 34, 0.75);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 12px;
+        padding: 18px;
         text-align: center;
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.37);
+        transition: transform 0.3s ease, box-shadow 0.3s ease;
     }
-    .stButton>button {
-        background-color: #238636;
-        color: white;
+    
+    .metric-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 28px rgba(0, 191, 255, 0.15);
+        border-color: rgba(0, 191, 255, 0.4);
+    }
+    
+    .metric-card h3 {
+        color: #58a6ff;
+        font-size: 26px;
+        margin-bottom: 4px;
+        font-weight: 700;
+    }
+    
+    .metric-card p {
+        color: #8b949e;
+        font-size: 13px;
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }
+    
+    /* Sleek Proof Citations Block */
+    blockquote, div[data-testid="stMarkdownContainer"] blockquote {
+        background: rgba(22, 27, 34, 0.85);
+        border-left: 4px solid #2ea043 !important;
         border-radius: 6px;
+        padding: 12px 16px;
+        margin: 10px 0;
+        color: #c9d1d9;
+    }
+    
+    .stButton>button {
+        background: linear-gradient(135deg, #238636 0%, #2ea043 100%);
+        color: white;
+        border-radius: 8px;
         border: none;
-        padding: 8px 16px;
+        padding: 10px 20px;
         font-weight: 600;
+        box-shadow: 0 4px 14px rgba(46, 160, 67, 0.3);
         transition: all 0.3s ease;
     }
+    
     .stButton>button:hover {
-        background-color: #2ea043;
-        box-shadow: 0 0 10px rgba(46, 160, 67, 0.4);
+        background: linear-gradient(135deg, #2ea043 0%, #3fb950 100%);
+        box-shadow: 0 6px 20px rgba(46, 160, 67, 0.5);
+        transform: translateY(-2px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -114,6 +160,10 @@ if uploaded_file is not None:
         f.write(uploaded_file.getbuffer())
     st.sidebar.success(f"Connected '{uploaded_file.name}' to RAG System!")
 
+if st.sidebar.button("🗑️ Clear Chat History"):
+    st.session_state["agent_chat_histories"] = {}
+    st.rerun()
+
 st.sidebar.markdown("---")
 st.sidebar.subheader("🎯 Quick Preset Actions")
 
@@ -131,14 +181,20 @@ if system_role == "Mentor":
         st.session_state["user_prompt"] = "Summarize the key technical discussions between Siddharth and the team"
         st.session_state["selected_role"] = "siddharth"
 
+    if st.sidebar.button("🔬 Data Quality & Normalization"):
+        st.session_state["show_normalizer_demo"] = True
+
 elif system_role == "Manager":
-    if st.sidebar.button("📋 Team Action Items"):
-        st.session_state["user_prompt"] = "What are the project updates and action items for the team?"
+    if st.sidebar.button("📋 Team Learning Progress"):
+        st.session_state["user_prompt"] = "What are the AIML training progress and skill learning updates for the team?"
         st.session_state["selected_role"] = "manager"
 
-    if st.sidebar.button("📈 Executive Project Status"):
-        st.session_state["user_prompt"] = "Show executive project status and completed team milestones"
+    if st.sidebar.button("🎓 AIML Training Overview"):
+        st.session_state["user_prompt"] = "Show AIML training overview and completed team learning accomplishments"
         st.session_state["selected_role"] = "manager"
+
+    if st.sidebar.button("🔬 Data Quality & Normalization"):
+        st.session_state["show_normalizer_demo"] = True
 
 else: # Teammate
     if st.sidebar.button(f"💬 My Spoken Quotes ({active_user_name.split()[0]})"):
@@ -149,9 +205,8 @@ else: # Teammate
         st.session_state["user_prompt"] = "Explain how LocalVectorStore and RAG architecture work in qdrant_queries.py"
         st.session_state["selected_role"] = role_key
 
-    if st.sidebar.button("📖 Suggested Technical Topics"):
-        st.session_state["user_prompt"] = "What are the key technical concepts and reading topics from my meeting transcripts?"
-        st.session_state["selected_role"] = role_key
+    if st.sidebar.button("🔬 Data Quality & Normalization"):
+        st.session_state["show_normalizer_demo"] = True
 
 # Metrics Banner
 col1, col2, col3, col4 = st.columns(4)
@@ -166,12 +221,41 @@ with col4:
 
 st.markdown("---")
 
-# Initialize & Dynamic Reset of Chat History on User Switch
-if "current_user" not in st.session_state or st.session_state["current_user"] != active_user_name:
-    st.session_state["current_user"] = active_user_name
-    st.session_state["messages"] = [
+# Pre-Chunking Normalization & Data Quality Inspector UI
+with st.expander("🛠️ Pre-Chunking Normalization & Data Quality Inspector (Siddharth's Architecture Fix)", expanded=False):
+    st.markdown("### 🎙️ Pre-Chunking Crosstalk Re-Attribution & Subset Vector Search")
+    st.info("Fixes audio leakage / unmuted mic misattributions before chunking and enables exact brute-force search over payload-filtered subsets.")
+    
+    col_raw, col_clean = st.columns(2)
+    with col_raw:
+        st.markdown("#### ❌ Raw Un-Normalized Input (Mic Leakage)")
+        st.code("""Dakshinya Nachimuthu 8 minutes 57 seconds
+Siddharth Saminathan: OK, think about these things. Next task for Himaya is to work on prompt engineering.
+
+--> RAG Error: Attributed Siddharth's task assignment to Dakshinya!""", language="text")
+    
+    with col_clean:
+        st.markdown("#### ✅ After Pre-Chunking Normalization")
+        st.code("""👤 [Siddharth Saminathan]: "OK, think about these things. Next task for Himaya is to work on prompt engineering."
+👤 [Dakshinya Nachimuthu]: "Inventor agent technology specifically asks for word."
+
+--> Clean RAG Attribution: Siddharth's task assigned correctly to Himaya!""", language="text")
+        
+    st.success("✔ **Data Quality Pipeline Status:** ACTIVE | Pre-chunking speaker re-attribution enabled before Qdrant indexing.")
+
+st.markdown("---")
+
+# Initialize & Maintain Persistent Multi-Agent Chat Histories (No History Loss on Switching)
+if "agent_chat_histories" not in st.session_state:
+    st.session_state["agent_chat_histories"] = {}
+
+if active_user_name not in st.session_state["agent_chat_histories"]:
+    st.session_state["agent_chat_histories"][active_user_name] = [
         {"role": "assistant", "content": f"Hello {active_user_name}! You are logged in under **{system_role} Access Mode**. How can I assist you today?"}
     ]
+
+# Bind current display view to active user's persistent chat log
+st.session_state["messages"] = st.session_state["agent_chat_histories"][active_user_name]
 
 # Display Chat History
 for msg in st.session_state["messages"]:

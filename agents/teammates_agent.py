@@ -61,33 +61,92 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
     
     # 1. User-Scoped Private Transcript Turns (User ID Scoped + Smart Date Matching across ALL 2,843 records)
     u_filter = Filter(must=[FieldCondition(key="speaker", match=MatchValue(value=full_user_name))])
-    user_recs, _ = client.scroll(collection_name=collection_name, limit=3000, scroll_filter=u_filter)
+    user_recs = []
+    offset = None
+    while True:
+        r_batch, offset = client.scroll(collection_name=collection_name, limit=1000, offset=offset, scroll_filter=u_filter)
+        user_recs.extend(r_batch)
+        if offset is None or not r_batch:
+            break
     
-    # Check if prompt specifies a date (e.g. 22/07/2026, 22 July, 22nd, 23rd, 21st)
+    # Robust Date Extraction (e.g. 22/07/2026, 22 July, 22nd, 21st)
     import re
-    date_match = re.search(r'\b(\d{1,2})(?:st|nd|rd|th)?\b', user_prompt, re.IGNORECASE)
-    target_day = date_match.group(1) if date_match else ""
+    date_match = re.search(r'\b(\d{1,2})[/\-](0?7|july)', user_prompt, re.IGNORECASE) or \
+                 re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:of\s*)?(july|jul)\b', user_prompt, re.IGNORECASE) or \
+                 re.search(r'\b(?:july|jul)\s*(\d{1,2})\b', user_prompt, re.IGNORECASE) or \
+                 re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)\b', user_prompt, re.IGNORECASE)
+    target_day = ""
+    if date_match:
+        digits = [g for g in date_match.groups() if g and g.isdigit()]
+        if digits and 1 <= int(digits[0]) <= 31:
+            target_day = str(int(digits[0]))
+            
+    from transcript_normalizer import reattribute_crosstalk_turn
     
-    matched_recs = []
-    if target_day:
-        # Filter for turns matching target day (e.g. "20") with substantial spoken content (> 20 chars)
-        for pt in user_recs:
+    # Filter user_recs to exclude crosstalk turns spoken by Mentor Siddharth
+    clean_user_recs = []
+    for pt in user_recs:
+        payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
+        orig_spk = payload.get('speaker', '')
+        txt = payload.get('text', '')
+        real_spk, clean_txt = reattribute_crosstalk_turn(orig_spk, txt)
+        if real_spk == full_user_name:
+            clean_user_recs.append((pt, clean_txt))
+            
+    # Extract clean keywords from prompt (including numbers like 62833 / 62,833 / a4)
+    raw_words = re.findall(r'\b[\w,]+\b', user_prompt)
+    STOPWORDS = set(["what", "did", "discuss", "about", "regarding", "with", "show", "give", "tell", "completed", "specific", "how", "was", "mentioned", "summarize", "accomplished", "accomplishments", "contributions", "performance", "my", "work", "technical"])
+    query_words = [w.lower().replace(',', '') for w in raw_words if len(w) >= 3 and w.lower() not in STOPWORDS]
+    prompt_numbers = [n for n in re.findall(r'\b\d{4,6}\b', user_prompt.replace(',', ''))]
+    
+    # If specific target_day requested or specific query_words exist, score by relevance; otherwise sample across all dates
+    if target_day or query_words or prompt_numbers:
+        scored_user_recs = []
+        for pt, clean_t in clean_user_recs:
             payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
             date_str = str(payload.get('date', ''))
-            clean_t = payload.get('text', '').strip()
-            if target_day in date_str and len(clean_t) > 20:
-                matched_recs.append(pt)
-                
-    if not matched_recs:
-        matched_recs = [pt for pt in user_recs if len(pt.payload.get('text', '').strip()) > 20][:10]
+            txt_clean_norm = clean_t.lower().replace(',', '')
+            
+            score = sum(10 for w in query_words if re.search(r'\b' + re.escape(w) + r'(?:s|ing|ed)?\b', txt_clean_norm))
+            if any(num in txt_clean_norm for num in prompt_numbers):
+                score += 100
+            if target_day and target_day in date_str:
+                score += 50
+            scored_user_recs.append((score, pt, clean_t))
+            
+        scored_user_recs.sort(key=lambda x: x[0], reverse=True)
+        
+        seen_texts = set()
+        matched_recs = []
+        for score, pt, clean_t in scored_user_recs:
+            snippet_key = clean_t[:50].strip()
+            if snippet_key not in seen_texts and len(clean_t) > 15:
+                seen_texts.add(snippet_key)
+                matched_recs.append((pt, clean_t))
+                if len(matched_recs) >= 8:
+                    break
     else:
-        # Sort by longest spoken turn length to ensure rich transcript evidence payload
-        matched_recs = sorted(matched_recs, key=lambda pt: len(pt.payload.get('text', '').strip()), reverse=True)[:10]
-    
+        # Multi-Date Diversity Sampler across ALL July dates
+        date_groups = {}
+        for pt, clean_t in clean_user_recs:
+            payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
+            p_date = str(payload.get('date', 'N/A'))
+            if p_date not in date_groups:
+                date_groups[p_date] = []
+            date_groups[p_date].append((pt, clean_t))
+            
+        matched_recs = []
+        for p_date in sorted(date_groups.keys()):
+            for pt, clean_t in date_groups[p_date][:2]:
+                if len(clean_t) > 20:
+                    matched_recs.append((pt, clean_t))
+                    if len(matched_recs) >= 10:
+                        break
+                        
     transcript_chunks = []
-    for pt in matched_recs:
+    for pt, clean_t in matched_recs:
         payload = pt.payload if hasattr(pt, 'payload') else pt.get('payload', {})
-        transcript_chunks.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | User: {payload.get('speaker', 'Unknown')}]: \"{payload.get('text', '').strip()}\"")
+        transcript_chunks.append(f"[{payload.get('date', 'N/A')} | Page {payload.get('page', 'N/A')} | User: {full_user_name}]: \"{clean_t}\"")
         
     transcript_str = "\n".join(transcript_chunks) if transcript_chunks else "No specific user-scoped turns found."
     
@@ -100,8 +159,8 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         
     code_excerpt = scan_local_codebase(target_file)
     # Check prompt intent with typo tolerance
-    is_quote_request = any(k in user_prompt.lower() for k in ["spoke", "discussed", "said", "transcript", "quotes", "what i", "what did i", "dialogue", "give me"])
-    is_performance_request = any(k in user_prompt.lower() for k in ["perform", "perfrom", "progress", "accomplish", "work", "contribution", "how was", "what did i do"])
+    is_quote_request = any(k in user_prompt.lower() for k in ["spoke", "discussed", "said", "transcript", "quotes", "what i said", "what did i say", "dialogue", "give me quotes"])
+    is_performance_request = any(k in user_prompt.lower() for k in ["my performance", "performance", "scorecard", "accomplishment", "accomplished", "contributions", "what did i do"])
     is_code_request = any(k in user_prompt.lower() for k in ["code", "architecture", "localvectorstore", "qdrant_queries", "how works", "explain how"])
     
     if is_quote_request:
@@ -113,13 +172,13 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         )
     elif is_performance_request:
         schema = (
-            "STRICT MANDATE: Output ONLY the Personal Technical Accomplishments section below. DO NOT output codebase explanations, unanswered question lists, or generic reading topics.\n\n"
-            "Format your output strictly as:\n"
-            "# 🛠️ PERSONAL TECHNICAL ACCOMPLISHMENTS & SPOKEN CONTRIBUTIONS\n\n"
-            "### 👤 Himaya Perumal:\n"
-            "- **Vector Caching & Storage Implementation:** Implemented speaker-turn chunking and verified Qdrant vector storage [21 July 2026 | Page 34 | Speaker: Himaya Perumal].\n"
-            "- **Automation & MCT Recovery:** Discussed cron job automation and automatic restart mechanisms when MCT is offline [20 July 2026 | Page 59 | Speaker: Himaya Perumal].\n"
-            "- **Cloud Embedding Hosting Analysis:** Evaluated cost tradeoffs for hosting custom embedding models vs cloud API endpoints [23 July 2026 | Page 43 | Speaker: Himaya Perumal].\n"
+            "Synthesize the user's accomplishments and contributions strictly from the retrieved evidence turns below across ALL review dates.\n"
+            "MANDATORY MULTI-DATE CITATIONS: You MUST include bullet points and matching verbatim transcript proofs for ALL distinct meeting dates present in the retrieved evidence (e.g. 22 July, 23 July, 28 July).\n"
+            "CRITICAL NUMBERING RULE: Use bullet points (`•`) instead of numbered lists (1, 2, 3) to prevent duplicate item numbers across quote blocks.\n\n"
+            "Format each distinct accomplishment as:\n"
+            "• **[Topic / Date Accomplishment]**: [Summary from evidence]\n"
+            "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | User: Name]: \"Exact raw quote from evidence\"`\n\n"
+            "DO NOT limit citations to a single date when multiple dates exist in the evidence below."
         )
     elif is_code_request:
         schema = (
@@ -130,8 +189,8 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         )
     else:
         schema = (
-            "Provide a clean, professional, grounded response to the user's question using the transcript evidence below.\n"
-            "Cite exact source turns [Date | Page | Speaker] for every statement."
+            "Provide a clean, professional, grounded response directly answering every part of the user's technical question using the retrieved transcript evidence below.\n"
+            "For EVERY topic or question in the prompt, synthesize the answer from the evidence and cite the matching verbatim transcript proof: `[Date | Page X | User: Name]: \"Exact raw quote\"` directly underneath."
         )
 
     from prompt_builder import EnterprisePromptBuilder

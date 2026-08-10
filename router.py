@@ -44,15 +44,17 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
         return run_mentor_agent(user_prompt, target_member=target_member)
         
     elif role_lower in ["himaya", "ganesh", "dakshinya", "teammate", "intern"]:
-        # Intent Override for Teammates/Mentor: Evaluation & Quiz requests
-        if any(word in prompt_lower for word in ["evaluate", "performance", "score", "quiz"]):
+        # Intent Override for Teammates/Mentor: Explicit Evaluation & Quiz requests only
+        is_eval_request = any(k in prompt_lower for k in ["evaluate performance", "my performance", "performance score", "scorecard", "my score", "generate quiz", "quiz me", "create a quiz"])
+        if is_eval_request:
             target = target_member if target_member else user_role.capitalize()
             return run_mentor_agent(user_prompt, target_member=target)
         return run_teammates_agent(user_prompt, user_name=user_role.capitalize())
         
     # Auto Role Detection based on Prompt Intent
     else:
-        if any(word in prompt_lower for word in ["evaluate", "performance", "score", "quiz"]):
+        is_eval_request = any(k in prompt_lower for k in ["evaluate performance", "my performance", "performance score", "scorecard", "my score", "generate quiz", "quiz me", "create a quiz"])
+        if is_eval_request:
             return run_mentor_agent(user_prompt, target_member=target_member)
         elif any(word in prompt_lower for word in ["code", "explain", "how does", "reading"]):
             return run_teammates_agent(user_prompt, user_name="Teammate")

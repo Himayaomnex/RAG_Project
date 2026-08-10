@@ -91,8 +91,9 @@ class LocalVectorStore:
 
         pts = self.data[collection_name]["points"]
         
-        if scroll_filter and hasattr(scroll_filter, 'must'):
-            for cond in scroll_filter.must:
+        if scroll_filter:
+            must_conds = getattr(scroll_filter, 'must', None) or []
+            for cond in must_conds:
                 try:
                     k = getattr(cond, 'key', None)
                     v = getattr(getattr(cond, 'match', None), 'value', None)
@@ -100,6 +101,20 @@ class LocalVectorStore:
                         pts = [p for p in pts if str(p["payload"].get(k, '')).lower() == str(v).lower() or str(v).lower() in str(p["payload"].get(k, '')).lower()]
                 except Exception:
                     pass
+
+            should_conds = getattr(scroll_filter, 'should', None) or []
+            if should_conds:
+                or_pts = []
+                for cond in should_conds:
+                    try:
+                        k = getattr(cond, 'key', None)
+                        v = getattr(getattr(cond, 'match', None), 'value', None)
+                        if k and v:
+                            matched = [p for p in pts if str(p["payload"].get(k, '')).lower() == str(v).lower() or str(v).lower() in str(p["payload"].get(k, '')).lower()]
+                            or_pts.extend(matched)
+                    except Exception:
+                        pass
+                pts = or_pts
 
         if offset is None:
             offset = 0
@@ -311,10 +326,16 @@ def chunk_turn_text(speaker, text, date, turn_index, start_page, source_file="ha
             current_page = new_page
             raw_segments.append((speaker.strip(), text_segment, current_page, True))
 
-    # Apply Secondary Monologue Safeguard: Sub-chunk segments longer than 300 words
+    # Apply Secondary Monologue Safeguard & Crosstalk Re-attribution
     final_chunks = []
     MAX_WORDS = 300
+    try:
+        from transcript_normalizer import reattribute_crosstalk_turn
+    except Exception:
+        reattribute_crosstalk_turn = lambda s, t: (s, t)
+
     for seg_speaker, seg_text, seg_page, seg_split in raw_segments:
+        seg_speaker, seg_text = reattribute_crosstalk_turn(seg_speaker, seg_text)
         words = seg_text.split()
         if len(words) <= MAX_WORDS:
             final_chunks.append({
@@ -377,33 +398,58 @@ def extract_date_from_filename(filename):
 
 def parse_and_chunk_transcript(raw_text, source_file="hardcoded"):
     """
-    Parses the raw transcript text, extracting meetings, speaker turns,
-    and applying the page-split chunking logic.
+    Parses the raw transcript text, applying pre-chunking speaker & crosstalk 
+    normalization before page-split chunking logic.
     """
+    # 1. Extract date from raw_text BEFORE normalization
+    file_meeting_date = "Unknown Date"
+    dm = re.search(r"(\d{1,2}\s+(?:July|August|June|May|April|March|February|January)\s+\d{4})", raw_text[:1500], re.IGNORECASE)
+    if dm:
+        file_meeting_date = dm.group(1)
+    else:
+        dm2 = re.search(r"2026(\d{2})(\d{2})", raw_text[:1500] + " " + str(source_file))
+        if dm2:
+            mon_str = "July" if dm2.group(1) == "07" else ("August" if dm2.group(1) == "08" else "June")
+            file_meeting_date = f"{int(dm2.group(2))} {mon_str} 2026"
+
+    if file_meeting_date == "Unknown Date" and source_file:
+        extracted_date = extract_date_from_filename(source_file)
+        if extracted_date:
+            file_meeting_date = extracted_date
+
+    try:
+        from transcript_normalizer import build_normalized_transcript_text
+        raw_text = build_normalized_transcript_text(raw_text)
+    except Exception as e:
+        print(f"  - [Pre-Chunking Normalizer Notice]: {e}")
+
     chunks = []
     
     # Split text into meetings using meeting markers
-    meetings = raw_text.split("AIML- Training-")
+    meetings = re.split(r"AI_?ML-\s*Training-?", raw_text, flags=re.IGNORECASE)
     
     for meeting in meetings:
         if not meeting.strip():
             continue
             
-        # Parse date from the first few lines of the meeting block
         lines = [line.strip() for line in meeting.split("\n") if line.strip()]
         if not lines:
             continue
             
-        # The line containing the recording name starts the block, we scan lines for the date
-        meeting_date = "Unknown Date"
-        for line in lines[:4]:
-            # Look for date pattern like "20 July 2026" or "13 July 2026"
-            date_match = re.search(r"(\d+\s+[A-Za-z]+\s+\d{4})", line)
-            if date_match:
-                meeting_date = date_match.group(1)
-                break
+        meeting_date = file_meeting_date
+        if meeting_date == "Unknown Date":
+            full_text_sample = "\n".join(lines[:10])
+            dm_sub = re.search(r"(\d{1,2}\s+[A-Za-z]+\s+\d{4})", full_text_sample)
+            if dm_sub:
+                meeting_date = dm_sub.group(1)
+            else:
+                dm2 = re.search(r"(\d{4})(\d{2})(\d{2})", full_text_sample)
+                if dm2:
+                    year, month, day = dm2.groups()
+                    months_map = {"01":"January", "02":"February", "03":"March", "04":"April", "05":"May", "06":"June", "07":"July", "08":"August", "09":"September", "10":"October", "11":"November", "12":"December"}
+                    m_name = months_map.get(month, "July")
+                    meeting_date = f"{int(day)} {m_name} {year}"
                 
-        # Filename fallback if date is not found in document text
         if meeting_date == "Unknown Date" and source_file:
             extracted_date = extract_date_from_filename(source_file)
             if extracted_date:
@@ -536,9 +582,9 @@ def call_llm_api(prompt_text, model="llama-3.3-70b-versatile"):
     """
     groq_key = os.environ.get("GROQ_API_KEY")
     if groq_key:
-        models_to_try = [model, "llama-3.1-8b-instant", "gemma2-9b-it"]
-        # Limit prompt length to avoid TPM/RPM rate limits
-        truncated_prompt = prompt_text[:6000] if len(prompt_text) > 6000 else prompt_text
+        models_to_try = ["llama-3.1-8b-instant", model, "qwen-2.5-coder-32b"]
+        # Limit prompt length to 12000 chars to fit all 3 teammates without truncating Dakshinya or Himaya
+        truncated_prompt = prompt_text[:12000] if len(prompt_text) > 12000 else prompt_text
         
         for target_model in models_to_try:
             print(f"DEBUG: Trying Groq [{target_model}] (Length: {len(truncated_prompt)} chars)...")
@@ -546,28 +592,39 @@ def call_llm_api(prompt_text, model="llama-3.3-70b-versatile"):
             data = {
                 "model": target_model,
                 "messages": [
+                    {"role": "system", "content": "You are an enterprise AI assistant for meeting transcripts. Provide direct, grounded, accurate answers adhering strictly to the user's query and prompt rules. Do NOT output greetings or conversational intros."},
                     {"role": "user", "content": truncated_prompt}
                 ],
-                "max_tokens": 1200
+                "max_tokens": 2500,
+                "temperature": 0.0
             }
-            req = urllib.request.Request(
-                url,
-                data=json.dumps(data).encode("utf-8"),
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {groq_key}",
-                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
-                },
-                method="POST"
-            )
-            try:
-                with urllib.request.urlopen(req) as response:
-                    res_data = json.loads(response.read().decode("utf-8"))
-                    usage = res_data.get("usage", {})
-                    print(f"\n[API Usage Metrics ({target_model})]: Input Tokens: {usage.get('prompt_tokens', 0)} | Output Tokens: {usage.get('completion_tokens', 0)}")
-                    return res_data["choices"][0]["message"]["content"]
-            except Exception as e:
-                print(f"  - [Notice]: Groq [{target_model}] failed: {e}. Trying fallback model...")
+            
+            for attempt in range(3):
+                req = urllib.request.Request(
+                    url,
+                    data=json.dumps(data).encode("utf-8"),
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {groq_key}",
+                        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+                    },
+                    method="POST"
+                )
+                try:
+                    with urllib.request.urlopen(req) as response:
+                        res_data = json.loads(response.read().decode("utf-8"))
+                        usage = res_data.get("usage", {})
+                        print(f"\n[API Usage Metrics ({target_model})]: Input Tokens: {usage.get('prompt_tokens', 0)} | Output Tokens: {usage.get('completion_tokens', 0)}")
+                        return res_data["choices"][0]["message"]["content"]
+                except Exception as e:
+                    if "429" in str(e):
+                        import time
+                        wait_time = (attempt + 1) * 5.0
+                        print(f"  - [Notice]: Rate limit 429 encountered for {target_model} (attempt {attempt+1}/3). Waiting {wait_time}s...")
+                        time.sleep(wait_time)
+                    else:
+                        print(f"  - [Notice]: Groq [{target_model}] failed: {e}.")
+                        break
 
     # 2. Try Gemini (Fallback)
     gemini_key = os.environ.get("GEMINI_API_KEY")
@@ -733,7 +790,8 @@ def main():
     # Check if there are new files in the folder or if any files were deleted
     needs_reindex = False
     for f in local_docx_files:
-        if f not in indexed_files:
+        b_f = os.path.basename(f)
+        if b_f not in indexed_files:
             needs_reindex = True
             break
     if len(local_docx_files) != len(indexed_files):
@@ -815,15 +873,21 @@ def main():
                 
         # Alternatively, scan current directory for all docx files
         if not docx_files:
-            for file in os.listdir("."):
-                if file.endswith('.docx') and not file.startswith('~$'):
-                    docx_files.append(file)
+            seen_base_names = set()
             if os.path.exists("transcripts"):
                 for file in os.listdir("transcripts"):
                     if file.endswith('.docx') and not file.startswith('~$'):
                         full_p = os.path.join("transcripts", file)
-                        if full_p not in docx_files:
+                        bname = os.path.basename(full_p)
+                        if bname not in seen_base_names:
+                            seen_base_names.add(bname)
                             docx_files.append(full_p)
+            for file in os.listdir("."):
+                if file.endswith('.docx') and not file.startswith('~$'):
+                    bname = os.path.basename(file)
+                    if bname not in seen_base_names:
+                        seen_base_names.add(bname)
+                        docx_files.append(file)
             
         if docx_files:
             print(f"Found {len(docx_files)} Word document(s) to process:")
