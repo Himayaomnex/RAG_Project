@@ -54,6 +54,41 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
         
     collection_name = "meeting_transcripts"
 
+    FILE_DATE_MAP = {
+        'AI_ML- Training .docx': '2 July 2026',
+        'AI_ML- Training  (1).docx': '3 July 2026',
+        'AI_ML- Training  (2).docx': '8 July 2026',
+        'AI_ML- Training  (3).docx': '10 July 2026',
+        'AI_ML- Training  (4).docx': '13 July 2026',
+        'AI_ML- Training  (5).docx': '13 July 2026',
+        'AI_ML- Training  (5) 1.docx': '13 July 2026',
+        'AI_ML- Training  (6).docx': '14 July 2026',
+        'AI_ML- Training  (7).docx': '15 July 2026',
+        'AI_ML- Training  (8).docx': '16 July 2026',
+        'AI_ML- Training  (9).docx': '17 July 2026',
+        'AI_ML- Training  (10).docx': '20 July 2026',
+        'AI_ML- Training  (11).docx': '21 July 2026',
+        'AI_ML- Training  (12).docx': '21 July 2026',
+        'AI_ML- Training  (13).docx': '22 July 2026',
+        'AI_ML- Training  (14).docx': '23 July 2026',
+        'AI_ML- Training  (15).docx': '24 July 2026',
+        'AI_ML- Training  (16).docx': '27 July 2026',
+        'AI_ML- Training  (17).docx': '28 July 2026',
+        'AI_ML- Training  (18).docx': '29 July 2026',
+        'AI_ML- Training  (19).docx': '30 July 2026',
+        'AI_ML- Training  (20).docx': '31 July 2026',
+        'AI_ML- Training  (21).docx': '4 August 2026',
+    }
+
+    def resolve_record_date(payload: dict) -> str:
+        raw_date = str(payload.get('date') or payload.get('meeting_date') or '').strip()
+        if raw_date and not any(w in raw_date.lower() for w in ['n/a', 'none', 'unknown']):
+            return raw_date
+        src_file = str(payload.get('source_file', '')).strip()
+        if src_file in FILE_DATE_MAP:
+            return FILE_DATE_MAP[src_file]
+        return '14 July 2026'
+
     # Team Query Dispatcher: Scorecard vs Reading Topics vs Discussion Summary vs Quiz
     if is_team_query:
         print("  - [Mentor Agent]: Processing Team Query for Siddharth...")
@@ -95,9 +130,7 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
             date_groups = {}
             for r in recs:
                 p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-                p_date = str(p.get('date') or p.get('meeting_date') or '').strip()
-                if not p_date or p_date.lower() in ['n/a', 'none', 'unknown']:
-                    p_date = '22 July 2026'
+                p_date = resolve_record_date(p)
                 if target_day and target_day not in p_date:
                     continue
                 if p_date not in date_groups:
@@ -109,9 +142,7 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
             siddharth_date_groups = {}
             for s_r in siddharth_recs:
                 s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
-                s_date = str(s_p.get('date') or s_p.get('meeting_date') or '').strip()
-                if not s_date or any(w in s_date.lower() for w in ['n/a', 'none', 'unknown']):
-                    s_date = '14 July 2026'
+                s_date = resolve_record_date(s_p)
                 if target_day and target_day not in s_date:
                     continue
                 if s_date not in siddharth_date_groups:
@@ -145,9 +176,7 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
                         continue
                         
                     if len(clean_txt) > 25 and spk != "Siddharth Saminathan":
-                        p_date_clean = str(p_date).strip()
-                        if not p_date_clean or any(w in p_date_clean.lower() for w in ['n/a', 'none', 'unknown']):
-                            p_date_clean = '22 July 2026'
+                        p_date_clean = resolve_record_date(p)
                         sc = sum(15 for w in ["caching", "vector", "qdrant", "excel", "etl", "mcp", "schema", "openpyxl", "chunking", "prompts", "workflow"] if w in clean_txt.lower())
                         scored_turns.append((sc, p_date_clean, p.get('page', 'N/A'), spk, clean_txt))
                         
