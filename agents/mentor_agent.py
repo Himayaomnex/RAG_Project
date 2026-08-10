@@ -312,15 +312,11 @@ Format your output clearly:
             is_correction_query = any(k in prompt_lower for k in ["correction", "corrections", "slide", "slides", "feedback", "assigned", "instructed"])
             if is_correction_query:
                 schema = (
-                    "RESPONSE SCHEMA FOR MENTOR (SIDDHARTH SAMINATHAN):\n"
-                    "1. STRICT SPEAKER MANDATE: Under '📜 Mentor Spoken Correction (Siddharth):', ONLY cite proof quotes where Speaker is Siddharth Saminathan (Mentor)! Under '📜 Teammate Acknowledgment (Name):', ONLY cite proof quotes where Speaker is a Teammate (Himaya, Ganesh, or Dakshinya).\n"
-                    "2. FORBIDDEN MIS-ATTRIBUTION: NEVER label a quote from Ganesh Krishna, Himaya Perumal, or Dakshinya Nachimuthu under 'Mentor Spoken Correction (Siddharth)'!\n"
-                    "3. Structure each item strictly as:\n"
-                    "* **[Task / Correction Name]**:\n"
-                    "  * 📜 **Mentor Spoken Correction (Siddharth):** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from Siddharth\"`\n"
-                    "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Teammate Name (Teammate)]: \"Exact spoken quote from teammate\"`\n"
-                    "4. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use the exact real parsed meeting date from evidence below.\n"
-                    "5. MULTI-DATE COVERAGE MANDATE: You MUST summarize and cite tasks across ALL distinct July meeting dates present in evidence below (e.g. 2 July, 14 July, 16 July, 21 July, 22 July, 27 July, 28 July, 31 July). Do NOT restrict output to only 1 or 2 dates!"
+                    "# 📋 MENTOR ASSIGNED TASKS & VERBATIM CITATIONS (JULY 2026)\n"
+                    "For EVERY single task assigned by Siddharth across July, you MUST output a bold task title and attach the matching 📜 proof line directly underneath:\n\n"
+                    "* **[Task Title Name]**:\n"
+                    "  * 📜 **Matching Verbatim Transcript Proof:** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from evidence below\"`\n\n"
+                    "CRITICAL FORMAT MANDATE: DO NOT output plain numbered text like '1. Brush up... 2. Implement...'! EVERY single item MUST be formatted with its bold title and 📜 proof line indented directly underneath it!"
                 )
             else:
                 schema = (
@@ -343,7 +339,14 @@ Format your output clearly:
                 .add_rag_context([evidence_str])
                 .add_citation_rules()
                 .add_response_schema(schema)
-                .add_user_query(user_prompt)
+                .add_user_query(
+                    f"{user_prompt}\n\n"
+                    "MANDATORY OUTPUT FORMAT:\n"
+                    "For EVERY single task assigned by Siddharth across July, you MUST format it as:\n"
+                    "* **[Task Name]**:\n"
+                    "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from evidence below\"`\n\n"
+                    "DO NOT output plain numbered list text like '1. Brush up... 2. Implement...'! EVERY single item MUST have a 📜 proof line indented underneath it."
+                )
             )
             llm_prompt = prompt_builder.build()
             return call_llm_api(llm_prompt)
