@@ -104,17 +104,22 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
         if offset is None or not r_batch:
             break
     
-    # Robust Date Extraction (e.g. 22/07/2026, 22 July, 22nd, 21st)
+    # Robust Date Extraction (e.g. 04/08/2026, 4 August, 22/07/2026, 22 July, 22nd, 21st)
     import re
-    date_match = re.search(r'\b(\d{1,2})[/\-](0?7|july)', user_prompt, re.IGNORECASE) or \
-                 re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:of\s*)?(july|jul)\b', user_prompt, re.IGNORECASE) or \
-                 re.search(r'\b(?:july|jul)\s*(\d{1,2})\b', user_prompt, re.IGNORECASE) or \
+    date_match = re.search(r'\b(\d{1,2})[/\-](0?[78]|july|august|aug)', user_prompt, re.IGNORECASE) or \
+                 re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:of\s*)?(july|jul|august|aug)\b', user_prompt, re.IGNORECASE) or \
+                 re.search(r'\b(?:july|jul|august|aug)\s*(\d{1,2})\b', user_prompt, re.IGNORECASE) or \
                  re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)\b', user_prompt, re.IGNORECASE)
     target_day = ""
+    target_month = ""
     if date_match:
         digits = [g for g in date_match.groups() if g and g.isdigit()]
         if digits and 1 <= int(digits[0]) <= 31:
             target_day = str(int(digits[0]))
+        if any(w in user_prompt.lower() for w in ["august", "aug", "/08", "-08"]):
+            target_month = "august"
+        elif any(w in user_prompt.lower() for w in ["july", "jul", "/07", "-07"]):
+            target_month = "july"
             
     from transcript_normalizer import reattribute_crosstalk_turn
     
@@ -145,8 +150,15 @@ def run_teammates_agent(user_prompt: str, user_name: str = "Teammate") -> str:
             score = sum(10 for w in query_words if re.search(r'\b' + re.escape(w) + r'(?:s|ing|ed)?\b', txt_clean_norm))
             if any(num in txt_clean_norm for num in prompt_numbers):
                 score += 100
-            if target_day and target_day in date_str:
-                score += 50
+            if target_day:
+                if target_month == "august" and ("august" in date_str.lower() or "/08" in date_str):
+                    if re.search(r'\b' + target_day + r'\b', date_str):
+                        score += 200
+                elif target_month == "july" and ("july" in date_str.lower() or "/07" in date_str):
+                    if re.search(r'\b' + target_day + r'\b', date_str):
+                        score += 200
+                elif re.search(r'\b' + target_day + r'\b', date_str):
+                    score += 100
             scored_user_recs.append((score, pt, clean_t))
             
         scored_user_recs.sort(key=lambda x: x[0], reverse=True)
