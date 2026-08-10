@@ -105,22 +105,31 @@ def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
                 date_groups[p_date].append(r)
                 
             member_recs = []
-            # 1. Add Mentor Siddharth's turns for this date
-            mentor_count = 0
+            # 1. Add Mentor Siddharth's turns grouped across ALL meeting dates
+            siddharth_date_groups = {}
             for s_r in siddharth_recs:
                 s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
                 s_date = str(s_p.get('date') or s_p.get('meeting_date') or '').strip()
                 if not s_date or any(w in s_date.lower() for w in ['n/a', 'none', 'unknown']):
                     s_date = '14 July 2026'
-                s_txt = clean_audio_artifacts(s_p.get('text', '').strip())
-                spk, clean_txt = reattribute_crosstalk_turn("Siddharth Saminathan", s_txt)
                 if target_day and target_day not in s_date:
                     continue
-                if len(clean_txt) > 25:
-                    member_recs.append(f"[{s_date} | Page {s_p.get('page', 'N/A')} | Speaker: Siddharth Saminathan (Mentor)]: \"{clean_txt[:250]}\"")
-                    mentor_count += 1
-                    if mentor_count >= 6:
-                        break
+                if s_date not in siddharth_date_groups:
+                    siddharth_date_groups[s_date] = []
+                siddharth_date_groups[s_date].append(s_r)
+                
+            for s_date in sorted(siddharth_date_groups.keys()):
+                s_turns = siddharth_date_groups[s_date]
+                s_count = 0
+                for s_r in s_turns:
+                    s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
+                    s_txt = clean_audio_artifacts(s_p.get('text', '').strip())
+                    spk, clean_txt = reattribute_crosstalk_turn("Siddharth Saminathan", s_txt)
+                    if len(clean_txt) > 25:
+                        member_recs.append(f"[{s_date} | Page {s_p.get('page', 'N/A')} | Speaker: Siddharth Saminathan (Mentor)]: \"{clean_txt[:250]}\"")
+                        s_count += 1
+                        if s_count >= 1:
+                            break
 
             # 2. Add Teammate's response turns ranked by technical content
             for p_date in sorted(date_groups.keys()):
@@ -281,7 +290,8 @@ Format your output clearly:
                     "* **[Task / Correction Name]**:\n"
                     "  * 📜 **Mentor Spoken Correction (Siddharth):** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from Siddharth\"`\n"
                     "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Teammate Name (Teammate)]: \"Exact spoken quote from teammate\"`\n"
-                    "4. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use a real parsed meeting date (e.g. 14 July 2026, 22 July 2026, 31 July 2026) from evidence below. If a Siddharth quote is not in evidence, omit the Mentor line. If a teammate quote is not in evidence, omit the Teammate line."
+                    "4. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use the exact real parsed meeting date from evidence below.\n"
+                    "5. MULTI-DATE COVERAGE MANDATE: You MUST summarize and cite tasks across ALL distinct July meeting dates present in evidence below (e.g. 2 July, 14 July, 16 July, 21 July, 22 July, 27 July, 28 July, 31 July). Do NOT restrict output to only 1 or 2 dates!"
                 )
             else:
                 schema = (
