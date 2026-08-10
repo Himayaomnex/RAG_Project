@@ -475,11 +475,12 @@ Format your output clearly as:
     
     if not is_eval_request:
         schema = (
-            "RESPONSE SCHEMA FOR MENTOR SLIDE & TASK CORRECTIONS:\n"
+            "RESPONSE SCHEMA FOR MENTOR QUESTION ANSWERING:\n"
             "1. Ground your response strictly on the retrieved transcript evidence below for the requested date.\n"
-            "2. For EVERY single correction or feedback item, summarize Siddharth's spoken correction and attach the exact verbatim proof line directly underneath:\n"
-            "   * 📜 **Matching Verbatim Transcript Proof:** `[31 July 2026 | Page Real Number | Speaker: Real Speaker Name]: \"Exact spoken text from evidence below\"`\n"
-            "3. FORBIDDEN OUTPUT: DO NOT output '[Unavailable]'! Every bullet point MUST cite an exact matching verbatim quote from EVIDENCE below."
+            "2. For EVERY single topic or spoken item listed, summarize what was spoken and attach the exact verbatim proof line directly indented underneath:\n"
+            "   * 📜 **Matching Verbatim Transcript Proof:** `[Real Date | Page Real Number | Speaker: Real Speaker Name (Role)]: \"Exact spoken quote from evidence below\"`\n"
+            "3. MANDATORY FORMAT MANDATE: DO NOT output plain bullet points or summaries without a 📜 proof line indented directly underneath every bullet point!\n"
+            "4. FORBIDDEN OUTPUT: DO NOT output '[Unavailable]' or plain summaries without proof lines."
         )
         from prompt_builder import PromptBuilder
         pb = (
@@ -493,7 +494,14 @@ Format your output clearly as:
             .add_rag_context(evidence_text)
             .add_citation_rules()
             .add_response_schema(schema)
-            .add_user_query(user_prompt)
+            .add_user_query(
+                f"{user_prompt}\n\n"
+                "MANDATORY FORMATTING MANDATE:\n"
+                "For EVERY single point in your response, format it as:\n"
+                "* **[Topic Title]**: [Brief summary]\n"
+                "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name]: \"Exact quote from evidence below\"`\n\n"
+                "DO NOT output plain lists without proof lines underneath!"
+            )
         )
         llm_prompt = pb.build()
         res_text = call_llm_api(llm_prompt)
