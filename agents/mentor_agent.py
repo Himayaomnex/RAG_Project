@@ -275,11 +275,13 @@ Format your output clearly:
             if is_correction_query:
                 schema = (
                     "RESPONSE SCHEMA FOR MENTOR (SIDDHARTH SAMINATHAN):\n"
-                    "1. For EVERY single task or slide correction, output Mentor Siddharth's spoken command/correction directly from evidence below:\n"
+                    "1. STRICT SPEAKER MANDATE: Under '📜 Mentor Spoken Correction (Siddharth):', ONLY cite proof quotes where Speaker is Siddharth Saminathan (Mentor)! Under '📜 Teammate Acknowledgment (Name):', ONLY cite proof quotes where Speaker is a Teammate (Himaya, Ganesh, or Dakshinya).\n"
+                    "2. FORBIDDEN MIS-ATTRIBUTION: NEVER label a quote from Ganesh Krishna, Himaya Perumal, or Dakshinya Nachimuthu under 'Mentor Spoken Correction (Siddharth)'!\n"
+                    "3. Structure each item strictly as:\n"
                     "* **[Task / Correction Name]**:\n"
                     "  * 📜 **Mentor Spoken Correction (Siddharth):** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from Siddharth\"`\n"
-                    "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Name (Teammate)]: \"Exact spoken quote from teammate\"`\n"
-                    "2. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use a real parsed meeting date (e.g. 14 July 2026, 22 July 2026, 31 July 2026) from evidence below. If a teammate quote is not present in evidence below, omit the Teammate Acknowledgment line completely."
+                    "  * 📜 **Teammate Acknowledgment (Name):** `[Real Date | Page Real Number | Speaker: Teammate Name (Teammate)]: \"Exact spoken quote from teammate\"`\n"
+                    "4. FORBIDDEN OUTPUT: NEVER output '[Unknown Date]' or '[No matching acknowledgment found]'! Every citation MUST use a real parsed meeting date (e.g. 14 July 2026, 22 July 2026, 31 July 2026) from evidence below. If a Siddharth quote is not in evidence, omit the Mentor line. If a teammate quote is not in evidence, omit the Teammate line."
                 )
             else:
                 schema = (
