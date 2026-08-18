@@ -402,6 +402,50 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
     )
     report_lines.extend(milestone_timeline)
 
+    # === Perform Map-Reduce on Retrieved Evidence to Create High-Quality Context ===
+    # Sort chunks chronologically by date first
+    sorted_results = []
+    for r in results:
+        payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
+        dt = payload.get("date", "Unknown Date")
+        sorted_results.append((dt, r))
+    sorted_results.sort(key=lambda x: x[0])
+    ordered_chunks = [item[1] for item in sorted_results]
+
+    mapped_contexts = []
+    BATCH_SIZE = 10
+    num_batches = (len(ordered_chunks) + BATCH_SIZE - 1) // BATCH_SIZE
+    
+    if num_batches > 0:
+        print(f"  - [Manager Map-Reduce]: Mapping {len(ordered_chunks)} chunks in {num_batches} batches...")
+        
+    for b in range(0, len(ordered_chunks), BATCH_SIZE):
+        batch_chunks = ordered_chunks[b:b + BATCH_SIZE]
+        batch_num = (b // BATCH_SIZE) + 1
+        
+        doc_context = ""
+        for c in batch_chunks:
+            p = c if isinstance(c, dict) else (c.payload if hasattr(c, "payload") else {})
+            doc_context += f"[{p.get('date', 'Unknown')} | {p.get('source_file', 'doc')} | Page {p.get('page', '1')}]\n{p.get('speaker', 'Unknown')}: {p.get('text', '')}\n\n"
+
+        map_prompt = (
+            f"You are a project manager assistant. Extract status details for {', '.join(target_speakers)} from these meeting transcripts.\n"
+            f"Extract accomplishments, active blockers, risks, decisions, and milestones.\n"
+            f"For each point, you MUST preserve the exact verbatim quotes, page numbers, and speaker name.\n\n"
+            f"Excerpts (Batch {batch_num}/{num_batches}):\n{doc_context}"
+        )
+        
+        summary = generate_llm_response(
+            system_prompt="You are a precise project management data extractor.",
+            user_query=map_prompt,
+            fallback_response="NO_CONTENT",
+            agent_type="teammates"
+        )
+        if "NO_CONTENT" not in summary:
+            mapped_contexts.append(f"=== Meeting Highlights (Batch {batch_num}/{num_batches}) ===\n{summary.strip()}")
+
+    final_rag_context = mapped_contexts if mapped_contexts else raw_chunks
+
     fallback_report = "\n".join(report_lines)
 
     # ── Construct 8-Module System Prompt via PromptBuilder → Groq LLM ─────────
@@ -412,7 +456,7 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
     builder.add_grounding_policy()
     builder.add_output_policy()
     builder.add_agent_role("manager", manager_name="Iyappan Sir")
-    builder.add_rag_context(raw_chunks)
+    builder.add_rag_context(final_rag_context)
     builder.add_user_query(user_prompt)
     system_prompt = builder.build()
 

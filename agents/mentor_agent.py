@@ -413,12 +413,54 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
 
         fallback_report = "\n".join(eval_lines)
 
-    # ── Collect raw chunks for PromptBuilder evidence ─────────────────────────
+    # === Perform Map-Reduce on Retrieved Evidence to Create High-Quality Context ===
+    # Sort chunks chronologically by date first
+    sorted_items = []
+    for item in (mentee_chunks + mentor_chunks):
+        dt = item.get("dt", "Unknown Date")
+        sorted_items.append((dt, item))
+    sorted_items.sort(key=lambda x: x[0])
+    ordered_items = [x[1] for x in sorted_items]
+
+    mapped_contexts = []
+    BATCH_SIZE = 10
+    num_batches = (len(ordered_items) + BATCH_SIZE - 1) // BATCH_SIZE
+    
+    if num_batches > 0:
+        print(f"  - [Mentor Map-Reduce]: Mapping {len(ordered_items)} chunks in {num_batches} batches...")
+        
+    for b in range(0, len(ordered_items), BATCH_SIZE):
+        batch_chunks = ordered_items[b:b + BATCH_SIZE]
+        batch_num = (b // BATCH_SIZE) + 1
+        
+        doc_context = ""
+        for item in batch_chunks:
+            doc_context += f"[{item.get('dt', 'Unknown')} | {item.get('doc', 'doc')} | Page {item.get('pg', '1')}]\n{item.get('spk', 'Unknown')}: {item.get('txt', '')}\n\n"
+
+        map_prompt = (
+            f"You are a mentor assistant evaluating trainee {target_mentee} from these meeting transcripts.\n"
+            f"Extract demonstrated technical strengths, misconceptions/gaps, problem-solving methodologies, next tasks, and mentor feedback.\n"
+            f"For each point, you MUST preserve the exact verbatim quotes, page numbers, and speaker name.\n\n"
+            f"Excerpts (Batch {batch_num}/{num_batches}):\n{doc_context}"
+        )
+        
+        summary = generate_llm_response(
+            system_prompt="You are a precise technical performance evaluator.",
+            user_query=map_prompt,
+            fallback_response="NO_CONTENT",
+            agent_type="teammates"
+        )
+        if "NO_CONTENT" not in summary:
+            mapped_contexts.append(f"=== Trainee Performance Notes (Batch {batch_num}/{num_batches}) ===\n{summary.strip()}")
+
+    # Build raw_chunks as fallback
     raw_chunks = []
     for item in (mentee_chunks + mentor_chunks):
         raw_chunks.append(
             f"[{item['dt']} | {item['doc']} | Page {item['pg']}]\n{item['spk']}: {item['txt']}\n"
         )
+
+    final_rag_context = mapped_contexts if mapped_contexts else raw_chunks
 
     # ── Construct 8-Module System Prompt via PromptBuilder → Groq LLM ─────────
     builder = PromptBuilder(user_id="Siddharth Saminathan", role="Mentor")
@@ -428,7 +470,7 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
     builder.add_grounding_policy()
     builder.add_output_policy()
     builder.add_agent_role("mentor", mentor_name="Siddharth Saminathan")
-    builder.add_rag_context(raw_chunks)
+    builder.add_rag_context(final_rag_context)
     builder.add_user_query(user_prompt)
     system_prompt = builder.build()
 

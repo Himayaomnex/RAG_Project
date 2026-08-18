@@ -20,6 +20,7 @@ import os
 import re
 import time
 import requests
+import threading
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -130,6 +131,33 @@ def clean_reasoning_and_thinking(content: str, is_table_query: bool = False) -> 
     return content_stripped
 
 
+def _post_with_hard_timeout(headers, payload, timeout=8):
+    result = []
+    def worker():
+        try:
+            r = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=timeout)
+            result.append(r)
+        except Exception as e:
+            result.append(e)
+
+    thread = threading.Thread(target=worker)
+    thread.daemon = True
+    thread.start()
+    thread.join(timeout=timeout)
+
+    if thread.is_alive():
+        raise TimeoutError(f"HTTP request stalled and failed to complete within {timeout}s.")
+
+    if not result:
+        raise RuntimeError("HTTP thread completed with no output or exception.")
+
+    res = result[0]
+    if isinstance(res, Exception):
+        raise res
+    return res
+
+
+
 def generate_llm_response(
     system_prompt: str,
     user_query: str,
@@ -153,14 +181,15 @@ def generate_llm_response(
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
         "HTTP-Referer": "http://localhost:8000",
-        "X-Title": "RAG Combined Multi-Agent"
+        "X-Title": "RAG Combined Multi-Agent",
+        "Connection": "close"
     }
 
     # ── Model list: active free models on OpenRouter (Gemma-4 preferred for table format compliance) ──
     models_to_try = [
-        "google/gemma-4-26b-a4b-it:free",
-        "google/gemma-4-31b-it:free",
         "openai/gpt-oss-20b:free",
+        "google/gemma-4-31b-it:free",
+        "google/gemma-4-26b-a4b-it:free",
         "nvidia/nemotron-3.5-lightning:free",
     ]
 
@@ -216,7 +245,7 @@ def generate_llm_response(
 
         try:
             t_start = time.time()
-            resp = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=35)
+            resp = _post_with_hard_timeout(headers, payload, timeout=8)
             t_end = time.time()
             total_duration = t_end - t_start
 
@@ -254,7 +283,7 @@ def generate_llm_response(
                     print(f"  - [OpenRouter 429]: {model_name} rate-limited. Retry #{attempt} in 4.0s...")
                     time.sleep(4.0)
                     try:
-                        resp_retry = requests.post(OPENROUTER_API_URL, headers=headers, json=payload, timeout=35)
+                        resp_retry = _post_with_hard_timeout(headers, payload, timeout=8)
                         if resp_retry.status_code == 200:
                             resp_json = resp_retry.json()
                             content = resp_json["choices"][0]["message"]["content"].strip()
