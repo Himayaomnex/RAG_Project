@@ -1,21 +1,6 @@
-# Ignore all root Word .docx report files
-/*.docx
-~$*.docx
-
-# Local Databases & Metrics (Do not upload to Git)
-emb_cache*
-qdrant_storage/
-test_qdrant/
-cache_metrics.json
-
-# Temporary SQL & Databases
-test_sql.txt
-transcripts.db
-
-# Python Bytecode & System
+.env
+.env.local
 __pycache__/
 *.pyc
-.DS_Store
-Thumbs.db
-.vscode/
-*.pptx
+emb_cache
+qdrant_storage/

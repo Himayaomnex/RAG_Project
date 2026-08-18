@@ -1,568 +1,442 @@
 """
 ================================================================================
-Mentor Agent - Dynamic Evaluation Framework & Quiz Generation Specialist
+Mentor Agent - Mentee Evaluation & Learning Specialist (RAG_COMBINED)
 ================================================================================
-Sole owner of the Evaluation Framework for Siddharth. Evaluates Himaya, Ganesh,
-and Dakshinya dynamically based on transcript evidence retrieved from meeting files.
+Role: Mentee Evaluation & Learning Specialist (Siddharth Saminathan Persona)
+Scope: Evaluates technical performance and diagnoses learning gaps for
+       individual mentees (Himaya, Ganesh, Dakshinya).
+
+Capabilities (all 4 per spec):
+  1. Diagnoses Technical Strengths & Misconceptions
+     (e.g., distinguishing performance latency logging from step-by-step
+     boundary failure logging)
+  2. Evaluates Technical Problem-Solving Methodologies demonstrated in
+     review meetings
+  3. Recommends Evidence-Based Next Tasks & Learning Topics
+     (extracted from Siddharth's actual guidance turns in transcripts)
+  4. Provides Targeted Mentorship Feedback & Guidance
+     (Siddharth's exact spoken instructions as verbatim citations)
+
+Pipeline: P4 Full Corpus XML Map-Reduce (100% corpus sweep across all 22
+          meeting transcripts)
 """
 
 import sys
 import os
-sys.path.append(os.path.dirname(os.path.dirname(__file__)))
-from qdrant_queries import get_embedding, extract_clean_keywords, call_llm_api, QDRANT_AVAILABLE, QdrantClient, LocalVectorStore, Filter, FieldCondition, MatchValue, normalize_entity_name
+import re
 
-def run_mentor_agent(user_prompt: str, target_member: str = "") -> str:
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if parent_dir not in sys.path:
+    sys.path.append(parent_dir)
+
+from pipeline import VectorDatabase, DenseRetriever, ensure_pipeline_initialized
+from prompt_builder import PromptBuilder
+from llm_client import generate_llm_response
+
+_db = None
+_retriever = None
+
+def get_retriever():
+    global _db, _retriever
+    if _retriever is None:
+        _db = ensure_pipeline_initialized()
+        _retriever = DenseRetriever(_db)
+    return _retriever
+
+
+# ── Classification helpers ─────────────────────────────────────────────────────
+
+STRENGTH_KEYWORDS = [
+    "understand", "worked", "created", "added", "solution", "schema", "excel",
+    "finished", "built", "implemented", "completed", "pushed", "tested",
+    "correct", "right", "good", "exactly", "yes", "figured out", "resolved",
+    "fixed", "working", "deployed", "uploaded", "submitted", "achieved"
+]
+
+MISCONCEPTION_KEYWORDS = [
+    "confused", "not sure", "wrong", "mistake", "misunderstand", "thought",
+    "assumed", "didn't realise", "didn't know", "incorrect", "mixing up",
+    "conflated", "unclear", "didn't understand", "i thought", "but actually"
+]
+
+METHODOLOGY_KEYWORDS = [
+    "approach", "tried", "attempted", "first i", "then i", "so i", "my approach",
+    "my method", "my plan", "my logic", "i did", "i used", "i checked",
+    "i looked", "i searched", "i ran", "i wrote", "step by step", "process",
+    "workflow", "pipeline", "strategy", "decided to", "reason why"
+]
+
+MENTOR_GUIDANCE_KEYWORDS = [
+    "want you to", "you should", "next task", "next step", "your task",
+    "assignment", "focus on", "work on", "read about", "study", "learn",
+    "implement", "build", "i want", "i need you", "can you", "please",
+    "make sure", "remember to", "don't forget", "deliverable", "deadline",
+    "by tomorrow", "by next week", "action item", "homework", "try to",
+    "practice", "review", "go through", "understand", "explore"
+]
+
+
+def _extract_mentee_chunks(results: list, mentee_name: str):
     """
-    Mentor Agent execution logic (Option A - Dynamic Transcript-Based Calculation):
-    - Dynamically calculates 1-5 scores strictly based on transcript evidence for each person.
-    - If prompt asks about the team, evaluates all 3 members (Himaya, Ganesh, Dakshinya).
-    - Generates technical quiz questions for Siddharth to test team members.
+    Split P4 chunks into two groups:
+      - mentee_chunks : turns spoken by the target mentee
+      - mentor_chunks : turns spoken by Siddharth (guidance / next-task assignments)
+    Returns (mentee_chunks, mentor_chunks) where each item is a dict with
+    keys: spk, dt, doc, pg, txt, cit
     """
-    from transcript_normalizer import clean_audio_artifacts, reattribute_crosstalk_turn
-    prompt_lower = user_prompt.lower()
-    
-    # First check single target member explicitly mentioned in prompt
-    single_member = ""
-    if any(k in prompt_lower for k in ["himaya", "perumal"]):
-        single_member = "Himaya Perumal"
-    elif any(k in prompt_lower for k in ["ganesh", "krishna"]):
-        single_member = "Ganesh Krishna"
-    elif any(k in prompt_lower for k in ["dakshinya", "nachimuthu"]):
-        single_member = "Dakshinya Nachimuthu"
+    mentee_chunks = []
+    mentor_chunks = []
 
-    member_matches = [m for m in ["himaya", "ganesh", "dakshinya"] if m in prompt_lower]
-    
-    # It is a team query ONLY if multiple members are mentioned OR no single member is specified
-    if len(member_matches) >= 2 or (not single_member and any(word in prompt_lower for word in ["team", "team's", "members", "everyone", "all"])):
-        is_team_query = True
-        target_member = ""
-    elif single_member:
-        target_member = single_member
-        is_team_query = False
-    else:
-        is_team_query = True
-        target_member = ""
-            
-    storage_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "qdrant_storage")
-    if QDRANT_AVAILABLE:
-        try:
-            client = QdrantClient(path=storage_path)
-        except Exception:
-            client = LocalVectorStore(path=storage_path)
-    else:
-        client = LocalVectorStore(path=storage_path)
-        
-    collection_name = "meeting_transcripts"
+    for r in results:
+        payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
+        dt      = payload.get("date", "Unknown Date")
+        doc     = payload.get("source_file", "Transcript.docx")
+        pg      = payload.get("page", "1")
+        raw_txt = payload.get("text", "").strip()
 
-    FILE_DATE_MAP = {
-        'AI_ML- Training .docx': '2 July 2026',
-        'AI_ML- Training  (1).docx': '3 July 2026',
-        'AI_ML- Training  (2).docx': '8 July 2026',
-        'AI_ML- Training  (3).docx': '10 July 2026',
-        'AI_ML- Training  (4).docx': '13 July 2026',
-        'AI_ML- Training  (5).docx': '13 July 2026',
-        'AI_ML- Training  (5) 1.docx': '13 July 2026',
-        'AI_ML- Training  (6).docx': '14 July 2026',
-        'AI_ML- Training  (7).docx': '15 July 2026',
-        'AI_ML- Training  (8).docx': '16 July 2026',
-        'AI_ML- Training  (9).docx': '17 July 2026',
-        'AI_ML- Training  (10).docx': '20 July 2026',
-        'AI_ML- Training  (11).docx': '21 July 2026',
-        'AI_ML- Training  (12).docx': '21 July 2026',
-        'AI_ML- Training  (13).docx': '22 July 2026',
-        'AI_ML- Training  (14).docx': '23 July 2026',
-        'AI_ML- Training  (15).docx': '24 July 2026',
-        'AI_ML- Training  (16).docx': '27 July 2026',
-        'AI_ML- Training  (17).docx': '28 July 2026',
-        'AI_ML- Training  (18).docx': '29 July 2026',
-        'AI_ML- Training  (19).docx': '30 July 2026',
-        'AI_ML- Training  (20).docx': '31 July 2026',
-        'AI_ML- Training  (21).docx': '4 August 2026',
-    }
-
-    def resolve_record_date(payload: dict) -> str:
-        raw_date = str(payload.get('date') or payload.get('meeting_date') or '').strip()
-        if raw_date and not any(w in raw_date.lower() for w in ['n/a', 'none', 'unknown']):
-            return raw_date
-        src_file = str(payload.get('source_file', '')).strip()
-        if src_file in FILE_DATE_MAP:
-            return FILE_DATE_MAP[src_file]
-        return '14 July 2026'
-
-    # Team Query Dispatcher: Scorecard vs Reading Topics vs Discussion Summary vs Quiz
-    if is_team_query:
-        print("  - [Mentor Agent]: Processing Team Query for Siddharth...")
+        # De-multiplex inline speaker turns on raw_txt first
         import re
-        date_match = re.search(r'\b(\d{1,2})[/\-](0?7|july)', prompt_lower) or \
-                     re.search(r'\b(\d{1,2})\s*(?:st|nd|rd|th)?\s*(?:of\s*)?(july|jul)\b', prompt_lower) or \
-                     re.search(r'\b(?:july|jul)\s*(\d{1,2})\b', prompt_lower)
-        target_day = ""
-        if date_match:
-            target_day = str(int(date_match.group(1)))
+        pattern = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+):\s*(.*?)(?=\n[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+:|$)"
+        matches = re.findall(pattern, raw_txt, re.DOTALL)
 
-        from transcript_normalizer import reattribute_crosstalk_turn
-        target_speakers = ["Himaya Perumal", "Ganesh Krishna", "Dakshinya Nachimuthu", "Siddharth Saminathan"]
-        # Fetch Mentor Siddharth's turns for pairing with each member
-        s_filter_mentor = Filter(must=[FieldCondition(key="speaker", match=MatchValue(value="Siddharth Saminathan"))])
-        siddharth_recs = []
-        offset = None
-        while True:
-            r_batch, offset = client.scroll(collection_name=collection_name, limit=1000, offset=offset, scroll_filter=s_filter_mentor)
-            siddharth_recs.extend(r_batch)
-            if offset is None or not r_batch:
-                break
+        if not matches:
+            spk     = payload.get("speaker", "Unknown")
+            from transcript_normalizer import clean_audio_artifacts
+            txt = clean_audio_artifacts(raw_txt)
+            if txt.endswith("..."):
+                txt = txt.rstrip(".").rstrip() + "."
+            cit = f"[{dt} | {doc} | Speaker: {spk} | Page {pg}]"
+            item = {"spk": spk, "dt": dt, "doc": doc, "pg": pg, "txt": txt, "cit": cit}
 
-        all_evidence = []
-        for m_name in target_speakers:
-            filter_must = [FieldCondition(key="speaker", match=MatchValue(value=m_name))]
-            if target_day:
-                filter_must.append(FieldCondition(key="date", match=MatchValue(value=f"{target_day} July 2026")))
-            s_filter = Filter(must=filter_must)
-            
-            recs = []
-            offset = None
-            while True:
-                r_batch, offset = client.scroll(collection_name=collection_name, limit=1000, offset=offset, scroll_filter=s_filter)
-                recs.extend(r_batch)
-                if offset is None or not r_batch:
-                    break
-            
-            date_groups = {}
-            for r in recs:
-                p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-                p_date = resolve_record_date(p)
-                if target_day and target_day not in p_date:
-                    continue
-                if p_date not in date_groups:
-                    date_groups[p_date] = []
-                date_groups[p_date].append(r)
-                
-            member_recs = []
-            # 1. Add Mentor Siddharth's turns grouped across ALL meeting dates
-            siddharth_date_groups = {}
-            for s_r in siddharth_recs:
-                s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
-                s_date = resolve_record_date(s_p)
-                if target_day and target_day not in s_date:
-                    continue
-                if s_date not in siddharth_date_groups:
-                    siddharth_date_groups[s_date] = []
-                siddharth_date_groups[s_date].append(s_r)
-                
-            for s_date in sorted(siddharth_date_groups.keys()):
-                s_turns = siddharth_date_groups[s_date]
-                s_count = 0
-                for s_r in s_turns:
-                    s_p = s_r.payload if hasattr(s_r, 'payload') else s_r.get('payload', {})
-                    s_txt = clean_audio_artifacts(s_p.get('text', '').strip())
-                    spk, clean_txt = reattribute_crosstalk_turn("Siddharth Saminathan", s_txt)
-                    if len(clean_txt) > 25:
-                        member_recs.append(f"[{s_date} | Page {s_p.get('page', 'N/A')} | Speaker: Siddharth Saminathan (Mentor)]: \"{clean_txt[:250]}\"")
-                        s_count += 1
-                        if s_count >= 1:
-                            break
-
-            # 2. Add Teammate's response turns ranked by technical content
-            for p_date in sorted(date_groups.keys()):
-                date_turns = date_groups[p_date]
-                scored_turns = []
-                for r in date_turns:
-                    p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-                    raw_spk = p.get('speaker', 'Unknown')
-                    raw_txt = clean_audio_artifacts(p.get('text', '').strip())
-                    spk, clean_txt = reattribute_crosstalk_turn(raw_spk, raw_txt)
-                    
-                    if "you told us to go through about the track" in clean_txt.lower():
-                        continue
-                        
-                    if len(clean_txt) > 25 and spk != "Siddharth Saminathan":
-                        p_date_clean = resolve_record_date(p)
-                        sc = sum(15 for w in ["caching", "vector", "qdrant", "excel", "etl", "mcp", "schema", "openpyxl", "chunking", "prompts", "workflow"] if w in clean_txt.lower())
-                        scored_turns.append((sc, p_date_clean, p.get('page', 'N/A'), spk, clean_txt))
-                        
-                scored_turns.sort(key=lambda x: x[0], reverse=True)
-                for sc, p_date_clean, page, spk, clean_txt in scored_turns[:2]:
-                    member_recs.append(f"[{p_date_clean} | Page {page} | Speaker: {spk} (Teammate)]: \"{clean_txt[:250]}\"")
-                        
-            if member_recs:
-                all_evidence.append(f"### Spoken Transcript Evidence for {m_name}:\n" + "\n".join(member_recs))
-            
-        evidence_str = "\n\n".join(all_evidence)
-
-        # Branch 0: Full Team Evaluation / Scorecard Request
-        if any(w in prompt_lower for w in ["eval", "evaluate", "evaluation", "score", "scorecard", "rating", "performance"]):
-            llm_prompt = f"""
-You are the Mentor Agent serving Siddharth (Mentor).
-Synthesize executive-grade **TECHNICAL EVALUATION SCORECARDS** for ALL THREE team members (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu) based strictly on transcript evidence below.
-
-Meeting Transcript Evidence:
-{evidence_str}
-
-Format your output as executive Markdown:
-# 📊 MENTOR TEAM EVALUATION SCORECARD
-
-| Team Member | Score (1-5) | Technical Contributions & Evidence | Performance Status |
-| :--- | :---: | :--- | :--- |
-| **Himaya Perumal** | 4.2 / 5.0 | [Summarize technical contributions based on transcript evidence] | **Solid Progress** |
-| **Ganesh Krishna** | 4.1 / 5.0 | [Summarize technical contributions based on transcript evidence] | **Solid Progress** |
-| **Dakshinya Nachimuthu** | 4.3 / 5.0 | [Summarize technical contributions based on transcript evidence] | **Exceeding Expectations** |
-
-### 💡 Mentorship Guidance for Siddharth:
-#### 👤 Himaya Perumal:
-- [Actionable mentorship recommendation based strictly on transcript evidence]
-
-#### 👤 Ganesh Krishna:
-- [Actionable mentorship recommendation based strictly on transcript evidence]
-
-#### 👤 Dakshinya Nachimuthu:
-- [Actionable mentorship recommendation based strictly on transcript evidence]
-"""
-            return call_llm_api(llm_prompt)
-        
-        if any(w in prompt_lower for w in ["reading", "read", "topics", "books", "study"]):
-            llm_prompt = f"""
-You are the Mentor Agent serving Siddharth Saminathan (Mentor).
-Synthesize 2 exact, transcript-grounded **TECHNICAL READING TOPICS & LEARNING PATHS** for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu based STRICTLY on their actual spoken technical concepts in the transcript evidence below.
-
-Meeting Transcript Evidence:
-{evidence_str}
-
-CRITICAL MANDATE:
-1. Base every recommended reading topic ONLY on actual AIML technical concepts spoken in the transcript evidence (e.g. Vector Caching, Dragon Project, Token Cost Reduction via Excel Schema Mapping, NLM System ROMs & Tool Integration, Appo Pro AI, RAG Experiments).
-2. DO NOT introduce outside corporate jargon or unverified topics (e.g. Do NOT say 'Drag Coefficient' or 'Project Management Automation').
-3. For EVERY topic, attach the MATCHING VERBATIM TRANSCRIPT PROOF quote directly below it as:
-   * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name (Role)]: "Exact raw spoken text"`
-
-Format your output strictly as:
-# 📖 RECOMMENDED TECHNICAL READING TOPICS FOR THE TEAM
-
-### 👤 Himaya Perumal (Teammate):
-- **Topic 1: [Exact AIML Technical Topic Spoken by Himaya]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Himaya Perumal (Teammate)]: "Exact spoken text"`
-- **Topic 2: [Exact AIML Technical Topic Spoken by Himaya]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Himaya Perumal (Teammate)]: "Exact spoken text"`
-
-### 👤 Ganesh Krishna (Teammate):
-- **Topic 1: [Exact AIML Technical Topic Spoken by Ganesh]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Ganesh Krishna (Teammate)]: "Exact spoken text"`
-- **Topic 2: [Exact AIML Technical Topic Spoken by Ganesh]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Ganesh Krishna (Teammate)]: "Exact spoken text"`
-
-### 👤 Dakshinya Nachimuthu (Teammate):
-- **Topic 1: [Exact AIML Technical Topic Spoken by Dakshinya]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Dakshinya Nachimuthu (Teammate)]: "Exact spoken text"`
-- **Topic 2: [Exact AIML Technical Topic Spoken by Dakshinya]** — [Brief rationale based on transcript evidence]
-  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Dakshinya Nachimuthu (Teammate)]: "Exact spoken text"`
-"""
-            return call_llm_api(llm_prompt)
-
-        # Branch 2: Discussion Summary Request
-        elif any(w in prompt_lower for w in ["summary", "discussion", "discussions", "spoken", "converse"]):
-            llm_prompt = f"""
-You are the Mentor Agent serving Siddharth (Mentor).
-Provide an executive-grade, highly polished **KEY TECHNICAL DISCUSSIONS SUMMARY** for the team based strictly on the transcript evidence below.
-
-Meeting Transcript Evidence:
-{evidence_str}
-
-CRITICAL FORMATTING INSTRUCTIONS:
-1. Provide a clear, professional technical breakdown for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu.
-2. Every item must be grounded in actual transcript evidence with exact verbatim matching proof lines:
-   * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name (Role)]: "Exact raw spoken quote from evidence below"`
-
-Format your output as polished, executive Markdown:
-# 🗣️ KEY TECHNICAL DISCUSSIONS & ASSIGNED TASKS SUMMARY
-
-### 👤 Himaya Perumal
-- **Vector Caching & Automation:** Discussed implementing embedding cache logic and automated MCT restart scripts.
-  * 📜 **Matching Verbatim Transcript Proof:** `[22 July 2026 | Page 35 | Speaker: Himaya Perumal (Teammate)]: "I've done it. This is the caching, and it's stored up in the vector form."`
-
-### 👤 Ganesh Krishna
-- **Token Cost Reduction:** Analyzed methods to send Excel schema mappings to NLM instead of uploading raw spreadsheet rows, saving token overhead.
-  * 📜 **Matching Verbatim Transcript Proof:** `[22 July 2026 | Page 38 | Speaker: Ganesh Krishna (Teammate)]: "62,833 tokens will be there for every time, so we can use a map of the schema..."`
-
-### 👤 Dakshinya Nachimuthu
-- **Look-Ahead Chunking:** Analyzed 5 distinct chunking strategies to eliminate boundary splitting errors.
-  * 📜 **Matching Verbatim Transcript Proof:** `[21 July 2026 | Page 35 | Speaker: Dakshinya Nachimuthu (Teammate)]: "I tried with that paragraph chunking... considering each speaker as one chunk."`
-"""
-            return call_llm_api(llm_prompt)
-
-        # Branch 3: Quiz Generation Request
-        elif any(w in prompt_lower for w in ["quiz", "question", "questions", "test", "exam"]):
-            llm_prompt = f"""
-You are the Mentor Agent serving Siddharth (Mentor).
-STRICT ANTI-HALLUCINATION MANDATE: Base questions ONLY on actual spoken topics in transcript evidence below. Cite evidence [Date | Page | Speaker] for each question context.
-
-Meeting Transcript Evidence:
-{evidence_str}
-
-Format your output clearly:
-# ❓ TECHNICAL QUIZ QUESTIONS FOR THE TEAM (5 QUESTIONS)
-
-1. **Question 1 (Vector Caching & Storage):** [Practical technical question based on Himaya's spoken transcript topics] [Source: Date | Page | Speaker]
-2. **Question 2 (Token Optimization & Parsing):** [Practical technical question based on Ganesh's spoken transcript topics] [Source: Date | Page | Speaker]
-3. **Question 3 (Chunking Strategies & Pillars):** [Practical technical question based on Dakshinya's spoken transcript topics] [Source: Date | Page | Speaker]
-4. **Question 4 (System Architecture & RAG):** [Practical technical question based on transcript topics] [Source: Date | Page | Speaker]
-5. **Question 5 (Pipeline Automation & MCT):** [Practical technical question based on transcript topics] [Source: Date | Page | Speaker]
-"""
-            return call_llm_api(llm_prompt)
-
-        # Branch 4: Direct Question Answering for Mentor
+            if mentee_name.lower() in spk.lower():
+                mentee_chunks.append(item)
+            elif "siddharth" in spk.lower():
+                mentor_chunks.append(item)
         else:
-            is_correction_query = any(k in prompt_lower for k in ["correction", "corrections", "slide", "slides", "feedback", "assigned", "instructed"])
-            if is_correction_query:
-                schema = (
-                    "# 📋 MENTOR ASSIGNED TASKS & VERBATIM CITATIONS (JULY 2026)\n"
-                    "For EVERY single task assigned by Siddharth across July, you MUST output a bold task title and attach the matching 📜 proof line directly underneath:\n\n"
-                    "* **[Task Title Name]**:\n"
-                    "  * 📜 **Matching Verbatim Transcript Proof:** `[Real Date | Page Real Number | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from evidence below\"`\n\n"
-                    "CRITICAL FORMAT MANDATE: DO NOT output plain numbered text like '1. Brush up... 2. Implement...'! EVERY single item MUST be formatted with its bold title and 📜 proof line indented directly underneath it!"
-                )
-            else:
-                schema = (
-                    "DIRECT QUESTION RESPONSE SCHEMA FOR MENTOR (SIDDHARTH SAMINATHAN):\n"
-                    "1. Provide a direct, precise answer to the user's question based strictly on the retrieved transcript evidence below.\n"
-                    "2. Include MULTIPLE (2 to 3) matching verbatim proof lines across dates (e.g. 22 July & 30 July) for the answer directly underneath:\n"
-                    "   * 📜 **Matching Verbatim Transcript Proof:** `[22 July 2026 | Page 35 | Speaker: Himaya Perumal (Teammate)]: \"I've done it. This is the caching, and it's stored up in the vector form.\"`\n"
-                    "   * 📜 **Matching Verbatim Transcript Proof:** `[30 July 2026 | Page 34 | Speaker: Himaya Perumal (Teammate)]: \"Like, without caching, every time if we want to run it again and again... if we use caching, it will reduce the embedding cost...\"`\n"
-                    "3. NEVER output 'Unknown Date' or fabricate quotes for other teammates!"
-                )
-            from prompt_builder import PromptBuilder
-            prompt_builder = (
-                PromptBuilder(agent_type="mentor", user_id="Siddharth Saminathan", role="mentor")
-                .add_security_guardrails("Siddharth Saminathan", "mentor")
-                .add_grounding_policy()
-                .add_output_policy()
-                .add_metadata_context("aqua_rag_team", "July 2026 Meetings")
-                .add_agent_role("mentor")
-                .add_tool_descriptions()
-                .add_rag_context([evidence_str])
-                .add_citation_rules()
-                .add_response_schema(schema)
-                .add_user_query(
-                    f"{user_prompt}\n\n"
-                    "MANDATORY OUTPUT FORMAT:\n"
-                    "For EVERY single task assigned by Siddharth across July, you MUST format it as:\n"
-                    "* **[Task Name]**:\n"
-                    "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Siddharth Saminathan (Mentor)]: \"Exact spoken quote from evidence below\"`\n\n"
-                    "DO NOT output plain numbered list text like '1. Brush up... 2. Implement...'! EVERY single item MUST have a 📜 proof line indented underneath it."
-                )
-            )
-            llm_prompt = prompt_builder.build()
-            return call_llm_api(llm_prompt)
-        
-    # Scroll points for target member AND Mentor Siddharth across transcripts (scans limit=3000)
-    # First-Principles Human Date Extraction Engine (Handles: 4 August, 04/08/2026, 31st, 23rd, 27th, 23 July, July 31st, 31/07/2026, 31-07)
-    import re
-    date_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?[/\-\s](0?[78]|july|jul|august|aug)', prompt_lower) or \
-                 re.search(r'(july|jul|august|aug)[/\-\s](\d{1,2})(?:st|nd|rd|th)?', prompt_lower) or \
-                 re.search(r'\b(\d{1,2})(st|nd|rd|th)\b', prompt_lower)
-    
-    target_day = ""
-    target_month_str = "July"
-    if date_match:
-        digits = [g for g in date_match.groups() if g and g.isdigit()]
-        if digits:
-            target_day = str(int(digits[0])) # Normalizes "04" or "31" to integer string "4" or "31"
-        if any(w in prompt_lower for w in ["august", "aug", "/08", "-08"]):
-            target_month_str = "August"
+            for turn_spk, turn_txt in matches:
+                turn_spk = turn_spk.strip()
+                turn_txt = turn_txt.strip()
+                from transcript_normalizer import clean_audio_artifacts
+                txt = clean_audio_artifacts(turn_txt)
+                if not txt:
+                    continue
+                if txt.endswith("..."):
+                    txt = txt.rstrip(".").rstrip() + "."
+                cit = f"[{dt} | {doc} | Speaker: {turn_spk} | Page {pg}]"
+                item = {"spk": turn_spk, "dt": dt, "doc": doc, "pg": pg, "txt": txt, "cit": cit}
 
-    # Scroll points for target member AND Mentor Siddharth across transcripts (scans limit=6000)
-    retrieved_records = []
-    offset = None
-    scroll_filter = Filter(
-        should=[
-            FieldCondition(key="speaker", match=MatchValue(value=target_member)),
-            FieldCondition(key="speaker", match=MatchValue(value="Siddharth Saminathan"))
-        ]
-    )
-    
-    while True:
-        r_batch, offset = client.scroll(collection_name=collection_name, limit=1000, offset=offset, scroll_filter=scroll_filter)
-        retrieved_records.extend(r_batch)
-        if offset is None or not r_batch or len(retrieved_records) >= 6000:
-            break
+                if mentee_name.lower() in turn_spk.lower():
+                    mentee_chunks.append(item)
+                elif "siddharth" in turn_spk.lower():
+                    mentor_chunks.append(item)
 
-    # Filter records strictly by date using resolve_record_date
-    if target_day and retrieved_records:
-        date_filtered = []
-        for r in retrieved_records:
-            p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-            p_date = resolve_record_date(p)
-            if target_month_str.lower() in p_date.lower() and re.search(r'\b' + target_day + r'\b', p_date):
-                date_filtered.append(r)
-        
-        if date_filtered:
-            retrieved_records = date_filtered
-        else:
-            # STRICT DATE FALLBACK: No records found for that exact requested date!
-            return f"❌ **Anti-Hallucination Policy Triggered:** No transcript evidence found for **{target_member}** on **{target_day} {target_month_str} 2026**."
+    return mentee_chunks, mentor_chunks
 
-    # Comprehensive stop words set (pronouns, question words, verbs, dates, and names)
-    stop_words = {
-        "what", "did", "speak", "about", "discuss", "how", "was", "were", "performed", "on", "in", "the", "and", "when", "where", "why", "time", "date", "day",
-        "meeting", "himaya", "ganesh", "dakshinya", "perumal", "krishna", "nachimuthu", "22", "23", "27", "july", "2026",
-        "quotes", "transcript", "exact", "spoken", "show", "tell", "give", "ask", "asked", "say", "said",
-        "you", "your", "me", "my", "he", "she", "his", "her", "they", "them", "their", "we", "us", "our",
-        "can", "could", "would", "should", "does", "done", "doing", "have", "has", "had", "this", "that"
-    }
-    # Prioritize target member turns first, then mentor turns
-    if target_member and retrieved_records:
-        target_m_recs = []
-        mentor_s_recs = []
-        for r in retrieved_records:
-            p = r.payload if hasattr(r, 'payload') else r.get('payload', {})
-            s = p.get('speaker', '')
-            if s == target_member:
-                target_m_recs.append(r)
-            elif s == "Siddharth Saminathan":
-                mentor_s_recs.append(r)
-        retrieved_records = (target_m_recs + mentor_s_recs)[:25]
-    else:
-        retrieved_records = retrieved_records[:25]
-        
-    date_note = ""
-    evidence_text = []
-    seen_keys = set()
-    from transcript_normalizer import clean_audio_artifacts, reattribute_crosstalk_turn
-    for rec in retrieved_records:
-        payload = rec.payload if hasattr(rec, 'payload') else rec.get('payload', {})
-        raw_txt = clean_audio_artifacts(payload.get('text', '').strip())
-        spk, clean_text = reattribute_crosstalk_turn(payload.get('speaker', 'Unknown'), raw_txt)
-        if target_member and spk.lower() != target_member.lower() and spk.lower() != "siddharth saminathan":
+
+def _evaluate_strengths_and_misconceptions(mentee_chunks: list, mentee_name: str):
+    """
+    CAPABILITY 1 — Diagnoses Technical Strengths & Misconceptions.
+    Returns (strengths_list, misconceptions_list).
+    """
+    strengths      = []
+    misconceptions = []
+
+    for item in mentee_chunks:
+        txt     = item["txt"]
+        txt_low = txt.lower()
+        cit     = item["cit"]
+        spk     = item["spk"]
+
+        # Skip bare questions — these are learning queries, not demonstrations
+        if txt.strip().endswith("?") and len(txt.strip()) < 150:
             continue
-        if len(clean_text) > 15:
-            txt_key = clean_text[:40].lower()
-            if txt_key in seen_keys:
-                continue
-            seen_keys.add(txt_key)
-            role_lbl = "(Mentor)" if "siddharth" in spk.lower() else "(Teammate)"
-            r_date = resolve_record_date(payload)
-            evidence_text.append(f"[{r_date} | Page {payload.get('page', 'N/A')} | Speaker: {spk} {role_lbl}]: \"{clean_text}\"")
-        
-    evidence_str = "\n".join(evidence_text) if evidence_text else "Active contributor across meeting sessions."
-    # Branch A: Technical Quiz / Question Guide for Siddharth
-    if any(word in prompt_lower for word in ["quiz", "questions", "test"]):
-        llm_prompt = f"""
-You are the Mentor Evaluation Agent serving Siddharth (Mentor).
-Generate a **TECHNICAL ASSESSMENT MATRIX & QUIZ GUIDE** to test {target_member}'s technical understanding based strictly on their spoken topics in the meeting transcripts below:
 
-Target Member: {target_member}
-Transcript Evidence:
-{evidence_str}
-
-CRITICAL QUIZ FORMATTING MANDATE:
-1. Output ONLY the questions for Siddharth to ask {target_member}.
-2. DO NOT output Answer Keys or answers to the questions unless explicitly requested by the user.
-3. Attach exact transcript source citations `[Date | Page X | Speaker: Name]` underneath each question.
-
-Format your output clearly as:
-# ❓ TECHNICAL QUIZ QUESTIONS FOR {target_member.upper()}
-
-1. **[Quiz Question 1]**: [Practical technical question on spoken topic]
-   * 📜 **Source Evidence:** `[Date | Page X | Speaker: {target_member}]`
-
-2. **[Quiz Question 2]**: [Practical technical question on spoken topic]
-   * 📜 **Source Evidence:** `[Date | Page X | Speaker: {target_member}]`
-
-3. **[Quiz Question 3]**: [Practical technical question on spoken topic]
-   * 📜 **Source Evidence:** `[Date | Page X | Speaker: {target_member}]`
-"""
-        return call_llm_api(llm_prompt)
-
-    # Branch B: Technical Concept / Discussion Query (NO SCORECARDS)
-    is_eval_request = any(word in prompt_lower for word in ["scorecard", "eval", "evaluate", "matrix", "rating", "score", "grade"])
-    
-    if not is_eval_request:
-        schema = (
-            "RESPONSE SCHEMA FOR MENTOR QUESTION ANSWERING:\n"
-            "1. Ground your response strictly on the retrieved transcript evidence below for the requested date.\n"
-            "2. For EVERY single topic or spoken item listed, summarize what was spoken and attach the exact verbatim proof line directly indented underneath:\n"
-            "   * 📜 **Matching Verbatim Transcript Proof:** `[Real Date | Page Real Number | Speaker: Real Speaker Name (Role)]: \"Exact spoken quote from evidence below\"`\n"
-            "3. MANDATORY FORMAT MANDATE: DO NOT output plain bullet points or summaries without a 📜 proof line indented directly underneath every bullet point!\n"
-            "4. FORBIDDEN OUTPUT: DO NOT output '[Unavailable]' or plain summaries without proof lines."
-        )
-        from prompt_builder import PromptBuilder
-        pb = (
-            PromptBuilder(agent_type="mentor", user_id="Siddharth Saminathan", role="mentor")
-            .add_security_guardrails("Siddharth Saminathan", "mentor")
-            .add_grounding_policy()
-            .add_output_policy()
-            .add_metadata_context("aqua_rag_team", "July 2026 Meetings")
-            .add_agent_role("mentor")
-            .add_tool_descriptions()
-            .add_rag_context(evidence_text)
-            .add_citation_rules()
-            .add_response_schema(schema)
-            .add_user_query(
-                f"{user_prompt}\n\n"
-                "MANDATORY FORMATTING MANDATE:\n"
-                "For EVERY single point in your response, format it as:\n"
-                "* **[Topic Title]**: [Brief summary]\n"
-                "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name]: \"Exact quote from evidence below\"`\n\n"
-                "DO NOT output plain lists without proof lines underneath!"
+        if any(w in txt_low for w in STRENGTH_KEYWORDS):
+            strengths.append(
+                f"- **Demonstrated Strength** — {spk}: \"{txt}\"  \n"
+                f"  > 📌 Citation: `{cit}`"
             )
-        )
-        llm_prompt = pb.build()
-        res_text = call_llm_api(llm_prompt)
-        if not res_text or "API request failed" in res_text:
-            return date_note + f"### 💬 Spoken Transcript Evidence for {target_member}:\n\n" + evidence_str
-            
-        return date_note + res_text
+        elif any(w in txt_low for w in MISCONCEPTION_KEYWORDS):
+            misconceptions.append(
+                f"- **Misconception / Gap** — {spk}: \"{txt}\"  \n"
+                f"  > 📌 Citation: `{cit}`"
+            )
+
+    return strengths, misconceptions
+
+
+def _evaluate_methodology(mentee_chunks: list, mentee_name: str):
+    """
+    CAPABILITY 2 — Evaluates Technical Problem-Solving Methodologies.
+    Detects turns where the mentee explicitly describes their approach/process.
+    Returns list of formatted markdown strings.
+    """
+    methodology_entries = []
+
+    for item in mentee_chunks:
+        txt     = item["txt"]
+        txt_low = txt.lower()
+        cit     = item["cit"]
+        spk     = item["spk"]
+        dt      = item["dt"]
+
+        if any(w in txt_low for w in METHODOLOGY_KEYWORDS):
+            methodology_entries.append(
+                f"- **Methodology Observed** ({dt}) — {spk}: \"{txt}\"  \n"
+                f"  > 📌 Citation: `{cit}`"
+            )
+
+    return methodology_entries
+
+
+def _extract_evidence_based_next_tasks(mentor_chunks: list, mentee_name: str):
+    """
+    CAPABILITY 3 — Recommends Evidence-Based Next Tasks & Learning Topics.
+    Scans Siddharth's guidance turns for explicit task assignments directed at
+    the target mentee. Returns list of formatted markdown strings with citations.
+    """
+    next_tasks = []
+
+    for item in mentor_chunks:
+        txt     = item["txt"]
+        txt_low = txt.lower()
+        cit     = item["cit"]
+        dt      = item["dt"]
+
+        # Only include Siddharth turns that contain actionable guidance keywords
+        if not any(w in txt_low for w in MENTOR_GUIDANCE_KEYWORDS):
+            continue
+
+        # Also only surface turns that mention the mentee or are clearly actionable
+        is_addressed_to_mentee = mentee_name.lower() in txt_low
+        is_generic_guidance    = any(w in txt_low for w in [
+            "want you to", "your task", "next task", "work on", "implement",
+            "deliverable", "by tomorrow", "by next", "action item", "homework"
+        ])
+
+        if is_addressed_to_mentee or is_generic_guidance:
+            next_tasks.append(
+                f"- **Assigned Task / Learning Topic** ({dt}): \"{txt}\"  \n"
+                f"  > 📌 Mentor Citation: `{cit}`"
+            )
+
+    return next_tasks
+
+
+def _extract_targeted_feedback(mentor_chunks: list, mentee_name: str):
+    """
+    CAPABILITY 4 — Targeted Mentorship Feedback & Guidance.
+    Extracts Siddharth's direct evaluation/feedback turns — praise, corrections,
+    or specific technical guidance — as verbatim citations.
+    Returns list of formatted markdown strings.
+    """
+    FEEDBACK_KEYWORDS = [
+        "good", "correct", "exactly", "well done", "no", "that's wrong",
+        "not correct", "the issue is", "the problem is", "you need to",
+        "the difference", "actually", "let me explain", "think about",
+        "the reason", "key point", "important", "remember", "not quite",
+        "close but", "you're mixing", "that's not", "clarify"
+    ]
+
+    feedback_entries = []
+
+    for item in mentor_chunks:
+        txt     = item["txt"]
+        txt_low = txt.lower()
+        cit     = item["cit"]
+        dt      = item["dt"]
+
+        if any(w in txt_low for w in FEEDBACK_KEYWORDS):
+            snippet = txt[:300] + ("..." if len(txt) > 300 else "")
+            feedback_entries.append(
+                f"- **Mentor Feedback** ({dt}): \"{snippet}\"  \n"
+                f"  > 📌 Mentor Citation: `{cit}`"
+            )
+
+    return feedback_entries
+
+
+# ── Main agent function ────────────────────────────────────────────────────────
+
+def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
+    """
+    Mentor Agent — All 4 capabilities fully implemented:
+      1. Diagnoses Technical Strengths & Misconceptions
+      2. Evaluates Technical Problem-Solving Methodologies
+      3. Recommends Evidence-Based Next Tasks (from Siddharth's actual transcript turns)
+      4. Provides Targeted Mentorship Feedback & Guidance (verbatim Siddharth quotes)
+
+    Pipeline: P4 Full Corpus XML Map-Reduce across all 22 transcripts.
+    """
+    prompt_lower = user_prompt.lower()
+    print(f"  - [Mentor Agent]: Evaluating technical performance for {target_mentee}...")
+
+    retriever = get_retriever()
+
+    # === PIPELINE 4 (P4): Full Corpus XML Map-Reduce ===
+    print(f"  - [Mentor Agent]: Using P4 Full Corpus Map-Reduce to evaluate "
+          f"{target_mentee} across all transcripts...")
+    p4_raw = retriever.retrieve_p4_full_corpus_mapreduce(user_prompt)
+
+    # Filter to mentee, mentions of the mentee in text, or mentor (Siddharth) turns referencing the mentee
+    relevant = []
+    for chunk in p4_raw:
+        spk = chunk.get("speaker", "").lower()
+        txt = chunk.get("text", "").lower()
         
-    # Branch C: Explicit Scorecard / Evaluation Request
-    from prompt_builder import PromptBuilder
-    
-    prompt_builder = (
-        PromptBuilder(agent_type="mentor", user_id="Siddharth Saminathan", role="mentor")
-        .add_security_guardrails("Siddharth Saminathan", "mentor")
-        .add_grounding_policy()
-        .add_output_policy()
-        .add_metadata_context("aqua_rag_team", "July 2026 Meetings")
-        .add_agent_role("mentor")
-        .add_tool_descriptions()
-        .add_rag_context(evidence_text)
-        .add_citation_rules()
-        .add_response_schema(
-            f"### 🎓 MENTOR EVALUATION SCORECARD: {target_member.upper()}\n\n"
-            "| Technical Competency | Score (1.0 - 5.0) | Transcript Evidence & Accomplishments | Status |\n"
-            "| :--- | :---: | :--- | :--- |\n"
-            f"| **Core Engineering Work** | **4.5 / 5.0** | [Summarize technical work completed] | **Exceeds Expectations** |\n"
-            f"| **Architecture & Workflow** | **4.2 / 5.0** | [Summarize architecture contributions] | **Solid Progress** |\n"
-            f"| **Technical Communication** | **4.0 / 5.0** | [Summarize meeting contributions] | **Good Progress** |\n\n"
-            f"**Overall Score:** **4.3 / 5.0 (Solid Technical Progress)**\n\n"
-            "#### 🎯 Progress towards Learning Objectives:\n"
-            "- [Detail learning progress based on retrieved transcript evidence]\n"
-            "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name]: \"Quote\"`\n\n"
-            "#### 🌟 Key Accomplishments & Technical Strengths:\n"
-            "- [Detail key technical accomplishments]\n"
-            "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name]: \"Quote\"`\n\n"
-            "#### 📈 Areas for Technical Growth & Next Topics:\n"
-            "- [Specify areas for further learning based on mentor guidance]\n"
-            "  * 📜 **Matching Verbatim Transcript Proof:** `[Date | Page X | Speaker: Name]: \"Quote\"`\n\n"
-            "#### 💡 Mentorship Guidance for Siddharth:\n"
-            "- [Actionable recommendation for mentor Siddharth]"
-        )
-        .add_user_query(f"Calculate dynamic performance scorecard for {target_member} with numerical scores for each competency.")
-    )
-    
-    llm_prompt = prompt_builder.build()
-    res_text = call_llm_api(llm_prompt)
-    # Post-processing guarantee: Ensure clean Markdown Scorecard Table with Scores (1.0 - 5.0) is ALWAYS rendered at top!
-    if "| Score" not in res_text and "| Competency" not in res_text and "| Technical" not in res_text:
-        table_header = (
-            f"### 🎓 MENTOR EVALUATION SCORECARD: {target_member.upper()}\n\n"
-            "| Technical Competency | Score (1.0 - 5.0) | Transcript Evidence & Accomplishments | Performance Status |\n"
-            "| :--- | :---: | :--- | :--- |\n"
-            f"| **Core Technical Engineering** | **4.5 / 5.0** | Active technical implementation in project workflow | **Exceeds Expectations** |\n"
-            f"| **Architecture & Workflow** | **4.2 / 5.0** | Articulated system design and metadata scoping | **Solid Progress** |\n"
-            f"| **Technical Communication** | **4.0 / 5.0** | Engaged actively in technical review discussions | **Good Progress** |\n\n"
-            f"**Overall Performance Rating:** **4.23 / 5.0 (Solid Technical Progress)**\n\n"
-        )
-        res_text = table_header + res_text
+        if (target_mentee.lower() in spk or 
+            target_mentee.lower() in txt or 
+            ("siddharth" in spk and target_mentee.lower() in txt)):
+            relevant.append(chunk)
+
+    # Rank relevant results by keyword relevance to user query to prioritize matching content
+    query_words = [w.lower() for w in user_prompt.split() if len(w) > 3]
+    scored_relevant = []
+    for chunk in relevant:
+        txt = chunk.get("text", "").lower()
+        spk = chunk.get("speaker", "").lower()
+        score = sum(1 for w in query_words if w in txt)
+        if target_mentee.lower() in spk:
+            score += 3
+        if target_mentee.lower() in txt:
+            score += 2
+        if "siddharth" in spk:
+            score += 1
+        scored_relevant.append((score, chunk))
         
-    return date_note + res_text
+    scored_relevant.sort(key=lambda x: x[0], reverse=True)
+    relevant = [item[1] for item in scored_relevant[:15]]
+
+    # Split into per-speaker groups
+    mentee_chunks, mentor_chunks = _extract_mentee_chunks(relevant, target_mentee)
+
+    # ── Quiz / testing mode ───────────────────────────────────────────────────
+    if "quiz" in prompt_lower or "test question" in prompt_lower:
+        fallback_report = f"""### 🎓 Mentor Evaluation: Technical Testing Quiz for **{target_mentee}**
+
+1. **Vector Search & Embedding Caching**:
+   - *Question*: How does `CachedEmbeddingModel` prevent redundant embedding computation when processing meeting sentences?
+   - *Target Area*: Embedding Caching & MD5 Hashing
+
+2. **Semantic Chunking vs Static Chunking**:
+   - *Question*: Why is topic-shift detection using cosine similarity window better than fixed character splitting for meeting transcripts?
+   - *Target Area*: RAG Retrieval Optimization
+
+3. **Boundary Failure Logging vs Performance Latency Logging**:
+   - *Question*: What is the difference between step-by-step boundary failure logging and performance latency logging? When would you use each?
+   - *Target Area*: Observability & Debugging
+
+4. **Metadata Filtering**:
+   - *Question*: How do speaker re-attribution and payload filters improve precision when querying specific teammate contributions?
+   - *Target Area*: Metadata Scoping & Data Quality
+"""
+    else:
+        # ── CAPABILITY 1: Strengths & Misconceptions ──────────────────────────
+        strengths, misconceptions = _evaluate_strengths_and_misconceptions(
+            mentee_chunks, target_mentee
+        )
+
+        # ── CAPABILITY 2: Methodology Evaluation ─────────────────────────────
+        methodology_entries = _evaluate_methodology(mentee_chunks, target_mentee)
+
+        # ── CAPABILITY 3: Evidence-Based Next Tasks ───────────────────────────
+        next_tasks = _extract_evidence_based_next_tasks(mentor_chunks, target_mentee)
+
+        # ── CAPABILITY 4: Targeted Mentorship Feedback ────────────────────────
+        targeted_feedback = _extract_targeted_feedback(mentor_chunks, target_mentee)
+
+        # ── Assemble structured evaluation report ─────────────────────────────
+        eval_lines = [
+            f"### 🎓 Mentor Evaluation Report (Mentor: Siddharth Saminathan)\n",
+            f"#### 👤 Target Mentee: **{target_mentee}**\n",
+        ]
+
+        # CAPABILITY 1 — Technical Strengths
+        eval_lines.append("#### 🌟 Demonstrated Technical Strengths")
+        if strengths:
+            eval_lines.extend(strengths[:5])
+        else:
+            eval_lines.append(
+                f"- {target_mentee} actively participates in technical meetings and "
+                f"architecture discussions. No explicit strength evidence found in "
+                f"current retrieved window."
+            )
+
+        # CAPABILITY 1 — Misconceptions / Learning Gaps
+        eval_lines.append("\n#### 🧠 Diagnosed Misconceptions & Learning Gaps")
+        if misconceptions:
+            eval_lines.extend(misconceptions[:4])
+        else:
+            eval_lines.append(
+                f"- No explicit misconception evidence found. "
+                f"Recommend reviewing dense vector distance metrics and payload filtering."
+            )
+
+        # CAPABILITY 2 — Problem-Solving Methodology Evaluation
+        eval_lines.append("\n#### 🔬 Problem-Solving Methodology Evaluation")
+        if methodology_entries:
+            eval_lines.extend(methodology_entries[:4])
+        else:
+            eval_lines.append(
+                f"- No explicit methodology description found from {target_mentee} in "
+                f"current retrieved window. Encourage mentee to narrate their approach "
+                f"step-by-step during next review session."
+            )
+
+        # CAPABILITY 3 — Evidence-Based Next Tasks (from Siddharth's turns)
+        eval_lines.append("\n#### 🎯 Evidence-Based Next Tasks & Learning Topics")
+        eval_lines.append(
+            "> *Extracted directly from Siddharth Saminathan's guidance turns "
+            "in meeting transcripts.*"
+        )
+        if next_tasks:
+            eval_lines.extend(next_tasks[:5])
+        else:
+            eval_lines.append(
+                f"- No explicit task assignment found from Siddharth for {target_mentee} "
+                f"in current retrieved window. Default recommendation: implement custom "
+                f"reranker evaluation benchmarks and verify hybrid retrieval precision."
+            )
+
+        # CAPABILITY 4 — Targeted Mentorship Feedback
+        eval_lines.append("\n#### 💬 Targeted Mentorship Feedback & Guidance")
+        eval_lines.append(
+            "> *Verbatim feedback from Siddharth Saminathan — exact spoken words.*"
+        )
+        if targeted_feedback:
+            eval_lines.extend(targeted_feedback[:4])
+        else:
+            eval_lines.append(
+                "- No explicit feedback turns found from Siddharth in current "
+                "retrieved window. Review transcripts for direct evaluation comments."
+            )
+
+        fallback_report = "\n".join(eval_lines)
+
+    # ── Collect raw chunks for PromptBuilder evidence ─────────────────────────
+    raw_chunks = []
+    for item in (mentee_chunks + mentor_chunks):
+        raw_chunks.append(
+            f"[{item['dt']} | {item['doc']} | Page {item['pg']}]\n{item['spk']}: {item['txt']}\n"
+        )
+
+    # ── Construct 8-Module System Prompt via PromptBuilder → Groq LLM ─────────
+    builder = PromptBuilder(user_id="Siddharth Saminathan", role="Mentor")
+    builder.add_security_guardrails()
+    # Note: add_security_guardrails already calls add_speaker_attribution_policy()
+    # internally, so we do NOT call it again here to avoid duplication.
+    builder.add_grounding_policy()
+    builder.add_output_policy()
+    builder.add_agent_role("mentor", mentor_name="Siddharth Saminathan")
+    builder.add_rag_context(raw_chunks)
+    builder.add_user_query(user_prompt)
+    system_prompt = builder.build()
+
+    return generate_llm_response(system_prompt, user_prompt, fallback_response=fallback_report, agent_type="mentor")
+
 
 if __name__ == "__main__":
-    test_eval = "Evaluate Himaya's performance this month."
-    print(run_mentor_agent(test_eval))
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    test_q = "Evaluate Ganesh's technical strengths, methodology, and suggest next steps."
+    print(run_mentor_agent(test_q, "Ganesh"))
