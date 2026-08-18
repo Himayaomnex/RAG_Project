@@ -39,10 +39,18 @@ try:
 except ImportError:
     FASTAPI_AVAILABLE = False
 
+def get_active_llm_provider_name() -> str:
+    if os.getenv("GEMINI_API_KEY", "").strip():
+        model = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash").strip()
+        return f"Google Gemini ({model}) & Qdrant"
+    elif os.getenv("GROQ_API_KEY", "").strip():
+        return "Groq (openai/gpt-oss-120b) & Qdrant"
+    return "OpenRouter Free Models & Qdrant"
+
 if FASTAPI_AVAILABLE:
     app = FastAPI(
         title="Enterprise Multi-Agent RAG Service",
-        description="Production API serving Manager, Mentor, and Teammates Agents powered by Qdrant & Groq LLM.",
+        description="Production API serving Manager, Mentor, and Teammates Agents powered by Qdrant & Google Gemini LLM.",
         version="1.0.0"
     )
 
@@ -63,6 +71,7 @@ if FASTAPI_AVAILABLE:
         response: str
         latency_seconds: float
         status: str = "success"
+        llm_provider: str = "Google Gemini (gemini-2.5-flash) & Qdrant"
 
     AGENT_HISTORY = {
         "manager": [],
@@ -105,7 +114,8 @@ if FASTAPI_AVAILABLE:
         return QueryResponse(
             agent_role=x_user_role or "auto",
             response=result,
-            latency_seconds=latency
+            latency_seconds=latency,
+            llm_provider=get_active_llm_provider_name()
         )
 
     @app.post("/api/v1/manager", response_model=QueryResponse)
@@ -126,7 +136,8 @@ if FASTAPI_AVAILABLE:
         return QueryResponse(
             agent_role="manager",
             response=result,
-            latency_seconds=latency
+            latency_seconds=latency,
+            llm_provider=get_active_llm_provider_name()
         )
 
     @app.post("/api/v1/mentor", response_model=QueryResponse)
@@ -148,7 +159,8 @@ if FASTAPI_AVAILABLE:
         return QueryResponse(
             agent_role="mentor",
             response=result,
-            latency_seconds=latency
+            latency_seconds=latency,
+            llm_provider=get_active_llm_provider_name()
         )
 
     @app.post("/api/v1/teammate", response_model=QueryResponse)
@@ -169,7 +181,8 @@ if FASTAPI_AVAILABLE:
         return QueryResponse(
             agent_role="teammate",
             response=result,
-            latency_seconds=latency
+            latency_seconds=latency,
+            llm_provider=get_active_llm_provider_name()
         )
 
     # Mount static web frontend files LAST so API routes take precedence

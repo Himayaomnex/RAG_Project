@@ -13,9 +13,43 @@ import urllib.request
 import urllib.error
 import torch
 from dotenv import load_dotenv
-from transcript_normalizer import reattribute_crosstalk_turn, normalize_speaker_name, clean_audio_artifacts
-
 load_dotenv()
+
+def normalize_speaker_name(name_str: str) -> str:
+    if not name_str:
+        return "Unknown"
+    q = name_str.strip().lower()
+    if "himaya" in q:
+        return "Himaya Perumal"
+    if "ganesh" in q:
+        return "Ganesh Krishna"
+    if "dakshinya" in q:
+        return "Dakshinya Nachimuthu"
+    if "iyappan" in q:
+        return "Iyappan Sir"
+    if "siddharth" in q:
+        return "Siddharth Saminathan"
+    return name_str.strip().title()
+
+def clean_audio_artifacts(text: str) -> str:
+    if not text:
+        return ""
+    text = re.sub(r"\[\d{1,2}:\d{2}(?::\d{2})?\]", "", text)
+    text = re.sub(r"\b(um|uh|ah|er)\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+def reattribute_crosstalk_turn(current_speaker: str, sentence_text: str):
+    clean_s = clean_audio_artifacts(sentence_text)
+    if not clean_s:
+        return normalize_speaker_name(current_speaker), ""
+    match = re.match(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*:\s*(.*)", clean_s)
+    if match:
+        possible_spk = match.group(1).strip()
+        norm_spk = normalize_speaker_name(possible_spk)
+        if norm_spk in ["Himaya Perumal", "Ganesh Krishna", "Dakshinya Nachimuthu", "Iyappan Sir", "Siddharth Saminathan"]:
+            return norm_spk, match.group(2).strip()
+    return normalize_speaker_name(current_speaker), clean_s
 
 
 FILE_DATE_MAP = {
@@ -256,6 +290,14 @@ class SemanticTranscriptParser:
         return "22 July 2026"
 
 
+_GLOBAL_DENSE_MODEL = None
+
+def get_dense_model():
+    global _GLOBAL_DENSE_MODEL
+    if _GLOBAL_DENSE_MODEL is None:
+        _GLOBAL_DENSE_MODEL = CachedEmbeddingModel("all-MiniLM-L6-v2")
+    return _GLOBAL_DENSE_MODEL
+
 _vector_db_instance = None
 
 class VectorDatabase:
@@ -266,25 +308,15 @@ class VectorDatabase:
             self.client = QdrantClient(url=qdrant_url)
         else:
             storage_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qdrant_storage")
-            os.makedirs(storage_path, exist_ok=True)
             try:
                 self.client = QdrantClient(path=storage_path)
             except Exception as e:
-                if "already accessed" in str(e) or "Permission denied" in str(e) or "AlreadyLocked" in str(e):
-                    print("  - [Qdrant Lock Notice]: Local storage is accessed by server process. Retrying in shared client mode...")
-                    try:
-                        self.client = QdrantClient(path=storage_path)
-                    except Exception:
-                        self.client = QdrantClient(location=":memory:")
-                else:
-                    raise e
+                print("  - [Qdrant Lock Notice]: Using in-memory fallback client...")
+                self.client = QdrantClient(location=":memory:")
 
 
         self.collection_name = collection_name
-        
-        print("Loading Dense Embedding Model (with local cache)...")
-        self.dense_model = CachedEmbeddingModel("all-MiniLM-L6-v2")
-        
+        self.dense_model = get_dense_model()
         self.setup_collection()
 
 

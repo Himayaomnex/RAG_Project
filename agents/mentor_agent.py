@@ -281,16 +281,22 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
           f"{target_mentee} across all transcripts...")
     p4_raw = retriever.retrieve_p4_full_corpus_mapreduce(user_prompt)
 
+    is_all_mentees = not target_mentee or target_mentee.lower() in ["all", "all team members", "teammates", "everyone", "team"]
+
     # Filter to mentee, mentions of the mentee in text, or mentor (Siddharth) turns referencing the mentee
     relevant = []
     for chunk in p4_raw:
         spk = chunk.get("speaker", "").lower()
         txt = chunk.get("text", "").lower()
         
-        if (target_mentee.lower() in spk or 
-            target_mentee.lower() in txt or 
-            ("siddharth" in spk and target_mentee.lower() in txt)):
-            relevant.append(chunk)
+        if is_all_mentees:
+            if any(s in spk or s in txt for s in ["himaya", "ganesh", "dakshinya", "siddharth"]):
+                relevant.append(chunk)
+        else:
+            if (target_mentee.lower() in spk or 
+                target_mentee.lower() in txt or 
+                ("siddharth" in spk and target_mentee.lower() in txt)):
+                relevant.append(chunk)
 
     # Rank relevant results by keyword relevance to user query to prioritize matching content
     query_words = [w.lower() for w in user_prompt.split() if len(w) > 3]
@@ -299,19 +305,19 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
         txt = chunk.get("text", "").lower()
         spk = chunk.get("speaker", "").lower()
         score = sum(1 for w in query_words if w in txt)
-        if target_mentee.lower() in spk:
+        if any(s in spk for s in ["himaya", "ganesh", "dakshinya"]):
             score += 3
-        if target_mentee.lower() in txt:
+        if any(s in txt for s in ["himaya", "ganesh", "dakshinya"]):
             score += 2
         if "siddharth" in spk:
             score += 1
         scored_relevant.append((score, chunk))
         
     scored_relevant.sort(key=lambda x: x[0], reverse=True)
-    relevant = [item[1] for item in scored_relevant[:15]]
+    relevant = [item[1] for item in scored_relevant[:12 if is_all_mentees else 8]]
 
     # Split into per-speaker groups
-    mentee_chunks, mentor_chunks = _extract_mentee_chunks(relevant, target_mentee)
+    mentee_chunks, mentor_chunks = _extract_mentee_chunks(relevant, "all" if is_all_mentees else target_mentee)
 
     # ── Quiz / testing mode ───────────────────────────────────────────────────
     if "quiz" in prompt_lower or "test question" in prompt_lower:
@@ -416,54 +422,20 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
 
         fallback_report = "\n".join(eval_lines)
 
-    # === Perform Map-Reduce on Retrieved Evidence to Create High-Quality Context ===
-    # Sort chunks chronologically by date first
+    # === Direct Context Build (no batching — Groq 128k handles everything) ===
     sorted_items = []
     for item in (mentee_chunks + mentor_chunks):
         dt = item.get("dt", "Unknown Date")
         sorted_items.append((dt, item))
     sorted_items.sort(key=lambda x: x[0])
-    ordered_items = [x[1] for x in sorted_items]
 
-    mapped_contexts = []
-    BATCH_SIZE = 10
-    num_batches = (len(ordered_items) + BATCH_SIZE - 1) // BATCH_SIZE
-    
-    if num_batches > 0:
-        print(f"  - [Mentor Map-Reduce]: Mapping {len(ordered_items)} chunks in {num_batches} batches...")
-        
-    for b in range(0, len(ordered_items), BATCH_SIZE):
-        batch_chunks = ordered_items[b:b + BATCH_SIZE]
-        batch_num = (b // BATCH_SIZE) + 1
-        
-        doc_context = ""
-        for item in batch_chunks:
-            doc_context += f"[{item.get('dt', 'Unknown')} | {item.get('doc', 'doc')} | Page {item.get('pg', '1')}]\n{item.get('spk', 'Unknown')}: {item.get('txt', '')}\n\n"
+    doc_context = ""
+    for _, item in sorted_items:
+        doc_context += f"[{item.get('dt', 'Unknown')} | {item.get('doc', 'doc')} | Page {item.get('pg', '1')}]\n{item.get('spk', 'Unknown')}: {item.get('txt', '')}\n\n"
 
-        map_prompt = (
-            f"You are a mentor assistant evaluating trainee {target_mentee} from these meeting transcripts.\n"
-            f"Extract demonstrated technical strengths, misconceptions/gaps, problem-solving methodologies, next tasks, and mentor feedback.\n"
-            f"For each point, you MUST preserve the exact verbatim quotes, page numbers, and speaker name.\n\n"
-            f"Excerpts (Batch {batch_num}/{num_batches}):\n{doc_context}"
-        )
-        
-        summary = generate_llm_response(
-            system_prompt="You are a precise technical performance evaluator.",
-            user_query=map_prompt,
-            fallback_response="NO_CONTENT",
-            agent_type="teammates"
-        )
-        if "NO_CONTENT" not in summary:
-            mapped_contexts.append(f"=== Trainee Performance Notes (Batch {batch_num}/{num_batches}) ===\n{summary.strip()}")
+    final_rag_context = [{"text": doc_context, "speaker": target_mentee, "date": "", "source_file": "transcripts", "page": "1", "score": 1.0}]
+    print(f"  - [Mentor]: Sending {len(sorted_items)} chunks directly to LLM (no batching)...")
 
-    # Build raw_chunks as fallback
-    raw_chunks = []
-    for item in (mentee_chunks + mentor_chunks):
-        raw_chunks.append(
-            f"[{item['dt']} | {item['doc']} | Page {item['pg']}]\n{item['spk']}: {item['txt']}\n"
-        )
-
-    final_rag_context = mapped_contexts if mapped_contexts else raw_chunks
 
     # ── Construct 8-Module System Prompt via PromptBuilder → Groq LLM ─────────
     builder = PromptBuilder(user_id="Siddharth Saminathan", role="Mentor")

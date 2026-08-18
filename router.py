@@ -20,15 +20,6 @@ if parent_dir not in sys.path:
 from agents.manager_agent import run_manager_agent
 from agents.mentor_agent import run_mentor_agent
 from agents.teammates_agent import run_teammates_agent
-from agents.production_agents import SharedRAGRetriever, ManagerAgent, MentorAgent, TeamIntelligenceAgent
-
-_shared_retriever = None
-
-def get_shared_retriever():
-    global _shared_retriever
-    if _shared_retriever is None:
-        _shared_retriever = SharedRAGRetriever()
-    return _shared_retriever
 
 def route_request(user_prompt: str, user_role: str = "auto", target_member: str = "") -> str:
     """
@@ -42,8 +33,6 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
     
     print(f"\n[Router Dispatching]: Role='{user_role}' | Prompt='{user_prompt}'")
     print("=" * 80)
-    
-    retriever = get_shared_retriever()
     
     # 1. Manager Role Dispatch
     if role_lower in ["manager", "project_lead", "executive", "iyappan"]:

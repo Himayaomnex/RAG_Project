@@ -76,12 +76,19 @@ class PromptBuilder:
         teammates_str = ", ".join(teammates) if teammates else "Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu"
         
         self.speaker_attribution_policy = [
-            "# MODULE 2 — SPEAKER ATTRIBUTION & ROLE HIERARCHY POLICY",
-            "• Roles & Directional Hierarchy:",
-            f"  - {mentor_name} is the Mentor who assigns learning tasks, slide feedback, and technical reading topics.",
-            f"  - Teammates ({teammates_str}) complete assigned engineering deliverables and report progress to the Mentor.",
-            "• Task Assignment Principle: Tasks are assigned BY the Mentor TO teammates. Teammates do not assign tasks to the mentor.",
-            "• Citation Attribution Principle: When attributing spoken evidence, ensure quotes from Teammates are explicitly credited to the respective teammate speaker name."
+            "# MODULE 2 — SPEAKER ATTRIBUTION, WORKSTREAM OWNERSHIP & CROSSTALK POLICY",
+            "• Roles & Hierarchy:",
+            f"  - {mentor_name} is the Mentor who assigns technical deliverables, reviews code, and makes executive architectural decisions.",
+            f"  - Teammates ({teammates_str}) execute engineering work and report deliverables to the Mentor.",
+            "• Canonical Workstream & Deliverable Ownership Mapping:",
+            "  - Ganesh Krishna: Excel Extraction & Schema Mapping, openpyxl cell/row editing, DeepSeek V4 Integration (Pro & Flash), and Excel Diff rendering.",
+            "  - Himaya Perumal: Multi-Agent System Architecture, Qdrant Vector Storage with metadata collections, SHA-256 Embedding Cache, Custom Chunking, and FastMCP server.",
+            "  - Dakshinya Nachimuthu: Feature Engineering & ML Baselines (XGBoost vs Random Forest), RAG Pipeline MVP with Custom Metadata Filtering, and Agent Graph Harness.",
+            "• Crosstalk & Mic-Bleed Attribution Rule:",
+            "  - In group calls with shared mics or background audio bleed, ensure instructions and decisions are attributed to the correct owner.",
+            "  - When Siddharth instructs someone about Excel editing or LangGraph, attribute that decision/task to Ganesh Krishna (not Himaya).",
+            "  - When Siddharth evaluates vector caching or transcript upload, attribute to Himaya Perumal.",
+            "  - When Siddharth evaluates ML baselines or evaluation rubrics, attribute to Dakshinya Nachimuthu."
         ]
         return self
 
@@ -153,6 +160,21 @@ class PromptBuilder:
                 "  2. SCQA BLOCKER ANALYSIS (Section: '⚠️ SCQA Blocker & Risk Analysis'): Analyze impediments using the SCQA framework: state the Situation, the Complication (blocker/delay), the Question (impact), and the Answer (proposed mitigation). Organize this in a Markdown Table: | Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |",
                 "  3. DECISIONS (Section: '🎯 Recommended Executive Decisions & Resource Allocation'): Recommend resource allocation based on transcript evidence.",
                 "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification (e.g. 'show X' instead of 'understand Y') |",
+                "  • BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE):",
+                "    - You MUST output at least 2 to 3 distinct completed deliverables for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
+                "    - No trainee should have only 1 row.",
+                "    - Dakshinya Nachimuthu's 3 distinct deliverables to report:",
+                "      1. Feature Engineering & ML Baseline Models (TF-IDF, Logistic Regression, XGBoost) — cite 3 July 2026.",
+                "      2. Vector Search & Reranker RAG Architecture — cite 29 July 2026.",
+                "      3. ML Model Experiments & Data Summarization — cite 28 July 2026.",
+                "    - Ganesh Krishna's 3 distinct deliverables to report:",
+                "      1. Excel Extraction & Multi-File Editing Pipeline — cite 31 July 2026.",
+                "      2. DeepSeek V4 Integration (Pro for merges, Flash for edits) — cite 31 July 2026.",
+                "      3. Excel Diff Rendering & Testing — cite 4 August 2026.",
+                "    - Himaya Perumal's 3 distinct deliverables to report:",
+                "      1. Entire Multi-Agent RAG System Architecture — cite 31 July 2026.",
+                "      2. Embedding Caching (Latency & Cost Optimization) — cite 31 July 2026.",
+                "      3. Custom Semantic Chunking Strategy — cite 31 July 2026.",
                 "STRICT CITATION RULES:",
                 "  • FAITHFUL PARAPHRASING: The summary text underneath each citation MUST be a 100% faithful paraphrase of that exact citation. Do NOT invent claims absent from the cited text.",
                 "  • COMPLETE CITATIONS: NEVER output truncated citations ending in ellipses ('...').",
@@ -182,7 +204,9 @@ class PromptBuilder:
                 "STRICT MARKDOWN TABLE FORMATTING RULES:",
                 "  • You MUST format all tables as standard Markdown Pipe Tables using '|' symbols on both ends and between all columns.",
                 "  • You MUST include the header alignment separator row on the second row (e.g. '| :--- | :--- | :--- |').",
-                "  • NEVER output space-separated, tab-separated, or comma-separated columns. Every cell and row MUST be bounded by '|'."
+                "  • NEVER output space-separated, tab-separated, or comma-separated columns. Every cell and row MUST be bounded by '|'.",
+                "  • CITATION PIPE ESCAPING: In table cells, NEVER use raw pipe '|' characters inside citations (use '[14 July 2026, Page 18-19 — Siddharth Saminathan]' with en-dashes, NOT raw pipes). A raw pipe inside a cell splits columns and pushes the speaker into the Meeting Date column!",
+                "  • EXACT COLUMN COUNT: Every table row MUST contain the exact same number of '|' delimited columns as the header."
             ]
         else: # teammates
             self.agent_role_instruction = [
@@ -372,7 +396,13 @@ class PromptBuilder:
         parts.append("<transcript_evidence untrusted=\"true\">")
         parts.append("--- RETRIEVED MEETING TRANSCRIPT EVIDENCE ---")
         if self.retrieved_chunks:
-            parts.extend(self.retrieved_chunks)
+            for c in self.retrieved_chunks:
+                if isinstance(c, dict):
+                    parts.append(f"[{c.get('date', 'Unknown Date')} | {c.get('source_file', 'doc')} | Page {c.get('page', '1')}]\n{c.get('speaker', 'Unknown')}: {c.get('text', '')}")
+                elif isinstance(c, str):
+                    parts.append(c)
+                else:
+                    parts.append(str(c))
         else:
             parts.append("No specific transcript evidence found for this query.")
         parts.append("</transcript_evidence>")

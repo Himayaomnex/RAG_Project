@@ -10,14 +10,10 @@ Qdrant + SQLite RAG pipeline using secret Auth Tokens.
 import sys
 import os
 import json
-import sqlite3
-# Import RAG pipeline components safely with AppLocker fallback
+
 sys.path.append(os.path.dirname(__file__))
-from qdrant_queries import (
-    get_embedding, extract_clean_keywords, call_llm_api,
-    QDRANT_AVAILABLE, QdrantClient, LocalVectorStore,
-    Filter, FieldCondition, MatchValue
-)
+from pipeline import get_vector_db, DenseRetriever, ensure_pipeline_initialized
+from llm_client import generate_llm_response
 
 # Valid Enterprise Auth Tokens
 VALID_AUTH_TOKENS = {
@@ -43,70 +39,22 @@ def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", 
         
     print(f"[MCP Request Authenticated]: {user_info}")
     
-    # Initialize Qdrant Client with AppLocker fallback
-    storage_path = os.path.join(os.path.dirname(__file__), "qdrant_storage")
-    if QDRANT_AVAILABLE:
-        try:
-            client = QdrantClient(path=storage_path)
-        except Exception:
-            client = LocalVectorStore(path=storage_path)
-    else:
-        client = LocalVectorStore(path=storage_path)
+    db = ensure_pipeline_initialized()
+    retriever = DenseRetriever(db)
+    query_text = f"{speaker} {topic} {date}".strip() or "project status"
+    results = retriever.retrieve_p1_scroll_reranker(query_text, top_k=6, rerank_top_k=4)
 
-    collection_name = "meeting_transcripts"
-    
-    if not client.collection_exists(collection_name):
-        return "ERROR: Qdrant collection 'meeting_transcripts' not found. Please index files first."
-        
-    # Scroll points for target speaker if provided
-    retrieved_points = []
-    if speaker:
-        scroll_filter = Filter(must=[FieldCondition(key="speaker", match=MatchValue(value=speaker))])
-        if date:
-            scroll_filter.must.append(FieldCondition(key="date", match=MatchValue(value=date)))
-            
-        next_offset = None
-        while True:
-            res, next_offset = client.scroll(
-                collection_name=collection_name,
-                scroll_filter=scroll_filter,
-                limit=10,
-                offset=next_offset
-            )
-            retrieved_points.extend(res)
-            if next_offset is None:
-                break
-    else:
-        # Fallback to vector search
-        query_text = f"{speaker} {topic} {date}".strip()
-        query_vec = get_embedding(query_text, verbose=False)
-        res = client.query_points(collection_name=collection_name, query=query_vec, limit=5)
-        retrieved_points = res.points
-
-    if not retrieved_points:
+    if not results:
         return f"No transcript entries found for Speaker: '{speaker}', Topic: '{topic}', Date: '{date}'."
 
-    # Re-rank retrieved points
-    query_words = [w for w in topic.lower().split() if len(w) > 2]
-    scored = []
-    for p in retrieved_points:
-        text = p.payload["text"]
-        if len(text.strip()) < 15:
-            continue
-        score = sum(10.0 for w in query_words if w in text.lower())
-        score += len(text) * 0.01
-        score += p.payload["chunk_id"] * 0.0001
-        scored.append((score, p.payload))
-        
-    scored.sort(key=lambda x: x[0], reverse=True)
-    selected = [x[1] for x in scored[:4]]
-    
-    # Synthesize response
-    context_lines = [f"  [Page {p['page']} | Turn #{p['chunk_id']} | Speaker: {p['speaker']}]: {p['text']}" for p in selected]
+    context_lines = []
+    for p in results:
+        payload = p.payload if hasattr(p, "payload") else (p if isinstance(p, dict) else {})
+        context_lines.append(f"  [Date: {payload.get('date','Unknown')} | Page {payload.get('page','1')} | Speaker: {payload.get('speaker','Unknown')}]: {payload.get('text','')}")
     context_str = "\n".join(context_lines)
     
-    prompt = f"[CONTEXT]\n{context_str}\n\n[INSTRUCTION]\nExtract raw quotes for {speaker or 'the team'} regarding {topic or 'status updates'}.\n\n[QUERY]\n{topic}"
-    response = call_llm_api(prompt)
+    prompt = f"[CONTEXT]\n{context_str}\n\n[INSTRUCTION]\nExtract grounded findings for {speaker or 'the team'} regarding {topic or 'status updates'}.\n\n[QUERY]\n{topic}"
+    response = generate_llm_response(prompt, query_text, fallback_response=context_str)
     return response if response else context_str
 
 # FastMCP Initialization with 6 Enterprise RAG Tools

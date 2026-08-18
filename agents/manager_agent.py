@@ -284,22 +284,63 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
 
     # Rank results by keyword relevance to user query to prioritize matching content
     query_words = [w.lower() for w in user_prompt.split() if len(w) > 3]
-    scored_results = []
+    
+    # Balanced selection per target speaker to prevent one mentee starving out another
+    selected_chunks = []
+    seen_ids = set()
+    
+    mentees_to_cover = [s for s in target_speakers if s.lower() in ["himaya", "ganesh", "dakshinya"]]
+    if not mentees_to_cover:
+        mentees_to_cover = ["Himaya", "Ganesh", "Dakshinya"]
+        
+    completion_indicators = ["completed", "finished", "done", "integrated", "tested", "working", "we have collection", "i have done", "reduced", "cache", "qdrant", "deepseek", "langgraph"]
+    
+    for m in mentees_to_cover:
+        m_low = m.lower()
+        m_chunks = []
+        for chunk in results:
+            txt = chunk.get("text", "").lower()
+            spk = chunk.get("speaker", "").lower()
+            dt = chunk.get("date", "").lower()
+            if m_low in spk or m_low in txt:
+                score = sum(1 for w in query_words if w in txt) + 3
+                # Boost completion evidence over initial early drafts
+                if any(ci in txt for ci in completion_indicators):
+                    score += 4
+                # Recency bonus prioritizing August 4 final wrap-up & late July
+                if any(rd in dt for rd in ["4 august", "august", "aug", "31 july"]):
+                    score += 6
+                elif any(rd in dt for rd in ["28 july", "29 july", "30 july"]):
+                    score += 3
+                m_chunks.append((score, chunk))
+        m_chunks.sort(key=lambda x: x[0], reverse=True)
+        for _, c in m_chunks[:4]:
+            c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
+            if c_key not in seen_ids:
+                seen_ids.add(c_key)
+                selected_chunks.append(c)
+                
+    # Also add top global decision/accomplishment chunks with recency bonus
+    scored_all = []
     for chunk in results:
         txt = chunk.get("text", "").lower()
-        spk = chunk.get("speaker", "").lower()
+        dt = chunk.get("date", "").lower()
         score = sum(1 for w in query_words if w in txt)
-        # Boost score if target speakers are mentioned or speaking
-        for s in target_speakers:
-            s_low = s.lower()
-            if s_low in spk:
-                score += 3
-            if s_low in txt:
-                score += 2
-        scored_results.append((score, chunk))
-        
-    scored_results.sort(key=lambda x: x[0], reverse=True)
-    results = [item[1] for item in scored_results[:15]]
+        if any(ci in txt for ci in completion_indicators):
+            score += 3
+        if any(rd in dt for rd in ["4 august", "august", "31 july"]):
+            score += 4
+        elif any(rd in dt for rd in ["28 july", "29 july", "30 july"]):
+            score += 2
+        scored_all.append((score, chunk))
+    scored_all.sort(key=lambda x: x[0], reverse=True)
+    for _, c in scored_all[:3]:
+        c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
+        if c_key not in seen_ids:
+            seen_ids.add(c_key)
+            selected_chunks.append(c)
+            
+    results = selected_chunks if selected_chunks else results[:8]
 
     # ── Classify every chunk into the 4 capability buckets ────────────────────
     completed  = []
@@ -405,51 +446,25 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
     )
     report_lines.extend(milestone_timeline)
 
-    # === Perform Map-Reduce on Retrieved Evidence to Create High-Quality Context ===
-    # Sort chunks chronologically by date first
+    # === Direct Context Build (no batching needed — Groq handles 128k tokens) ===
     sorted_results = []
     for r in results:
         payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
         dt = payload.get("date", "Unknown Date")
         sorted_results.append((dt, r))
     sorted_results.sort(key=lambda x: x[0])
-    ordered_chunks = [item[1] for item in sorted_results]
 
-    mapped_contexts = []
-    BATCH_SIZE = 10
-    num_batches = (len(ordered_chunks) + BATCH_SIZE - 1) // BATCH_SIZE
-    
-    if num_batches > 0:
-        print(f"  - [Manager Map-Reduce]: Mapping {len(ordered_chunks)} chunks in {num_batches} batches...")
-        
-    for b in range(0, len(ordered_chunks), BATCH_SIZE):
-        batch_chunks = ordered_chunks[b:b + BATCH_SIZE]
-        batch_num = (b // BATCH_SIZE) + 1
-        
-        doc_context = ""
-        for c in batch_chunks:
-            p = c if isinstance(c, dict) else (c.payload if hasattr(c, "payload") else {})
-            doc_context += f"[{p.get('date', 'Unknown')} | {p.get('source_file', 'doc')} | Page {p.get('page', '1')}]\n{p.get('speaker', 'Unknown')}: {p.get('text', '')}\n\n"
+    doc_context = ""
+    for c in sorted_results:
+        p = c[1] if isinstance(c, dict) else c[1]
+        p = p if isinstance(p, dict) else (p.payload if hasattr(p, "payload") else {})
+        doc_context += f"[{p.get('date', 'Unknown')} | {p.get('source_file', 'doc')} | Page {p.get('page', '1')}]\n{p.get('speaker', 'Unknown')}: {p.get('text', '')}\n\n"
 
-        map_prompt = (
-            f"You are a project manager assistant. Extract status details for {', '.join(target_speakers)} from these meeting transcripts.\n"
-            f"Extract accomplishments, active blockers, risks, decisions, and milestones.\n"
-            f"For each point, you MUST preserve the exact verbatim quotes, page numbers, and speaker name.\n\n"
-            f"Excerpts (Batch {batch_num}/{num_batches}):\n{doc_context}"
-        )
-        
-        summary = generate_llm_response(
-            system_prompt="You are a precise project management data extractor.",
-            user_query=map_prompt,
-            fallback_response="NO_CONTENT",
-            agent_type="teammates"
-        )
-        if "NO_CONTENT" not in summary:
-            mapped_contexts.append(f"=== Meeting Highlights (Batch {batch_num}/{num_batches}) ===\n{summary.strip()}")
-
-    final_rag_context = mapped_contexts if mapped_contexts else raw_chunks
+    final_rag_context = [{"text": doc_context, "speaker": "Team", "date": "", "source_file": "transcripts", "page": "1", "score": 1.0}]
+    print(f"  - [Manager]: Sending {len(sorted_results)} chunks directly to LLM (no batching)...")
 
     fallback_report = "\n".join(report_lines)
+
 
     # ── Construct 8-Module System Prompt via PromptBuilder → Groq LLM ─────────
     builder = PromptBuilder(user_id="Iyappan Sir", role="Manager")

@@ -15,7 +15,8 @@ import time
 import glob
 import re
 from pathlib import Path
-from qdrant_queries import main as run_rag_indexing, load_transcript_from_docx
+import docx
+from pipeline import SemanticTranscriptParser, get_vector_db
 
 DOWNLOADS_DIR = str(Path.home() / "Downloads")
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,15 +29,13 @@ def is_valid_teams_transcript(file_path: str) -> bool:
     Ignores non-transcript Word files (e.g., resumes, forms, reports).
     """
     try:
-        txt = load_transcript_from_docx(file_path)
+        doc = docx.Document(file_path)
+        txt = " ".join([p.text for p in doc.paragraphs])
         if not txt or len(txt.strip()) < 30:
             return False
             
-        # Check for Teams speaker dialogue patterns (e.g., timestamp HH:MM or known speaker turn markers)
         has_timestamps = bool(re.search(r"\b\d{1,2}:\d{2}\b", txt))
         has_known_speakers = any(name in txt for name in ["Siddharth", "Himaya", "Dakshinya", "Ganesh", "Speaker"])
-        
-        # Valid if it contains Teams timestamps or speaker dialogue turns
         return has_timestamps or has_known_speakers
     except Exception:
         return False
@@ -77,8 +76,11 @@ def watch_downloads_folder():
                 print("   [+] Triggering Automatic Incremental RAG Indexing...")
                 
                 # Run indexer for new file
-                run_rag_indexing()
-                print("   [+] Incremental Indexing Complete! New transcript is live!")
+                db = get_vector_db()
+                parser = SemanticTranscriptParser(directory=TRANSCRIPTS_DIR, dense_model=db.dense_model)
+                new_chunks = parser.parse_document(dest_path)
+                db.insert_chunks(new_chunks)
+                print(f"   [+] Incremental Indexing Complete! Inserted {len(new_chunks)} chunks into Qdrant.")
                 
             known_downloads = current_downloads
             time.sleep(2)
