@@ -10,6 +10,9 @@ import sys
 import os
 import json
 
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
