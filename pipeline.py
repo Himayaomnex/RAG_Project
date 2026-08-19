@@ -3,6 +3,7 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 import re
 import uuid
 import docx
+from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchText, MatchValue
 from sentence_transformers import SentenceTransformer, util
@@ -531,9 +532,9 @@ class DenseRetriever:
 def ensure_pipeline_initialized():
     db = get_vector_db()
     try:
-
         collection_info = db.client.get_collection(db.collection_name)
-        has_data = collection_info.points_count > 0
+        count = getattr(collection_info, 'points_count', 0) or 0
+        has_data = count > 0
     except Exception:
         has_data = False
 

@@ -21,13 +21,27 @@ Operational intelligence skill for the Manager Agent (Persona: Iyappan Sir, Exec
 - **Path 1: MECE Trainee Accomplishment & Status Matrix**
   - *Trigger*: User asks about completed tasks, deliverables, or weekly progress.
   - *Schema*: `| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |`
-  - *Reference*: See `executive_decision_framework.md` for standard deliverable mapping.
+  - *Standard Deliverables Set*:
+    - **Himaya Perumal**: 
+      1. Multi-Agent RAG System Architecture (Orchestration of agent nodes, dynamic intent routing, stateful API endpoints).
+      2. Embedding Caching (Chunk-level MD5 cache layer eliminating redundant vector model computation).
+      3. Custom Semantic Chunking Strategy (Sentence-boundary chunking with rolling token overlap).
+    - **Ganesh Krishna**: 
+      1. Excel Extraction & Multi-File Editing Pipeline (Schema-aware cell parsing and multi-sheet editing).
+      2. DeepSeek V4 Integration (Routing between DeepSeek V4 Flash for low-latency edits and DeepSeek V4 Pro for complex merges).
+      3. Excel Diff Rendering & Verification (Visual cell delta inspection verifying changes against original workbooks).
+    - **Dakshinya Nachimuthu**: 
+      1. Feature Engineering & ML Baseline Models (TF-IDF vectorization, Logistic Regression, and XGBoost training).
+      2. Vector Search & Reranker Architecture (Qdrant dense retrieval paired with cross-encoder reranking).
+      3. ML Model Experiments & Context Engineering (Token window budgeting, prompt compression, and batch optimization).
 - **Path 2: SCQA Blocker & Risk Breakdown**
   - *Trigger*: User asks about impediments, technical problems, delays, or hardware bottlenecks.
   - *Schema*: `| Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |`
+  - *Protocol*: Extract root-cause technical impediments (e.g. rate limits, memory OOM, context window boundaries) with concrete mitigation answers agreed in the meeting.
 - **Path 3: Executive Decision & Milestone Timeline Auditing**
   - *Trigger*: User asks about architectural decisions, timeline schedules, or resource allocation.
   - *Schema*: `| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |`
+  - *Protocol*: Track strategic decisions (e.g. adopting DeepSeek V4 Pro, implementing Qdrant vector database, utilizing LangGraph).
 
 ---
 

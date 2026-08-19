@@ -19,7 +19,13 @@ Operational technical intelligence skill for the Teammates Agent (Persona: Engin
 
 - **Path 1: System Architecture & Pipeline Deep Dive**
   - *Trigger*: User asks how the RAG pipeline works, how chunking is implemented, or how embeddings are cached.
-  - *Reference*: See `codebase_architecture_reference.md` for local module specifications.
+  - *Codebase References*:
+    - `pipeline.py`: `CachedEmbeddingModel`, `SemanticTranscriptParser`, `VectorDatabase`, `CustomMeetingReranker`.
+    - `transcript_normalizer.py`: `normalize_speaker_name()`, `clean_audio_artifacts()`, `reattribute_crosstalk_turn()`.
+    - `llm_client.py`: `generate_llm_response()`, `normalize_table_status_cells()`, `sanitize_markdown_table_pipes()`.
+    - `prompt_builder.py`: `PromptBuilder`, `build_system_prompt()`, `build_user_prompt()`.
+    - `router.py`: `route_query()`, `detect_agent_type()`, `resolve_target_trainee()`.
+    - `api_server.py`: `POST /api/v1/query`, `POST /api/v1/manager`, `POST /api/v1/mentor`, `POST /api/v1/teammates`.
 - **Path 2: Spoken Transcript Dialogue Retrieval**
   - *Trigger*: User asks what a specific teammate said during a meeting or how a technical issue was discussed.
   - *Scope*: Retrieves verbatim transcript exchanges with speaker, date, document, and page citations.

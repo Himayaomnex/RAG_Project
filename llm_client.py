@@ -54,6 +54,10 @@ TABLE_HEADERS = {
         "| Trainee | Strength / Misconception | Evidence Type | Verbatim Citation Proof |\n"
         "| :--- | :--- | :--- | :--- |"
     ),
+    "mentor_methodology": (
+        "| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |\n"
+        "| :--- | :--- | :--- | :--- |"
+    ),
     "mentor_tasks": (
         "| Trainee | Assigned Task / Learning Topic | Meeting Date | Verbatim Citation Proof |\n"
         "| :--- | :--- | :--- | :--- |"
@@ -78,14 +82,18 @@ def _detect_table_key(user_query: str, agent_type: str = "") -> str:
         if any(w in q for w in ["accomplish","task","status","progress","done","complete","deliverable","himaya","ganesh","dakshinya","finish","built","implemented","created","what did","update"]):
             return "manager_accomplishments"
     elif "mentor" in a or "siddharth" in a:
+        if any(w in q for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
+            return "mentor_methodology"
         if any(w in q for w in ["feedback","guidance","mentorship","coach","advice","targeted"]):
             return "mentor_feedback"
         if any(w in q for w in ["strength","gap","misconception","weak","good at","diagnos","technical performance"]):
             return "mentor_strengths"
         if any(w in q for w in ["task","assign","next","topic","learn","homework","deliverable","action item","next step"]):
             return "mentor_tasks"
-        if any(w in q for w in ["score","evaluat","grade","rating","verdict","preparation","conceptual","engagement","scorecard"]):
+        if any(w in q for w in ["score","grade","rating","verdict","scorecard","preparation","conceptual","engagement"]):
             return "mentor_scores"
+        if "evaluat" in q:
+            return "mentor_methodology"
     return ""
 
 
@@ -342,7 +350,7 @@ def generate_llm_response(
         
         temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.2"))
         top_p = float(os.getenv("GEMINI_TOP_P", "0.9"))
-        max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "4096"))
+        max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "8192"))
         timeout = int(os.getenv("GEMINI_TIMEOUT", "300"))
         max_retries = int(os.getenv("GEMINI_MAX_RETRIES", "3"))
 
@@ -350,6 +358,15 @@ def generate_llm_response(
         
         for g_model in gemini_models:
             gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/{g_model}:generateContent?key={gemini_key}"
+            
+            user_instruction = user_query
+            if is_table_query:
+                user_instruction += (
+                    f"\n\n== STRICT OUTPUT RULE ==\n"
+                    f"Format your output strictly as a single Markdown Pipe Table using this exact header:\n{table_header}\n"
+                    f"MANDATORY REQUIREMENT: Complete the table fully without truncating. Include 2-3 distinct completed deliverable rows for EVERY team member: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu. Never stop mid-row or mid-sentence."
+                )
+            
             gemini_payload = {
                 "systemInstruction": {
                     "parts": [{"text": system_prompt}]
@@ -358,9 +375,7 @@ def generate_llm_response(
                     {
                         "role": "user",
                         "parts": [{
-                            "text": (
-                                user_query + ("\n\n== STRICT RULE ==\nFormat output strictly as a Markdown Pipe Table:\n" + table_header if is_table_query else "")
-                            )
+                            "text": user_instruction
                         }]
                     }
                 ],
@@ -375,7 +390,7 @@ def generate_llm_response(
                 try:
                     import time as _time
                     t0 = _time.time()
-                    resp = requests.post(gemini_url, json=gemini_payload, timeout=min(timeout, 30))
+                    resp = requests.post(gemini_url, json=gemini_payload, timeout=min(timeout, 120))
                     t1 = _time.time()
                     
                     if resp.status_code == 200:

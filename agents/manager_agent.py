@@ -314,7 +314,7 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
                     score += 3
                 m_chunks.append((score, chunk))
         m_chunks.sort(key=lambda x: x[0], reverse=True)
-        for _, c in m_chunks[:4]:
+        for _, c in m_chunks[:15]:
             c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
             if c_key not in seen_ids:
                 seen_ids.add(c_key)
@@ -334,13 +334,13 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
             score += 2
         scored_all.append((score, chunk))
     scored_all.sort(key=lambda x: x[0], reverse=True)
-    for _, c in scored_all[:3]:
+    for _, c in scored_all[:10]:
         c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
         if c_key not in seen_ids:
             seen_ids.add(c_key)
             selected_chunks.append(c)
             
-    results = selected_chunks if selected_chunks else results[:8]
+    results = selected_chunks if selected_chunks else results
 
     # ── Classify every chunk into the 4 capability buckets ────────────────────
     completed  = []

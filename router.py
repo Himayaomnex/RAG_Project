@@ -40,7 +40,19 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
         
     # 2. Mentor Role Dispatch
     elif role_lower in ["siddharth", "mentor", "evaluator"]:
-        mentee = target_member if target_member else ("Ganesh" if "ganesh" in prompt_lower else ("Dakshinya" if "dakshinya" in prompt_lower else "Himaya"))
+        p_low = prompt_lower
+        if target_member:
+            mentee = target_member
+        elif any(w in p_low for w in ["all", "everyone", "trainees", "mentees", "team"]):
+            mentee = "All Team Members"
+        elif "ganesh" in p_low and "himaya" not in p_low and "dakshinya" not in p_low:
+            mentee = "Ganesh"
+        elif "dakshinya" in p_low and "himaya" not in p_low and "ganesh" not in p_low:
+            mentee = "Dakshinya"
+        elif "himaya" in p_low and "ganesh" not in p_low and "dakshinya" not in p_low:
+            mentee = "Himaya"
+        else:
+            mentee = "All Team Members"
         return run_mentor_agent(user_prompt, target_mentee=mentee)
         
     # 3. Teammate Specific Role Dispatch (Himaya, Ganesh, Dakshinya)
@@ -74,7 +86,20 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
         ]
 
         if any(w in prompt_lower for w in mentor_keywords):
-            return run_mentor_agent(user_prompt, target_mentee=target_member if target_member else "Himaya")
+            p_low = prompt_lower
+            if target_member:
+                mentee = target_member
+            elif any(w in p_low for w in ["all", "everyone", "trainees", "mentees", "team"]):
+                mentee = "All Team Members"
+            elif "ganesh" in p_low and "himaya" not in p_low and "dakshinya" not in p_low:
+                mentee = "Ganesh"
+            elif "dakshinya" in p_low and "himaya" not in p_low and "ganesh" not in p_low:
+                mentee = "Dakshinya"
+            elif "himaya" in p_low and "ganesh" not in p_low and "dakshinya" not in p_low:
+                mentee = "Himaya"
+            else:
+                mentee = "All Team Members"
+            return run_mentor_agent(user_prompt, target_mentee=mentee)
         elif any(w in prompt_lower for w in teammate_keywords):
             return run_teammates_agent(user_prompt, user_name=target_member if target_member else "Himaya")
         else:

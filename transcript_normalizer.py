@@ -81,6 +81,7 @@ def clean_audio_artifacts(text: str) -> str:
     text = re.sub(r"\[(laughter|unmute|cross-talk|inaudible|background noise|crosstalk)\]", "", text, flags=re.IGNORECASE)
     
     # Audio transcription phonetic typos & mishearings
+    text = re.sub(r"\bdeep\s*sea\b|\bdeep\s*c\b|\bteam\s*seek\b|\bdeep\s*seed\b", "DeepSeek", text, flags=re.IGNORECASE)
     text = re.sub(r"\bdragon\s+project\b", "RAG project", text, flags=re.IGNORECASE)
     text = re.sub(r"\brack\s+project\b|\brack\b", "RAG", text, flags=re.IGNORECASE)
     text = re.sub(r"\bAqua\s+Pro\s+A\b|\bAqua\s+Pro\b", "RAG Pipeline Architecture", text, flags=re.IGNORECASE)

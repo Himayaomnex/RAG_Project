@@ -79,6 +79,18 @@ if FASTAPI_AVAILABLE:
         "teammate": []
     }
 
+    @app.on_event("startup")
+    def startup_warmup():
+        print("\n" + "=" * 80)
+        print("🚀 [API Server Warmup]: Pre-loading Vector DB & Embedding Models...")
+        try:
+            from pipeline import ensure_pipeline_initialized
+            ensure_pipeline_initialized()
+            print("✅ [API Server Warmup]: Vector DB initialized and ready for instant queries!")
+        except Exception as e:
+            print(f"⚠️ [API Server Warmup Notice]: {e}")
+        print("=" * 80 + "\n")
+
     @app.get("/health")
     def health_check():
         return {
@@ -98,10 +110,21 @@ if FASTAPI_AVAILABLE:
     def dispatch_query(req: QueryRequest, x_user_role: Optional[str] = Header("auto"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Central Auto-Router Endpoint: Dynamically routes query based on user role or prompt intent."""
         t0 = time.time()
-        result = route_request(req.prompt, user_role=x_user_role or "auto", target_member=req.target_member or "")
-        latency = round(time.time() - t0, 3)
+        print(f"\n📥 [API Server - Auto Router] Request Received:")
+        print(f"   • Prompt: \"{req.prompt}\"")
+        print(f"   • User Role: {x_user_role} | Target Mentee: {req.target_member or 'Auto-Detect'}")
         
-        # Save to history
+        try:
+            result = route_request(req.prompt, user_role=x_user_role or "auto", target_member=req.target_member or "")
+            status = "success"
+        except Exception as e:
+            print(f"❌ [API Server Error]: {e}")
+            result = f"⚠️ Server Error encountered while processing query: {str(e)}"
+            status = "error"
+            
+        latency = round(time.time() - t0, 3)
+        print(f"📤 [API Server - Auto Router] Completed in {latency}s | Status: {status}")
+        
         target_key = "manager" if "manager" in (x_user_role or "").lower() else ("mentor" if "mentor" in (x_user_role or "").lower() else "teammate")
         AGENT_HISTORY[target_key].append({
             "timestamp": time.strftime("%H:%M:%S"),
@@ -115,6 +138,7 @@ if FASTAPI_AVAILABLE:
             agent_role=x_user_role or "auto",
             response=result,
             latency_seconds=latency,
+            status=status,
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -122,8 +146,19 @@ if FASTAPI_AVAILABLE:
     def manager_agent_endpoint(req: QueryRequest, x_user_role: Optional[str] = Header("manager"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Manager Agent Endpoint: Executive progress status, active blockers, risks, and required decisions."""
         t0 = time.time()
-        result = run_manager_agent(req.prompt, target_member=req.target_member or "")
+        print(f"\n👔 [Manager Agent Endpoint] Request Received:")
+        print(f"   • Prompt: \"{req.prompt}\"")
+        
+        try:
+            result = run_manager_agent(req.prompt, target_member=req.target_member or "")
+            status = "success"
+        except Exception as e:
+            print(f"❌ [Manager Agent Error]: {e}")
+            result = f"⚠️ Manager Agent Error: {str(e)}"
+            status = "error"
+            
         latency = round(time.time() - t0, 3)
+        print(f"📤 [Manager Agent Endpoint] Completed in {latency}s | Status: {status}")
 
         AGENT_HISTORY["manager"].append({
             "timestamp": time.strftime("%H:%M:%S"),
@@ -137,6 +172,7 @@ if FASTAPI_AVAILABLE:
             agent_role="manager",
             response=result,
             latency_seconds=latency,
+            status=status,
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -144,9 +180,33 @@ if FASTAPI_AVAILABLE:
     def mentor_agent_endpoint(req: QueryRequest, x_user_role: Optional[str] = Header("siddharth"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Mentor Agent Endpoint: Mentee evaluation scorecards, technical quizzes, and next assignments."""
         t0 = time.time()
-        target = req.target_member or ("Ganesh" if "ganesh" in req.prompt.lower() else ("Dakshinya" if "dakshinya" in req.prompt.lower() else "Himaya"))
-        result = run_mentor_agent(req.prompt, target_mentee=target)
+        p_low = req.prompt.lower()
+        if req.target_member:
+            target = req.target_member
+        elif any(w in p_low for w in ["all", "everyone", "trainees", "mentees", "team"]):
+            target = "All Team Members"
+        elif "ganesh" in p_low and "himaya" not in p_low and "dakshinya" not in p_low:
+            target = "Ganesh"
+        elif "dakshinya" in p_low and "himaya" not in p_low and "ganesh" not in p_low:
+            target = "Dakshinya"
+        elif "himaya" in p_low and "ganesh" not in p_low and "dakshinya" not in p_low:
+            target = "Himaya"
+        else:
+            target = "All Team Members"
+            
+        print(f"\n🎓 [Mentor Agent Endpoint] Request Received:")
+        print(f"   • Prompt: \"{req.prompt}\" | Target Mentee: {target}")
+        
+        try:
+            result = run_mentor_agent(req.prompt, target_mentee=target)
+            status = "success"
+        except Exception as e:
+            print(f"❌ [Mentor Agent Error]: {e}")
+            result = f"⚠️ Mentor Agent Error: {str(e)}"
+            status = "error"
+            
         latency = round(time.time() - t0, 3)
+        print(f"📤 [Mentor Agent Endpoint] Completed in {latency}s | Status: {status}")
 
         AGENT_HISTORY["mentor"].append({
             "timestamp": time.strftime("%H:%M:%S"),
@@ -160,6 +220,7 @@ if FASTAPI_AVAILABLE:
             agent_role="mentor",
             response=result,
             latency_seconds=latency,
+            status=status,
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -167,8 +228,19 @@ if FASTAPI_AVAILABLE:
     def teammate_agent_endpoint(req: QueryRequest, x_user_name: Optional[str] = Header("Himaya"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Teammates Agent Endpoint: Code explanations, architecture walkthroughs, and spoken meeting quotes."""
         t0 = time.time()
-        result = run_teammates_agent(req.prompt, user_name=x_user_name or "Himaya")
+        print(f"\n👥 [Teammates Agent Endpoint] Request Received:")
+        print(f"   • Prompt: \"{req.prompt}\" | User: {x_user_name or 'Himaya'}")
+        
+        try:
+            result = run_teammates_agent(req.prompt, user_name=x_user_name or "Himaya")
+            status = "success"
+        except Exception as e:
+            print(f"❌ [Teammates Agent Error]: {e}")
+            result = f"⚠️ Teammates Agent Error: {str(e)}"
+            status = "error"
+            
         latency = round(time.time() - t0, 3)
+        print(f"📤 [Teammates Agent Endpoint] Completed in {latency}s | Status: {status}")
 
         AGENT_HISTORY["teammate"].append({
             "timestamp": time.strftime("%H:%M:%S"),
@@ -182,6 +254,7 @@ if FASTAPI_AVAILABLE:
             agent_role="teammate",
             response=result,
             latency_seconds=latency,
+            status=status,
             llm_provider=get_active_llm_provider_name()
         )
 

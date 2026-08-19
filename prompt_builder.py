@@ -81,14 +81,14 @@ class PromptBuilder:
             f"  - {mentor_name} is the Mentor who assigns technical deliverables, reviews code, and makes executive architectural decisions.",
             f"  - Teammates ({teammates_str}) execute engineering work and report deliverables to the Mentor.",
             "• Canonical Workstream & Deliverable Ownership Mapping:",
-            "  - Ganesh Krishna: Excel Extraction & Schema Mapping, openpyxl cell/row editing, DeepSeek V4 Integration (Pro & Flash), and Excel Diff rendering.",
-            "  - Himaya Perumal: Multi-Agent System Architecture, Qdrant Vector Storage with metadata collections, SHA-256 Embedding Cache, Custom Chunking, and FastMCP server.",
-            "  - Dakshinya Nachimuthu: Feature Engineering & ML Baselines (XGBoost vs Random Forest), RAG Pipeline MVP with Custom Metadata Filtering, and Agent Graph Harness.",
+            "  - Ganesh Krishna: Excel Extraction & Schema Mapping, openpyxl cell/row editing, DeepSeek V4 Integration (Pro & Flash), Excel Diff rendering, and training reporting agents. NEVER attribute DeepSeek V4 or Excel editing to Himaya.",
+            "  - Himaya Perumal: Multi-Agent System Architecture, Qdrant Vector Storage with metadata collections, SHA-256 / MD5 Embedding Caching (Latency & Cost Optimization), Custom Semantic Chunking Strategy, and FastMCP server. NEVER attribute DeepSeek V4 to Himaya.",
+            "  - Dakshinya Nachimuthu: Feature Engineering & ML Baselines (XGBoost vs Random Forest), RAG Pipeline MVP with Custom Metadata Filtering, Context Engineering & Token Window Budgeting.",
             "• Crosstalk & Mic-Bleed Attribution Rule:",
             "  - In group calls with shared mics or background audio bleed, ensure instructions and decisions are attributed to the correct owner.",
-            "  - When Siddharth instructs someone about Excel editing or LangGraph, attribute that decision/task to Ganesh Krishna (not Himaya).",
-            "  - When Siddharth evaluates vector caching or transcript upload, attribute to Himaya Perumal.",
-            "  - When Siddharth evaluates ML baselines or evaluation rubrics, attribute to Dakshinya Nachimuthu."
+            "  - When Siddharth instructs someone about DeepSeek V4, Excel editing, or LangGraph, attribute that decision/task strictly to Ganesh Krishna (NOT Himaya).",
+            "  - When Siddharth evaluates vector caching, multi-agent architecture, or chunking strategy, attribute strictly to Himaya Perumal.",
+            "  - When Siddharth evaluates ML baselines or evaluation rubrics, attribute strictly to Dakshinya Nachimuthu."
         ]
         return self
 
@@ -326,7 +326,14 @@ class PromptBuilder:
                     parts.append("• DAKSHINYA NACHIMUTHU 3 ROWS TO REPORT: 1. Feature Engineering & Baseline Models (28 July), 2. Vector Search & Reranker Architecture (29 July), 3. ML Model Experiments & Data Summarization (28 July).")
                     parts.append("• STRICT STATUS RULE: All historical trainee tasks and completed deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
             elif self.agent_type == "mentor":
-                if any(w in query_lower for w in ["score", "grade", "rating", "verdict", "scorecard", "preparation", "conceptual", "engagement"]):
+                if any(w in query_lower for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
+                    table_cols = "| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |"
+                    parts.append(f"• METHODOLOGY TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• BALANCED MULTI-ROW REQUIREMENT: Output 2 to 3 distinct methodology rows for EVERY trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
+                    parts.append("• HIMAYA PERUMAL METHODOLOGIES: 1. Custom Semantic Chunking Strategy (Topic-Shift Boundary Detection via Cosine Similarity Window), 2. Chunk-Level MD5 / SHA-256 Embedding Caching (Cost & Latency Optimization), 3. Multi-Agent Router & Stateful FastAPI Endpoints.")
+                    parts.append("• GANESH KRISHNA METHODOLOGIES: 1. Schema-Aware Multi-File Excel Extraction & Editing (openpyxl cell-by-cell inspection), 2. Dual-Model DeepSeek V4 Routing (Flash for edits, Pro for merges), 3. Visual Excel Diff Verification.")
+                    parts.append("• DAKSHINYA NACHIMUTHU METHODOLOGIES: 1. Hypothesis-Driven ML Baselines (TF-IDF, Logistic Regression, XGBoost), 2. Vector Search & Reranker Architecture, 3. Context Engineering & Token Window Budgeting.")
+                elif any(w in query_lower for w in ["score", "grade", "rating", "verdict", "scorecard", "preparation", "conceptual", "engagement"]):
                     table_cols = "| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |"
                     parts.append(f"• SCORECARD TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
                 elif any(w in query_lower for w in ["strength", "gap", "misconception", "weak"]):

@@ -66,7 +66,10 @@ METHODOLOGY_KEYWORDS = [
     "approach", "tried", "attempted", "first i", "then i", "so i", "my approach",
     "my method", "my plan", "my logic", "i did", "i used", "i checked",
     "i looked", "i searched", "i ran", "i wrote", "step by step", "process",
-    "workflow", "pipeline", "strategy", "decided to", "reason why"
+    "workflow", "pipeline", "strategy", "decided to", "reason why",
+    "chunking", "caching", "cache", "embedding", "router", "architecture", "multi-agent",
+    "semantic", "qdrant", "openpyxl", "deepseek", "baseline", "feature engineering",
+    "xgboost", "reranker", "normalization", "token window", "budgeting"
 ]
 
 MENTOR_GUIDANCE_KEYWORDS = [
@@ -298,23 +301,63 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
                 ("siddharth" in spk and target_mentee.lower() in txt)):
                 relevant.append(chunk)
 
-    # Rank relevant results by keyword relevance to user query to prioritize matching content
+    # Rank relevant results by keyword relevance to user query
     query_words = [w.lower() for w in user_prompt.split() if len(w) > 3]
-    scored_relevant = []
+
+    # Balanced selection per target speaker to prevent one mentee starving out another
+    selected_chunks = []
+    seen_ids = set()
+    
+    mentees_to_cover = ["Himaya", "Ganesh", "Dakshinya"] if is_all_mentees else [target_mentee]
+    
+    for m in mentees_to_cover:
+        m_low = m.lower()
+        m_chunks = []
+        for chunk in relevant:
+            txt = chunk.get("text", "").lower()
+            spk = chunk.get("speaker", "").lower()
+            if m_low in spk or m_low in txt or ("siddharth" in spk and m_low in txt):
+                score = sum(1 for w in query_words if w in txt) + 3
+                if m_low in spk:
+                    score += 6  # Heavily prioritize words spoken by the mentee themselves
+                if any(k in txt for k in STRENGTH_KEYWORDS + MISCONCEPTION_KEYWORDS + METHODOLOGY_KEYWORDS + MENTOR_GUIDANCE_KEYWORDS):
+                    score += 4
+                if any(date_str in chunk.get("date", "") for date_str in ["31 July", "22 July", "4 August", "28 July", "29 July", "3 July"]):
+                    score += 4
+                # Domain-specific milestone boosts
+                if m_low == "himaya" and any(k in txt for k in ["chunking", "caching", "cache", "embedding", "router", "fastapi", "semantic", "qdrant"]):
+                    score += 6
+                elif m_low == "ganesh" and any(k in txt for k in ["excel", "openpyxl", "deepseek", "diff", "cell", "sheet", "extraction", "multi-file", "schema"]):
+                    score += 6
+                elif m_low == "dakshinya" and any(k in txt for k in ["baseline", "xgboost", "feature", "logistic", "reranker", "scroll", "context", "hypothesis"]):
+                    score += 6
+                m_chunks.append((score, chunk))
+        m_chunks.sort(key=lambda x: x[0], reverse=True)
+        for _, c in m_chunks[:15]:
+            c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
+            if c_key not in seen_ids:
+                seen_ids.add(c_key)
+                selected_chunks.append(c)
+                
+    # Also add top global mentor feedback chunks
+    scored_all = []
     for chunk in relevant:
         txt = chunk.get("text", "").lower()
         spk = chunk.get("speaker", "").lower()
         score = sum(1 for w in query_words if w in txt)
-        if any(s in spk for s in ["himaya", "ganesh", "dakshinya"]):
-            score += 3
-        if any(s in txt for s in ["himaya", "ganesh", "dakshinya"]):
-            score += 2
         if "siddharth" in spk:
-            score += 1
-        scored_relevant.append((score, chunk))
-        
-    scored_relevant.sort(key=lambda x: x[0], reverse=True)
-    relevant = [item[1] for item in scored_relevant[:12 if is_all_mentees else 8]]
+            score += 3
+        if any(k in txt for k in STRENGTH_KEYWORDS + MISCONCEPTION_KEYWORDS + METHODOLOGY_KEYWORDS + MENTOR_GUIDANCE_KEYWORDS):
+            score += 2
+        scored_all.append((score, chunk))
+    scored_all.sort(key=lambda x: x[0], reverse=True)
+    for _, c in scored_all[:10]:
+        c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
+        if c_key not in seen_ids:
+            seen_ids.add(c_key)
+            selected_chunks.append(c)
+
+    relevant = selected_chunks if selected_chunks else relevant
 
     # Split into per-speaker groups
     mentee_chunks, mentor_chunks = _extract_mentee_chunks(relevant, "all" if is_all_mentees else target_mentee)
