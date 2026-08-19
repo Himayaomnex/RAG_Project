@@ -299,13 +299,12 @@ class PromptBuilder:
                 if any(w in query_lower for w in ["block", "risk", "delay", "stuck", "issue", "problem"]):
                     table_cols = "| Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |"
                     parts.append(f"• BLOCKER/RISK TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
-                    parts.append("• COLUMN DEFINITIONS FOR SCQA BLOCKER TABLE:")
-                    parts.append("  - Column 1 (Trainee): Name of the trainee.")
-                    parts.append("  - Column 2 (Situation): The technical component, task, or context being worked on.")
-                    parts.append("  - Column 3 (Complication): The specific technical impediment, confusion, error, mic bleed, or delay encountered. NEVER write 'Completed' in this column — describe the actual complication.")
+                    parts.append("  - Column 1 (Trainee): Name of the trainee (Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu).")
+                    parts.append("  - Column 2 (Situation): The technical component or feature being worked on.")
+                    parts.append("  - Column 3 (Complication): The specific technical impediment, error, mic bleed, or challenge encountered. NEVER write 'Completed' here.")
                     parts.append("  - Column 4 (Question): The core technical problem or question caused by the blocker (e.g. 'How to resolve X?').")
-                    parts.append("  - Column 5 (Answer / Mitigation): DIRECT ANSWER TO THE QUESTION. Provide the concrete technical solution that directly resolves the Question in Column 4 (e.g. 'Resolved by building X / Mitigated by implementing Y / Solved by restructuring Z').")
-                    parts.append("• STRICT SCQA CELL INTEGRITY: There is NO 'Status' column in this SCQA table. Do NOT write 'Completed' or 'In Progress' in any cell. Column 3 must describe the complication, Column 4 the impact question, and Column 5 the direct technical answer.")
+                    parts.append("  - Column 5 (Answer / Mitigation): The concise technical resolution that directly answers Column 4 (e.g. 'Redesigned diagram into modular subsystems emphasizing user flows', 'Implemented pre-chunking regex entity normalizer in transcript_normalizer.py to clean phonetic audio bleed', 'Built OpenPyXL parsing script to extract Excel rows into structured JSON diffs'). State the concrete technical fix directly in 1-2 clear sentences. Do NOT write conversational narrative preambles like 'Siddharth instructed X to...'.")
+                    parts.append("• STRICT SCQA CELL INTEGRITY: There is NO 'Status' column in this SCQA table. Do NOT write 'Completed' or 'In Progress' in any cell. Column 3 must describe the complication, Column 4 the impact question, and Column 5 the direct technical resolution.")
                     parts.append("• STRICT BLOCKER-ONLY RULE: Only output rows for actual complications, blockers, challenges, misunderstandings, rate-limits, audio bleed, or delays discussed in the transcripts. Do NOT output rows for smooth accomplishments that have no blocker.")
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
                     table_cols = "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |"
