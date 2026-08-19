@@ -438,11 +438,11 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
         eval_lines.extend(targeted_feedback[:4])
     else:
         eval_lines.append(
-                "- No explicit feedback turns found from Siddharth in current "
-                "retrieved window. Review transcripts for direct evaluation comments."
-            )
+            "- No explicit feedback turns found from Siddharth in current "
+            "retrieved window. Review transcripts for direct evaluation comments."
+        )
 
-        fallback_report = "\n".join(eval_lines)
+    fallback_report = "\n".join(eval_lines)
 
     # === Direct Context Build (no batching — Groq 128k handles everything) ===
     sorted_items = []
