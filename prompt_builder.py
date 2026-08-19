@@ -159,23 +159,11 @@ class PromptBuilder:
                 "  1. GOVERNING THOUGHT & MECE ACCOMPLISHMENTS (Section: '✅ Governing Thought & MECE Accomplishment Table'): Formulate a single, specific falsifiable Governing Thought sentence summarizing the overall state. Then, generate a structured Markdown Table evaluating the three trainees (Himaya, Ganesh, Dakshinya): | Trainee | Task / Deliverable | Status | Verbatim Citation Proof |",
                 "  2. SCQA BLOCKER ANALYSIS (Section: '⚠️ SCQA Blocker & Risk Analysis'): Analyze impediments using the SCQA framework: state the Situation, the Complication (blocker/delay), the Question (impact), and the Answer (proposed mitigation). Organize this in a Markdown Table: | Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |",
                 "  3. DECISIONS (Section: '🎯 Recommended Executive Decisions & Resource Allocation'): Recommend resource allocation based on transcript evidence.",
-                "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification (e.g. 'show X' instead of 'understand Y') |",
-                "  • BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE):",
-                "    - You MUST output at least 2 to 3 distinct completed deliverables for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
-                "    - No trainee should have only 1 row.",
-                "    - STRICT STATUS RULE: The core deliverables for all three trainees (Himaya, Ganesh, Dakshinya) are COMPLETED. Mark their status as 'Completed' (do NOT mark completed deliverables as 'In Progress').",
-                "    - Dakshinya Nachimuthu's 3 distinct deliverables to report:",
-                "      1. Feature Engineering & ML Baseline Models (TF-IDF, Logistic Regression, XGBoost) — Status: Completed — cite 3 July 2026.",
-                "      2. Vector Search & Reranker RAG Architecture — Status: Completed — cite 29 July 2026.",
-                "      3. ML Model Experiments & Data Summarization — Status: Completed — cite 28 July 2026.",
-                "    - Ganesh Krishna's 3 distinct deliverables to report:",
-                "      1. Excel Extraction & Multi-File Editing Pipeline — Status: Completed — cite 31 July 2026.",
-                "      2. DeepSeek V4 Integration (Pro for merges, Flash for edits) — Status: Completed — cite 31 July 2026.",
-                "      3. Excel Diff Rendering & Testing — Status: Completed — cite 4 August 2026.",
-                "    - Himaya Perumal's 3 distinct deliverables to report:",
-                "      1. Entire Multi-Agent RAG System Architecture — Status: Completed — cite 31 July 2026.",
-                "      2. Embedding Caching (Latency & Cost Optimization) — Status: Completed — cite 31 July 2026.",
-                "      3. Custom Semantic Chunking Strategy — Status: Completed — cite 31 July 2026.",
+                "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification |",
+                "  • DYNAMIC EVIDENCE EXTRACTION REQUIREMENTS:",
+                "    - Read the provided <transcript_evidence> thoroughly and extract the actual deliverables reported by each trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
+                "    - Determine the status dynamically from the evidence: if the speaker reports it completed, verified, or tested, mark as 'Completed'; if blocked, mark as 'Blocked'; if in active development, mark as 'In Progress'.",
+                "    - Every single row and citation must be derived directly from the retrieved transcript turns.",
                 "STRICT CITATION RULES:",
                 "  • FAITHFUL PARAPHRASING: The summary text underneath each citation MUST be a 100% faithful paraphrase of that exact citation. Do NOT invent claims absent from the cited text.",
                 "  • COMPLETE CITATIONS: NEVER output truncated citations ending in ellipses ('...').",
@@ -322,17 +310,12 @@ class PromptBuilder:
                 else:
                     table_cols = "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |"
                     parts.append(f"• ACCOMPLISHMENTS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
-                    parts.append("• BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE): You MUST output 2 to 3 distinct rows for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
-                    parts.append("• DAKSHINYA NACHIMUTHU 3 ROWS TO REPORT: 1. Feature Engineering & Baseline Models (28 July), 2. Vector Search & Reranker Architecture (29 July), 3. ML Model Experiments & Data Summarization (28 July).")
-                    parts.append("• STRICT STATUS RULE: All historical trainee tasks and completed deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
+                    parts.append("• DYNAMIC EVIDENCE EXTRACTION: Read the provided <transcript_evidence> and extract each trainee's deliverables and reported status directly from their spoken review turns.")
             elif self.agent_type == "mentor":
                 if any(w in query_lower for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
                     table_cols = "| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |"
                     parts.append(f"• METHODOLOGY TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
-                    parts.append("• BALANCED MULTI-ROW REQUIREMENT: Output 2 to 3 distinct methodology rows for EVERY trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
-                    parts.append("• HIMAYA PERUMAL METHODOLOGIES: 1. Custom Semantic Chunking Strategy (Topic-Shift Boundary Detection via Cosine Similarity Window), 2. Chunk-Level MD5 / SHA-256 Embedding Caching (Cost & Latency Optimization), 3. Multi-Agent Router & Stateful FastAPI Endpoints.")
-                    parts.append("• GANESH KRISHNA METHODOLOGIES: 1. Schema-Aware Multi-File Excel Extraction & Editing (openpyxl cell-by-cell inspection), 2. Dual-Model DeepSeek V4 Routing (Flash for edits, Pro for merges), 3. Visual Excel Diff Verification.")
-                    parts.append("• DAKSHINYA NACHIMUTHU METHODOLOGIES: 1. Hypothesis-Driven ML Baselines (TF-IDF, Logistic Regression, XGBoost), 2. Vector Search & Reranker Architecture, 3. Context Engineering & Token Window Budgeting.")
+                    parts.append("• DYNAMIC METHODOLOGY EXTRACTION: Extract the problem-solving approaches, chunking/caching/crosstalk strategies, and technical architectures demonstrated by each trainee directly from <transcript_evidence>.")
                 elif any(w in query_lower for w in ["score", "grade", "rating", "verdict", "scorecard", "preparation", "conceptual", "engagement"]):
                     table_cols = "| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |"
                     parts.append(f"• SCORECARD TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
