@@ -35,6 +35,8 @@ if parent_dir not in sys.path:
 from pipeline import VectorDatabase, DenseRetriever, ensure_pipeline_initialized
 from prompt_builder import PromptBuilder
 from llm_client import generate_llm_response
+from transcript_utils import clean_chunk_text, resolve_primary_mentee, iter_chunk_turns
+import json
 
 _db = None
 _retriever = None
@@ -47,39 +49,17 @@ def get_retriever():
     return _retriever
 
 
-# ── Classification helpers ─────────────────────────────────────────────────────
+# ── Load Keywords from Configuration ──────────────────────────────────────────
+_KEYWORDS_PATH = os.path.join(parent_dir, "agent_keywords.json")
+with open(_KEYWORDS_PATH, "r", encoding="utf-8") as f:
+    _KEYWORDS = json.load(f)
 
-STRENGTH_KEYWORDS = [
-    "understand", "worked", "created", "added", "solution", "schema", "excel",
-    "finished", "built", "implemented", "completed", "pushed", "tested",
-    "correct", "right", "good", "exactly", "yes", "figured out", "resolved",
-    "fixed", "working", "deployed", "uploaded", "submitted", "achieved"
-]
-
-MISCONCEPTION_KEYWORDS = [
-    "confused", "not sure", "wrong", "mistake", "misunderstand", "thought",
-    "assumed", "didn't realise", "didn't know", "incorrect", "mixing up",
-    "conflated", "unclear", "didn't understand", "i thought", "but actually"
-]
-
-METHODOLOGY_KEYWORDS = [
-    "approach", "tried", "attempted", "first i", "then i", "so i", "my approach",
-    "my method", "my plan", "my logic", "i did", "i used", "i checked",
-    "i looked", "i searched", "i ran", "i wrote", "step by step", "process",
-    "workflow", "pipeline", "strategy", "decided to", "reason why",
-    "chunking", "caching", "cache", "embedding", "router", "architecture", "multi-agent",
-    "semantic", "qdrant", "openpyxl", "deepseek", "baseline", "feature engineering",
-    "xgboost", "reranker", "normalization", "token window", "budgeting"
-]
-
-MENTOR_GUIDANCE_KEYWORDS = [
-    "want you to", "you should", "next task", "next step", "your task",
-    "assignment", "focus on", "work on", "read about", "study", "learn",
-    "implement", "build", "i want", "i need you", "can you", "please",
-    "make sure", "remember to", "don't forget", "deliverable", "deadline",
-    "by tomorrow", "by next week", "action item", "homework", "try to",
-    "practice", "review", "go through", "understand", "explore"
-]
+STRENGTH_KEYWORDS        = _KEYWORDS["mentor_agent"]["strength"]
+MISCONCEPTION_KEYWORDS   = _KEYWORDS["mentor_agent"]["misconception"]
+METHODOLOGY_KEYWORDS     = _KEYWORDS["mentor_agent"]["methodology"]
+MENTOR_GUIDANCE_KEYWORDS = _KEYWORDS["mentor_agent"]["mentor_guidance"]
+FEEDBACK_KEYWORDS        = _KEYWORDS["mentor_agent"]["feedback"]
+MENTEE_NAMES_MAP        = _KEYWORDS["mentee_names_map"]
 
 
 def _extract_mentee_chunks(results: list, mentee_name: str):
@@ -95,46 +75,14 @@ def _extract_mentee_chunks(results: list, mentee_name: str):
 
     for r in results:
         payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
-        dt      = payload.get("date", "Unknown Date")
-        doc     = payload.get("source_file", "Transcript.docx")
-        pg      = payload.get("page", "1")
-        raw_txt = payload.get("text", "").strip()
-
-        # De-multiplex inline speaker turns on raw_txt first
-        import re
-        pattern = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+):\s*(.*?)(?=\n[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+:|$)"
-        matches = re.findall(pattern, raw_txt, re.DOTALL)
-
-        if not matches:
-            spk     = payload.get("speaker", "Unknown")
-            from transcript_normalizer import clean_audio_artifacts
-            txt = clean_audio_artifacts(raw_txt)
-            if txt.endswith("..."):
-                txt = txt.rstrip(".").rstrip() + "."
-            cit = f"[{dt} | {doc} | Speaker: {spk} | Page {pg}]"
+        for turn in iter_chunk_turns(payload, mentee_names_map=MENTEE_NAMES_MAP):
+            spk, txt, dt, doc, pg, cit = turn["spk"], turn["txt"], turn["dt"], turn["doc"], turn["pg"], turn["cit"]
             item = {"spk": spk, "dt": dt, "doc": doc, "pg": pg, "txt": txt, "cit": cit}
 
-            if mentee_name.lower() in spk.lower():
+            if mentee_name == "all" or mentee_name.lower() in spk.lower():
                 mentee_chunks.append(item)
             elif "siddharth" in spk.lower():
                 mentor_chunks.append(item)
-        else:
-            for turn_spk, turn_txt in matches:
-                turn_spk = turn_spk.strip()
-                turn_txt = turn_txt.strip()
-                from transcript_normalizer import clean_audio_artifacts
-                txt = clean_audio_artifacts(turn_txt)
-                if not txt:
-                    continue
-                if txt.endswith("..."):
-                    txt = txt.rstrip(".").rstrip() + "."
-                cit = f"[{dt} | {doc} | Speaker: {turn_spk} | Page {pg}]"
-                item = {"spk": turn_spk, "dt": dt, "doc": doc, "pg": pg, "txt": txt, "cit": cit}
-
-                if mentee_name.lower() in turn_spk.lower():
-                    mentee_chunks.append(item)
-                elif "siddharth" in turn_spk.lower():
-                    mentor_chunks.append(item)
 
     return mentee_chunks, mentor_chunks
 

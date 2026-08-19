@@ -1,0 +1,26 @@
+{
+  "manager_agent": {
+    "accomplishment": ["done", "completed", "created", "added", "solution", "schema", "code", "built", "implemented", "cache", "finished", "pushed", "merged", "fixed", "tested", "deployed", "working", "wrote", "uploaded", "submitted", "generated", "output", "result", "achieved", "delivered", "set up", "running", "passed", "integrated"],
+    "blocker": ["stuck", "block", "problem", "taking long", "didn't start", "issue", "error", "delay", "timeout", "couldn't", "could not", "haven't started", "not done", "pending", "failing", "not able", "not working", "unable", "exception", "failed", "authentication failed", "access denied", "not completed", "haven't", "didn't", "not yet"],
+    "risk": ["risk", "trade off", "hard", "difficult", "fail", "challenge", "concern", "slow", "bottleneck", "latency", "overloaded", "unclear", "ambiguous", "not sure about", "depends on"],
+    "decision": ["decide", "store", "table", "structure", "choose", "langgraph", "database", "deliverable", "want you to", "should we", "can you", "need to", "must", "plan to", "architecture", "approach", "strategy", "assign", "next step", "action item", "follow up", "target"],
+    "conceptual_noise": ["why?", "how is that happening", "what is", "how does", "explain to"]
+  },
+  "mentor_agent": {
+    "strength": ["understand", "worked", "created", "added", "solution", "schema", "excel", "finished", "built", "implemented", "completed", "pushed", "tested", "correct", "right", "good", "exactly", "yes", "figured out", "resolved", "fixed", "working", "deployed", "uploaded", "submitted", "achieved"],
+    "misconception": ["confused", "not sure", "wrong", "mistake", "misunderstand", "thought", "assumed", "didn't realise", "didn't know", "incorrect", "mixing up", "conflated", "unclear", "didn't understand", "i thought", "but actually"],
+    "methodology": ["approach", "tried", "attempted", "first i", "then i", "so i", "my approach", "my method", "my plan", "my logic", "i did", "i used", "i checked", "i looked", "i searched", "i ran", "i wrote", "step by step", "process", "workflow", "pipeline", "strategy", "decided to", "reason why", "chunking", "caching", "cache", "embedding", "router", "architecture", "multi-agent", "semantic", "qdrant", "openpyxl", "deepseek", "baseline", "feature engineering", "xgboost", "reranker", "normalization", "token window", "budgeting"],
+    "mentor_guidance": ["want you to", "you should", "next task", "next step", "your task", "assignment", "focus on", "work on", "read about", "study", "learn", "implement", "build", "i want", "i need you", "can you", "please", "make sure", "remember to", "don't forget", "deliverable", "deadline", "by tomorrow", "by next week", "action item", "homework", "try to", "practice", "review", "go through", "understand", "explore"],
+    "feedback": ["good", "correct", "exactly", "well done", "no", "that's wrong", "not correct", "the issue is", "the problem is", "you need to", "the difference", "actually", "let me explain", "think about", "the reason", "key point", "important", "remember", "not quite", "close but", "you're mixing", "that's not", "clarify"]
+  },
+  "mentee_names_map": {
+    "himaya": "Himaya Perumal",
+    "ganesh": "Ganesh Krishna",
+    "dakshinya": "Dakshinya Nachimuthu"
+  },
+  "domain_boost_keywords": {
+    "himaya": ["chunking", "caching", "cache", "embedding", "router", "fastapi", "semantic", "qdrant"],
+    "ganesh": ["excel", "openpyxl", "deepseek", "diff", "cell", "sheet", "extraction", "multi-file", "schema"],
+    "dakshinya": ["baseline", "xgboost", "feature", "logistic", "reranker", "scroll", "context", "hypothesis"]
+  }
+}

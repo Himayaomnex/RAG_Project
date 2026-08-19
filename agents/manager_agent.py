@@ -30,6 +30,8 @@ if parent_dir not in sys.path:
 from pipeline import VectorDatabase, DenseRetriever, ensure_pipeline_initialized
 from prompt_builder import PromptBuilder
 from llm_client import generate_llm_response
+from transcript_utils import clean_chunk_text, resolve_primary_mentee, iter_chunk_turns
+import json
 
 _db = None
 _retriever = None
@@ -42,74 +44,17 @@ def get_retriever():
     return _retriever
 
 
-# ── Classification helpers ─────────────────────────────────────────────────────
+# ── Load Keywords from Configuration ──────────────────────────────────────────
+_KEYWORDS_PATH = os.path.join(parent_dir, "agent_keywords.json")
+with open(_KEYWORDS_PATH, "r", encoding="utf-8") as f:
+    _KEYWORDS = json.load(f)
 
-ACCOMPLISHMENT_KEYWORDS = [
-    "done", "completed", "created", "added", "solution", "schema", "code",
-    "built", "implemented", "cache", "finished", "pushed", "merged", "fixed",
-    "tested", "deployed", "working", "wrote", "uploaded", "submitted",
-    "generated", "output", "result", "achieved", "delivered", "set up",
-    "running", "passed", "integrated"
-]
-
-BLOCKER_KEYWORDS = [
-    "stuck", "block", "problem", "taking long", "didn't start", "issue",
-    "error", "delay", "timeout", "couldn't", "could not", "haven't started",
-    "not done", "pending", "failing", "not able", "not working", "unable",
-    "exception", "failed", "authentication failed", "access denied",
-    "not completed", "haven't", "didn't", "not yet"
-]
-
-RISK_KEYWORDS = [
-    "risk", "trade off", "hard", "difficult", "fail", "challenge",
-    "concern", "slow", "bottleneck", "latency", "overloaded", "unclear",
-    "ambiguous", "not sure about", "depends on"
-]
-
-DECISION_KEYWORDS = [
-    "decide", "store", "table", "structure", "choose", "langgraph",
-    "database", "deliverable", "want you to", "should we", "can you",
-    "need to", "must", "plan to", "architecture", "approach", "strategy",
-    "assign", "next step", "action item", "follow up", "target"
-]
-
-CONCEPTUAL_NOISE = [
-    "why?", "how is that happening", "what is", "how does", "explain to"
-]
-
-
-MENTEE_NAMES_MAP = {
-    "himaya": "Himaya Perumal",
-    "ganesh": "Ganesh Krishna",
-    "dakshinya": "Dakshinya Nachimuthu",
-}
-
-
-def _clean_chunk_text(raw_txt: str) -> str:
-    """
-    Strips XML document wrapper tags injected by P4 map-reduce
-    (e.g. <document name="...">...</document>) and returns the plain
-    transcript text, truncated to 300 chars for bullet readability.
-    """
-    # Strip <document ...> opening tag and </document> closing tag
-    txt = re.sub(r'<document[^>]*>', '', raw_txt, flags=re.DOTALL)
-    txt = re.sub(r'</document>', '', txt, flags=re.DOTALL)
-    txt = txt.strip()
-    return txt
-
-
-def _primary_mentee(spk: str) -> str:
-    """
-    Extracts the first individual mentee name from a (possibly comma-joined)
-    speaker field.  Returns the canonical full name, or the original string
-    if no mentee is found.
-    """
-    for part in spk.split(","):
-        part_lower = part.strip().lower()
-        for key, full in MENTEE_NAMES_MAP.items():
-            if key in part_lower:
-                return full
-    return spk.split(",")[0].strip()
+ACCOMPLISHMENT_KEYWORDS = _KEYWORDS["manager_agent"]["accomplishment"]
+BLOCKER_KEYWORDS        = _KEYWORDS["manager_agent"]["blocker"]
+RISK_KEYWORDS           = _KEYWORDS["manager_agent"]["risk"]
+DECISION_KEYWORDS       = _KEYWORDS["manager_agent"]["decision"]
+CONCEPTUAL_NOISE        = _KEYWORDS["manager_agent"]["conceptual_noise"]
+MENTEE_NAMES_MAP        = _KEYWORDS["mentee_names_map"]
 
 
 def _classify_chunk(txt: str, spk: str, dt: str, doc: str, pg: str):
@@ -152,27 +97,12 @@ def _build_milestone_timeline(results: list) -> list:
     """
     # member → { date → [text snippets] }
     timeline: dict = defaultdict(lambda: defaultdict(list))
-
     mentee_names = ["himaya", "ganesh", "dakshinya"]
 
     for r in results:
         payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
-        dt      = payload.get("date", "Unknown Date")
-        doc     = payload.get("source_file", "Transcript.docx")
-        pg      = payload.get("page", "1")
-        raw_txt = payload.get("text", "").strip()
-
-        # De-multiplex inline speaker turns on raw_txt first
-        import re
-        pattern = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+):\s*(.*?)(?=\n[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+:|$)"
-        matches = re.findall(pattern, raw_txt, re.DOTALL)
-
-        if not matches:
-            spk     = payload.get("speaker", "")
-            from transcript_normalizer import clean_audio_artifacts
-            txt = _clean_chunk_text(clean_audio_artifacts(raw_txt))
-            if txt.endswith("..."):
-                txt = txt.rstrip(".").rstrip() + "."
+        for turn in iter_chunk_turns(payload, mentee_names_map=MENTEE_NAMES_MAP):
+            spk, txt, dt, doc, pg, cit = turn["spk"], turn["txt"], turn["dt"], turn["doc"], turn["pg"], turn["cit"]
             spk_lower = spk.lower()
             if not any(m in spk_lower for m in mentee_names):
                 continue
@@ -181,32 +111,9 @@ def _build_milestone_timeline(results: list) -> list:
             if any(w in txt.lower() for w in CONCEPTUAL_NOISE):
                 continue
             if any(w in txt.lower() for w in ACCOMPLISHMENT_KEYWORDS + BLOCKER_KEYWORDS + DECISION_KEYWORDS):
-                primary = _primary_mentee(spk)
-                cit = f"[{dt} | {doc} | Speaker: {primary} | Page {pg}]"
+                primary = resolve_primary_mentee(spk, MENTEE_NAMES_MAP)
                 snippet = txt[:180] + ("..." if len(txt) > 180 else "")
                 timeline[primary][dt].append(f"  - \"{snippet}\"  *(📌 `{cit}`)*")
-        else:
-            for turn_spk, turn_txt in matches:
-                turn_spk = turn_spk.strip()
-                turn_txt = turn_txt.strip()
-                from transcript_normalizer import clean_audio_artifacts
-                txt = _clean_chunk_text(clean_audio_artifacts(turn_txt))
-                if not txt:
-                    continue
-                if txt.endswith("..."):
-                    txt = txt.rstrip(".").rstrip() + "."
-                spk_lower = turn_spk.lower()
-                if not any(m in spk_lower for m in mentee_names):
-                    continue
-                if txt.strip().endswith("?") and len(txt.strip()) < 120:
-                    continue
-                if any(w in txt.lower() for w in CONCEPTUAL_NOISE):
-                    continue
-                if any(w in txt.lower() for w in ACCOMPLISHMENT_KEYWORDS + BLOCKER_KEYWORDS + DECISION_KEYWORDS):
-                    primary = _primary_mentee(turn_spk)
-                    cit = f"[{dt} | {doc} | Speaker: {primary} | Page {pg}]"
-                    snippet = txt[:180] + ("..." if len(txt) > 180 else "")
-                    timeline[primary][dt].append(f"  - \"{snippet}\"  *(📌 `{cit}`)*")
 
     if not timeline:
         return ["- No milestone timeline data found in retrieved transcript evidence."]
@@ -359,23 +266,9 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
 
     for r in results:
         payload = r if isinstance(r, dict) else (r.payload if hasattr(r, "payload") else {})
-        dt      = payload.get("date", "Unknown Date")
-        doc     = payload.get("source_file", "Transcript.docx")
-        pg      = payload.get("page", "1")
-        raw_txt = payload.get("text", "").strip()
-
-        # De-multiplex inline speaker turns on raw_txt first
-        import re
-        pattern = r"([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+):\s*(.*?)(?=\n[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+:|$)"
-        matches = re.findall(pattern, raw_txt, re.DOTALL)
-
-        if not matches:
-            spk     = payload.get("speaker", "Team Member")
-            from transcript_normalizer import clean_audio_artifacts
-            txt = _clean_chunk_text(clean_audio_artifacts(raw_txt))
-            if txt.endswith("..."):
-                txt = txt.rstrip(".").rstrip() + "."
-            display_spk = _primary_mentee(spk) if any(
+        for turn in iter_chunk_turns(payload, mentee_names_map=MENTEE_NAMES_MAP):
+            spk, txt, dt, doc, pg, cit = turn["spk"], turn["txt"], turn["dt"], turn["doc"], turn["pg"], turn["cit"]
+            display_spk = resolve_primary_mentee(spk, MENTEE_NAMES_MAP) if any(
                 m in spk.lower() for m in ["himaya", "ganesh", "dakshinya"]
             ) else spk
 
@@ -386,29 +279,6 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
             elif category == "blocker":      blockers.append(bullet)
             elif category == "risk":         risks.append(bullet)
             elif category == "decision":     decisions.append(bullet)
-        else:
-            for turn_spk, turn_txt in matches:
-                turn_spk = turn_spk.strip()
-                turn_txt = turn_txt.strip()
-                
-                from transcript_normalizer import clean_audio_artifacts
-                txt = _clean_chunk_text(clean_audio_artifacts(turn_txt))
-                if not txt:
-                    continue
-                if txt.endswith("..."):
-                    txt = txt.rstrip(".").rstrip() + "."
-                
-                display_spk = _primary_mentee(turn_spk) if any(
-                    m in turn_spk.lower() for m in ["himaya", "ganesh", "dakshinya"]
-                ) else turn_spk
-
-                raw_chunks.append(f"[{dt} | {doc} | Page {pg}]\n{display_spk}: {txt}\n")
-
-                category, bullet = _classify_chunk(txt, display_spk, dt, doc, pg)
-                if category == "accomplishment": completed.append(bullet)
-                elif category == "blocker":      blockers.append(bullet)
-                elif category == "risk":         risks.append(bullet)
-                elif category == "decision":     decisions.append(bullet)
 
     # ── CAPABILITY 4: Milestone Progress & Task Timelines ─────────────────────
     milestone_timeline = _build_milestone_timeline(results)
