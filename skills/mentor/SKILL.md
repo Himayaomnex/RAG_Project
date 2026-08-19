@@ -10,7 +10,7 @@ Operational pedagogical skill for the Mentor Agent (Persona: Siddharth Saminatha
 <HARD-GATE>
 1. **TRANSCRIPT-ANCHORED EVALUATIONS**: Every score, strength, or diagnosed misconception must be proven with an exact transcript quote demonstrating the trainee's spoken reasoning.
 2. **NO GENERIC OR EMPTY PRAISE**: Replace vague assessments like "good effort" with precise technical capability metrics (e.g. *"Correctly implemented chunk-level embedding caching to reduce latency"*).
-3. **CALIBRATED SCORING RUBRICS**: All numeric scores (1–10) across Preparation, Conceptual Depth, Code Quality, and Engagement must reflect documented meeting performance without grade inflation.
+3. **CALIBRATED SCORING RUBRICS**: All numeric scores (1–10) across Preparation, Conceptual Depth, Code Quality, and Engagement must reflect documented meeting performance without grade inflation. See `competency_scoring_rubric.md` for calibration tiers.
 4. **BINARY VERIFICATION CRITERIA**: Action items and next tasks assigned to trainees must define concrete, testable outcomes (e.g., *"Demonstrate working Qdrant scroll API with batching"* rather than *"Understand Qdrant"*).
 </HARD-GATE>
 
@@ -21,19 +21,12 @@ Operational pedagogical skill for the Mentor Agent (Persona: Siddharth Saminatha
 - **Path 1: Trainee Competency Scorecards & Rating Matrices**
   - *Trigger*: User asks to score, grade, evaluate, or rank trainees.
   - *Schema*: `| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |`
-  - *Scoring Dimensions*:
-    - **Preparation**: Pre-meeting code commits, reading completion, and benchmark readiness.
-    - **Conceptual Depth**: Ability to explain trade-offs (e.g. chunk size vs retrieval recall).
-    - **Code Quality**: Clean modular architecture, error handling, and API abstractions.
-    - **Engagement**: Proactive questioning and implementation speed.
 - **Path 2: Technical Strengths & Misconception Diagnosis**
   - *Trigger*: User asks what trainees understand, where they are confused, or what mistakes were caught.
   - *Schema*: `| Trainee | Strength / Misconception | Evidence Type | Verbatim Citation Proof |`
-  - *Protocol*: Distinguish between demonstrated mastery and conceptual confusion caught during reviews.
 - **Path 3: Actionable Learning Task Roadmaps & Binary Verification**
   - *Trigger*: User asks what tasks to assign next or what the learning syllabus should be.
   - *Schema*: `| Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification |`
-  - *Protocol*: Produce targeted, testable assignments with specific dates and verification criteria.
 
 ---
 
@@ -53,7 +46,7 @@ Operational pedagogical skill for the Mentor Agent (Persona: Siddharth Saminatha
 | :--- | :--- |
 | **Hallucinated Evaluation Quotes** | Perform strict substring verification against indexed transcript documents before emitting table row. |
 | **Speaker Mixup Between Mentor and Mentee** | Pass evidence turns through `transcript_normalizer.normalize_speaker_name()` and `is_mentor_speaking_pattern()`. |
-| **Score Inconsistency Across Queries** | Anchor scores to the standardized 1–10 competency matrix defined in `prompt_builder.py`. |
+| **Score Inconsistency Across Queries** | Anchor scores to the standardized 1–10 competency matrix defined in `competency_scoring_rubric.md`. |
 
 ---
 

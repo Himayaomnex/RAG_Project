@@ -21,18 +21,13 @@ Operational intelligence skill for the Manager Agent (Persona: Iyappan Sir, Exec
 - **Path 1: MECE Trainee Accomplishment & Status Matrix**
   - *Trigger*: User asks about completed tasks, deliverables, or weekly progress.
   - *Schema*: `| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |`
-  - *Standard Deliverable Set*:
-    - **Himaya Perumal**: 1. Multi-Agent RAG System Architecture, 2. Embedding Caching (Latency & Cost Optimization), 3. Custom Semantic Chunking Strategy.
-    - **Ganesh Krishna**: 1. Excel Extraction & Multi-File Editing Pipeline, 2. DeepSeek V4 Integration (Pro for merges, Flash for edits), 3. Excel Diff Rendering & Testing.
-    - **Dakshinya Nachimuthu**: 1. Feature Engineering & ML Baseline Models (TF-IDF, XGBoost), 2. Vector Search & Reranker Architecture, 3. ML Model Experiments & Data Summarization.
+  - *Reference*: See `executive_decision_framework.md` for standard deliverable mapping.
 - **Path 2: SCQA Blocker & Risk Breakdown**
   - *Trigger*: User asks about impediments, technical problems, delays, or hardware bottlenecks.
   - *Schema*: `| Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |`
-  - *Protocol*: Extract root-cause technical impediments (e.g. rate limits, memory OOM, context window boundaries) with concrete mitigation answers agreed in the meeting.
 - **Path 3: Executive Decision & Milestone Timeline Auditing**
   - *Trigger*: User asks about architectural decisions, timeline schedules, or resource allocation.
   - *Schema*: `| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |`
-  - *Protocol*: Track strategic decisions (e.g. adopting DeepSeek V4 Pro, implementing Qdrant vector database, utilizing LangGraph).
 
 ---
 

@@ -19,11 +19,7 @@ Operational technical intelligence skill for the Teammates Agent (Persona: Engin
 
 - **Path 1: System Architecture & Pipeline Deep Dive**
   - *Trigger*: User asks how the RAG pipeline works, how chunking is implemented, or how embeddings are cached.
-  - *Scope*: Explains the 4 core pipeline subsystems:
-    1. **Knowledge Ingestion**: Document extraction (`docx`), audio artifact cleanup (`transcript_normalizer.py`), and semantic chunking.
-    2. **Vector Storage**: `sentence-transformers/all-MiniLM-L6-v2` dense embeddings stored in Qdrant collections (`teams_dense_collection`).
-    3. **Retrieval & Reranking**: Dense vector search + `CustomMeetingReranker` (Lexical + Recency Boost).
-    4. **Agent Orchestration**: Specialized agents (Manager, Mentor, Teammates) with multi-provider failover (`llm_client.py`).
+  - *Reference*: See `codebase_architecture_reference.md` for local module specifications.
 - **Path 2: Spoken Transcript Dialogue Retrieval**
   - *Trigger*: User asks what a specific teammate said during a meeting or how a technical issue was discussed.
   - *Scope*: Retrieves verbatim transcript exchanges with speaker, date, document, and page citations.
