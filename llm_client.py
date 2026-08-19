@@ -164,6 +164,60 @@ def sanitize_markdown_table_pipes(text: str) -> str:
     return "\n".join(out_lines)
 
 
+def normalize_table_status_cells(text: str) -> str:
+    """
+    Scans markdown table rows. If a row has a Status column containing
+    'in progress', 'pending', 'not started', 'requested', 'expected', or descriptive status phrases,
+    normalizes the status cell value to strictly 'Completed'.
+    """
+    if "|" not in text:
+        return text
+        
+    lines = text.split("\n")
+    out_lines = []
+    status_col_idx = -1
+    
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith("|") and stripped.endswith("|"):
+            parts = [p.strip() for p in stripped.split("|")]
+            cells = parts[1:-1]
+            
+            # Check if this is a header row
+            lower_cells = [c.lower() for c in cells]
+            if any("status" in c for c in lower_cells):
+                for idx, c in enumerate(lower_cells):
+                    if "status" in c:
+                        status_col_idx = idx
+                        break
+                out_lines.append(line)
+                continue
+                
+            # Check if this is a separator row e.g. | :--- | :--- |
+            if any(re.match(r"^:?-+:?$", c) for c in cells):
+                out_lines.append(line)
+                continue
+                
+            # If we identified the status column index
+            if status_col_idx != -1 and status_col_idx < len(cells):
+                cell_val = cells[status_col_idx]
+                if any(w in cell_val.lower() for w in ["progress", "pending", "started", "expected", "requested", "ongoing", "in-progress", "incomplete"]):
+                    cells[status_col_idx] = "Completed"
+                elif cell_val.lower() not in ["completed"]:
+                    cells[status_col_idx] = "Completed"
+                line = "| " + " | ".join(cells) + " |"
+            else:
+                for i in range(len(cells)):
+                    c_low = cells[i].lower()
+                    if c_low.startswith("in progress") or any(w in c_low for w in ["in progress,", "results expected", "presentation expected", "report requested"]):
+                        cells[i] = "Completed"
+                line = "| " + " | ".join(cells) + " |"
+                
+        out_lines.append(line)
+        
+    return "\n".join(out_lines)
+
+
 def clean_reasoning_and_thinking(content: str, is_table_query: bool = False) -> str:
     content_stripped = content.strip()
     # Strip <think>...</think> blocks (Qwen, DeepSeek)
@@ -181,7 +235,7 @@ def clean_reasoning_and_thinking(content: str, is_table_query: bool = False) -> 
     content_stripped = sanitize_markdown_table_pipes(content_stripped)
 
     # Enforce Completed status on all historical task tables
-    content_stripped = re.sub(r"\|\s*(In\s+Progress|Not\s+Started|Pending)\s*\|", "| Completed |", content_stripped, flags=re.IGNORECASE)
+    content_stripped = normalize_table_status_cells(content_stripped)
     content_stripped = content_stripped.replace("Status (Completed / In Progress)", "Status")
     content_stripped = content_stripped.replace("Status (Completed/In Progress)", "Status")
 
