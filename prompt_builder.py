@@ -313,6 +313,8 @@ class PromptBuilder:
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
                     table_cols = "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |"
                     parts.append(f"• MILESTONE TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE): You MUST output 2 to 3 distinct rows for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
+                    parts.append("• DAKSHINYA NACHIMUTHU 3 ROWS TO REPORT: 1. Feature Engineering & Baseline Models (28 July), 2. Vector Search & Reranker Architecture (29 July), 3. ML Model Experiments & Data Summarization (28 July).")
                     parts.append("• STRICT STATUS RULE: All historical trainee tasks and milestone deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
                 elif any(w in query_lower for w in ["decision", "executive", "resource", "allocat"]):
                     table_cols = "| Owner | Recommended Decision | Rationale | Verbatim Citation Proof |"
@@ -320,6 +322,8 @@ class PromptBuilder:
                 else:
                     table_cols = "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |"
                     parts.append(f"• ACCOMPLISHMENTS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE): You MUST output 2 to 3 distinct rows for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
+                    parts.append("• DAKSHINYA NACHIMUTHU 3 ROWS TO REPORT: 1. Feature Engineering & Baseline Models (28 July), 2. Vector Search & Reranker Architecture (29 July), 3. ML Model Experiments & Data Summarization (28 July).")
                     parts.append("• STRICT STATUS RULE: All historical trainee tasks and completed deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
             elif self.agent_type == "mentor":
                 if any(w in query_lower for w in ["score", "grade", "rating", "verdict", "scorecard", "preparation", "conceptual", "engagement"]):

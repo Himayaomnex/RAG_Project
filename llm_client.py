@@ -335,14 +335,14 @@ def generate_llm_response(
     gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
     if gemini_key:
         configured_model = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash").strip()
-        gemini_models = [configured_model, "gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-pro"]
+        gemini_models = [configured_model, "gemini-2.5-flash", "gemini-2.5-pro", "gemini-1.5-flash-latest", "gemini-1.5-pro-latest"]
         # Deduplicate while preserving order
         seen_g = set()
         gemini_models = [m for m in gemini_models if m and not (m in seen_g or seen_g.add(m))]
         
         temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.2"))
         top_p = float(os.getenv("GEMINI_TOP_P", "0.9"))
-        max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "2048"))
+        max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "4096"))
         timeout = int(os.getenv("GEMINI_TIMEOUT", "300"))
         max_retries = int(os.getenv("GEMINI_MAX_RETRIES", "3"))
 
