@@ -362,103 +362,82 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
     # Split into per-speaker groups
     mentee_chunks, mentor_chunks = _extract_mentee_chunks(relevant, "all" if is_all_mentees else target_mentee)
 
-    # ── Quiz / testing mode ───────────────────────────────────────────────────
-    if "quiz" in prompt_lower or "test question" in prompt_lower:
-        fallback_report = f"""### 🎓 Mentor Evaluation: Technical Testing Quiz for **{target_mentee}**
+    # ── CAPABILITY 1: Strengths & Misconceptions ──────────────────────────
+    strengths, misconceptions = _evaluate_strengths_and_misconceptions(
+        mentee_chunks, target_mentee
+    )
 
-1. **Vector Search & Embedding Caching**:
-   - *Question*: How does `CachedEmbeddingModel` prevent redundant embedding computation when processing meeting sentences?
-   - *Target Area*: Embedding Caching & MD5 Hashing
+    # ── CAPABILITY 2: Methodology Evaluation ─────────────────────────────
+    methodology_entries = _evaluate_methodology(mentee_chunks, target_mentee)
 
-2. **Semantic Chunking vs Static Chunking**:
-   - *Question*: Why is topic-shift detection using cosine similarity window better than fixed character splitting for meeting transcripts?
-   - *Target Area*: RAG Retrieval Optimization
+    # ── CAPABILITY 3: Evidence-Based Next Tasks ───────────────────────────
+    next_tasks = _extract_evidence_based_next_tasks(mentor_chunks, target_mentee)
 
-3. **Boundary Failure Logging vs Performance Latency Logging**:
-   - *Question*: What is the difference between step-by-step boundary failure logging and performance latency logging? When would you use each?
-   - *Target Area*: Observability & Debugging
+    # ── CAPABILITY 4: Targeted Mentorship Feedback ────────────────────────
+    targeted_feedback = _extract_targeted_feedback(mentor_chunks, target_mentee)
 
-4. **Metadata Filtering**:
-   - *Question*: How do speaker re-attribution and payload filters improve precision when querying specific teammate contributions?
-   - *Target Area*: Metadata Scoping & Data Quality
-"""
+    # ── Assemble structured evaluation report dynamically from retrieved evidence ──
+    eval_lines = [
+        f"### 🎓 Mentor Evaluation Report (Mentor: Siddharth Saminathan)\n",
+        f"#### 👤 Target Mentee: **{target_mentee}**\n",
+    ]
+
+    # CAPABILITY 1 — Technical Strengths
+    eval_lines.append("#### 🌟 Demonstrated Technical Strengths")
+    if strengths:
+        eval_lines.extend(strengths[:5])
     else:
-        # ── CAPABILITY 1: Strengths & Misconceptions ──────────────────────────
-        strengths, misconceptions = _evaluate_strengths_and_misconceptions(
-            mentee_chunks, target_mentee
-        )
-
-        # ── CAPABILITY 2: Methodology Evaluation ─────────────────────────────
-        methodology_entries = _evaluate_methodology(mentee_chunks, target_mentee)
-
-        # ── CAPABILITY 3: Evidence-Based Next Tasks ───────────────────────────
-        next_tasks = _extract_evidence_based_next_tasks(mentor_chunks, target_mentee)
-
-        # ── CAPABILITY 4: Targeted Mentorship Feedback ────────────────────────
-        targeted_feedback = _extract_targeted_feedback(mentor_chunks, target_mentee)
-
-        # ── Assemble structured evaluation report ─────────────────────────────
-        eval_lines = [
-            f"### 🎓 Mentor Evaluation Report (Mentor: Siddharth Saminathan)\n",
-            f"#### 👤 Target Mentee: **{target_mentee}**\n",
-        ]
-
-        # CAPABILITY 1 — Technical Strengths
-        eval_lines.append("#### 🌟 Demonstrated Technical Strengths")
-        if strengths:
-            eval_lines.extend(strengths[:5])
-        else:
-            eval_lines.append(
-                f"- {target_mentee} actively participates in technical meetings and "
-                f"architecture discussions. No explicit strength evidence found in "
-                f"current retrieved window."
-            )
-
-        # CAPABILITY 1 — Misconceptions / Learning Gaps
-        eval_lines.append("\n#### 🧠 Diagnosed Misconceptions & Learning Gaps")
-        if misconceptions:
-            eval_lines.extend(misconceptions[:4])
-        else:
-            eval_lines.append(
-                f"- No explicit misconception evidence found. "
-                f"Recommend reviewing dense vector distance metrics and payload filtering."
-            )
-
-        # CAPABILITY 2 — Problem-Solving Methodology Evaluation
-        eval_lines.append("\n#### 🔬 Problem-Solving Methodology Evaluation")
-        if methodology_entries:
-            eval_lines.extend(methodology_entries[:4])
-        else:
-            eval_lines.append(
-                f"- No explicit methodology description found from {target_mentee} in "
-                f"current retrieved window. Encourage mentee to narrate their approach "
-                f"step-by-step during next review session."
-            )
-
-        # CAPABILITY 3 — Evidence-Based Next Tasks (from Siddharth's turns)
-        eval_lines.append("\n#### 🎯 Evidence-Based Next Tasks & Learning Topics")
         eval_lines.append(
-            "> *Extracted directly from Siddharth Saminathan's guidance turns "
-            "in meeting transcripts.*"
+            f"- {target_mentee} actively participates in technical meetings and "
+            f"architecture discussions. No explicit strength evidence found in "
+            f"current retrieved window."
         )
-        if next_tasks:
-            eval_lines.extend(next_tasks[:5])
-        else:
-            eval_lines.append(
-                f"- No explicit task assignment found from Siddharth for {target_mentee} "
-                f"in current retrieved window. Default recommendation: implement custom "
-                f"reranker evaluation benchmarks and verify hybrid retrieval precision."
-            )
 
-        # CAPABILITY 4 — Targeted Mentorship Feedback
-        eval_lines.append("\n#### 💬 Targeted Mentorship Feedback & Guidance")
+    # CAPABILITY 1 — Misconceptions / Learning Gaps
+    eval_lines.append("\n#### 🧠 Diagnosed Misconceptions & Learning Gaps")
+    if misconceptions:
+        eval_lines.extend(misconceptions[:4])
+    else:
         eval_lines.append(
-            "> *Verbatim feedback from Siddharth Saminathan — exact spoken words.*"
+            f"- No explicit misconception evidence found. "
+            f"Recommend reviewing dense vector distance metrics and payload filtering."
         )
-        if targeted_feedback:
-            eval_lines.extend(targeted_feedback[:4])
-        else:
-            eval_lines.append(
+
+    # CAPABILITY 2 — Problem-Solving Methodology Evaluation
+    eval_lines.append("\n#### 🔬 Problem-Solving Methodology Evaluation")
+    if methodology_entries:
+        eval_lines.extend(methodology_entries[:4])
+    else:
+        eval_lines.append(
+            f"- No explicit methodology description found from {target_mentee} in "
+            f"current retrieved window. Encourage mentee to narrate their approach "
+            f"step-by-step during next review session."
+        )
+
+    # CAPABILITY 3 — Evidence-Based Next Tasks (from Siddharth's turns)
+    eval_lines.append("\n#### 🎯 Evidence-Based Next Tasks & Learning Topics")
+    eval_lines.append(
+        "> *Extracted directly from Siddharth Saminathan's guidance turns "
+        "in meeting transcripts.*"
+    )
+    if next_tasks:
+        eval_lines.extend(next_tasks[:5])
+    else:
+        eval_lines.append(
+            f"- No explicit task assignment found from Siddharth for {target_mentee} "
+            f"in current retrieved window. Default recommendation: implement custom "
+            f"reranker evaluation benchmarks and verify hybrid retrieval precision."
+        )
+
+    # CAPABILITY 4 — Targeted Mentorship Feedback
+    eval_lines.append("\n#### 💬 Targeted Mentorship Feedback & Guidance")
+    eval_lines.append(
+        "> *Verbatim feedback from Siddharth Saminathan — exact spoken words.*"
+    )
+    if targeted_feedback:
+        eval_lines.extend(targeted_feedback[:4])
+    else:
+        eval_lines.append(
                 "- No explicit feedback turns found from Siddharth in current "
                 "retrieved window. Review transcripts for direct evaluation comments."
             )
