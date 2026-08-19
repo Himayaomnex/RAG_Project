@@ -303,8 +303,8 @@ class PromptBuilder:
                     parts.append("  - Column 1 (Trainee): Name of the trainee.")
                     parts.append("  - Column 2 (Situation): The technical component, task, or context being worked on.")
                     parts.append("  - Column 3 (Complication): The specific impediment, confusion, error, mic bleed, or delay encountered.")
-                    parts.append("  - Column 4 (Question): The technical impact or core question caused by the blocker.")
-                    parts.append("  - Column 5 (Answer / Mitigation): FOCUS ON THE TRAINEE'S ACTION & TECHNICAL RESOLUTION. State the concrete technical action and resolution implemented by the Trainee to solve or mitigate the problem (e.g. 'Resolution: Trainee built/implemented X / Trainee restructured Y / Trainee optimized Z'). Do NOT start every cell with 'Siddharth instructed...' — state the trainee's actual problem-solving resolution and technical fix.")
+                    parts.append("  - Column 4 (Question): The core technical problem or question caused by the blocker (e.g. 'How to resolve X?').")
+                    parts.append("  - Column 5 (Answer / Mitigation): DIRECT ANSWER TO THE QUESTION. Provide the concrete technical solution that resolves the Question in Column 4 (e.g. 'Resolved by building X / Mitigated by implementing Y / Solved by restructuring Z'). Write this directly as the technical solution/mitigation answering the question, rather than conversational meeting notes.")
                     parts.append("• STRICT BLOCKER-ONLY RULE: Only output rows for actual complications, blockers, challenges, misunderstandings, rate-limits, audio bleed, or delays discussed in the transcripts. Do NOT output rows for smooth accomplishments that have no blocker.")
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
                     table_cols = "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |"
