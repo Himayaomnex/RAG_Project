@@ -304,7 +304,7 @@ class PromptBuilder:
                     parts.append("  - Column 2 (Situation): The technical component, task, or context being worked on.")
                     parts.append("  - Column 3 (Complication): The specific impediment, confusion, error, mic bleed, or delay encountered.")
                     parts.append("  - Column 4 (Question): The technical impact or core question caused by the blocker.")
-                    parts.append("  - Column 5 (Answer / Mitigation): The actionable solution, mentor instruction, or fix proposed in the meeting. Do NOT write 'Completed' or 'In Progress' in this column; describe the concrete mitigation.")
+                    parts.append("  - Column 5 (Answer / Mitigation): The concrete mitigation and resolution — detail both the mentor's unblocking directive AND how the trainee subsequently resolved or implemented the fix (if reported in following meetings/turns). Do NOT write 'Completed' or 'In Progress' in this column; describe the actual technical resolution.")
                     parts.append("• STRICT BLOCKER-ONLY RULE: Only output rows for actual complications, blockers, challenges, misunderstandings, rate-limits, audio bleed, or delays discussed in the transcripts. Do NOT output rows for smooth accomplishments that have no blocker.")
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
                     table_cols = "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |"
