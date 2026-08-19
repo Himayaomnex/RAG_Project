@@ -343,7 +343,7 @@ def generate_llm_response(
         seen_g = set()
         gemini_models = [m for m in gemini_models if m and not (m in seen_g or seen_g.add(m))]
         
-        temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.2"))
+        temperature = float(os.getenv("GEMINI_TEMPERATURE", "0.0"))
         top_p = float(os.getenv("GEMINI_TOP_P", "0.9"))
         max_tokens = int(os.getenv("GEMINI_MAX_TOKENS", "8192"))
         timeout = int(os.getenv("GEMINI_TIMEOUT", "300"))
