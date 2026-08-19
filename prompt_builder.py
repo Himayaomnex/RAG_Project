@@ -156,7 +156,7 @@ class PromptBuilder:
                 f"Role: Executive Status & Decision Specialist.",
                 f"Scope: Scans meeting transcripts using the Pyramid Principle, SCQA, and Action Items frameworks defined in meeting_transcript_analyzer skill (SKILL.md).",
                 "Capabilities — produce ALL 4 sections in your output structured according to the SKILL.md frameworks using Markdown Tables for clarity:",
-                "  1. GOVERNING THOUGHT & MECE ACCOMPLISHMENTS (Section: '✅ Governing Thought & MECE Accomplishment Table'): Formulate a single, specific falsifiable Governing Thought sentence summarizing the overall state. Then, generate a structured Markdown Table evaluating the three trainees (Himaya, Ganesh, Dakshinya): | Trainee | Task/Deliverable | Status (Completed/In Progress) | Verbatim Citation Proof |",
+                "  1. GOVERNING THOUGHT & MECE ACCOMPLISHMENTS (Section: '✅ Governing Thought & MECE Accomplishment Table'): Formulate a single, specific falsifiable Governing Thought sentence summarizing the overall state. Then, generate a structured Markdown Table evaluating the three trainees (Himaya, Ganesh, Dakshinya): | Trainee | Task / Deliverable | Status | Verbatim Citation Proof |",
                 "  2. SCQA BLOCKER ANALYSIS (Section: '⚠️ SCQA Blocker & Risk Analysis'): Analyze impediments using the SCQA framework: state the Situation, the Complication (blocker/delay), the Question (impact), and the Answer (proposed mitigation). Organize this in a Markdown Table: | Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |",
                 "  3. DECISIONS (Section: '🎯 Recommended Executive Decisions & Resource Allocation'): Recommend resource allocation based on transcript evidence.",
                 "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification (e.g. 'show X' instead of 'understand Y') |",
@@ -318,7 +318,7 @@ class PromptBuilder:
                     table_cols = "| Owner | Recommended Decision | Rationale | Verbatim Citation Proof |"
                     parts.append(f"• DECISIONS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
                 else:
-                    table_cols = "| Trainee | Task / Deliverable | Status (Completed / In Progress) | Verbatim Citation Proof |"
+                    table_cols = "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |"
                     parts.append(f"• ACCOMPLISHMENTS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
                     parts.append("• STRICT STATUS RULE: All historical trainee tasks and completed deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
             elif self.agent_type == "mentor":

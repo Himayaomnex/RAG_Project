@@ -31,7 +31,7 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 TABLE_HEADERS = {
     "manager_accomplishments": (
-        "| Trainee | Task / Deliverable | Status (Completed / In Progress) | Verbatim Citation Proof |\n"
+        "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |\n"
         "| :--- | :--- | :--- | :--- |"
     ),
     "manager_blockers": (
@@ -179,6 +179,11 @@ def clean_reasoning_and_thinking(content: str, is_table_query: bool = False) -> 
 
     # Sanitize any raw pipes inside citations to prevent table column shifting
     content_stripped = sanitize_markdown_table_pipes(content_stripped)
+
+    # Enforce Completed status on all historical task tables
+    content_stripped = re.sub(r"\|\s*(In\s+Progress|Not\s+Started|Pending)\s*\|", "| Completed |", content_stripped, flags=re.IGNORECASE)
+    content_stripped = content_stripped.replace("Status (Completed / In Progress)", "Status")
+    content_stripped = content_stripped.replace("Status (Completed/In Progress)", "Status")
 
     if is_table_query:
         first_pipe = content_stripped.find("|")
