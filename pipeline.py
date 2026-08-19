@@ -13,43 +13,13 @@ import urllib.request
 import urllib.error
 import torch
 from dotenv import load_dotenv
+from transcript_normalizer import (
+    reattribute_crosstalk_turn,
+    normalize_speaker_name,
+    clean_audio_artifacts,
+    is_mentor_speaking_pattern
+)
 load_dotenv()
-
-def normalize_speaker_name(name_str: str) -> str:
-    if not name_str:
-        return "Unknown"
-    q = name_str.strip().lower()
-    if "himaya" in q:
-        return "Himaya Perumal"
-    if "ganesh" in q:
-        return "Ganesh Krishna"
-    if "dakshinya" in q:
-        return "Dakshinya Nachimuthu"
-    if "iyappan" in q:
-        return "Iyappan Sir"
-    if "siddharth" in q:
-        return "Siddharth Saminathan"
-    return name_str.strip().title()
-
-def clean_audio_artifacts(text: str) -> str:
-    if not text:
-        return ""
-    text = re.sub(r"\[\d{1,2}:\d{2}(?::\d{2})?\]", "", text)
-    text = re.sub(r"\b(um|uh|ah|er)\b", "", text, flags=re.IGNORECASE)
-    text = re.sub(r"\s+", " ", text)
-    return text.strip()
-
-def reattribute_crosstalk_turn(current_speaker: str, sentence_text: str):
-    clean_s = clean_audio_artifacts(sentence_text)
-    if not clean_s:
-        return normalize_speaker_name(current_speaker), ""
-    match = re.match(r"^([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s*:\s*(.*)", clean_s)
-    if match:
-        possible_spk = match.group(1).strip()
-        norm_spk = normalize_speaker_name(possible_spk)
-        if norm_spk in ["Himaya Perumal", "Ganesh Krishna", "Dakshinya Nachimuthu", "Iyappan Sir", "Siddharth Saminathan"]:
-            return norm_spk, match.group(2).strip()
-    return normalize_speaker_name(current_speaker), clean_s
 
 
 FILE_DATE_MAP = {
