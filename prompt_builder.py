@@ -161,8 +161,9 @@ class PromptBuilder:
                 "  3. DECISIONS (Section: '🎯 Recommended Executive Decisions & Resource Allocation'): Recommend resource allocation based on transcript evidence.",
                 "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification |",
                 "  • DYNAMIC EVIDENCE EXTRACTION REQUIREMENTS:",
-                "    - Read the provided <transcript_evidence> thoroughly and extract the actual deliverables reported by each trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
-                "    - Determine the status dynamically from the evidence: if the speaker reports it completed, verified, or tested, mark as 'Completed'; if blocked, mark as 'Blocked'; if in active development, mark as 'In Progress'.",
+                "    - Read the provided <transcript_evidence> thoroughly and extract the actual deliverables, blockers, or methodologies reported by each trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
+                "    - When producing a table with a 'Status' column (Accomplishments / Milestones), determine the status dynamically ('Completed', 'In Progress', or 'Blocked').",
+                "    - When producing an SCQA Blocker table, populate the Situation, Complication, Question, and Answer columns with descriptive text from the evidence. NEVER write 'Completed' or 'N/A' into Complication or Mitigation cells.",
                 "    - Every single row and citation must be derived directly from the retrieved transcript turns.",
                 "STRICT CITATION RULES:",
                 "  • FAITHFUL PARAPHRASING: The summary text underneath each citation MUST be a 100% faithful paraphrase of that exact citation. Do NOT invent claims absent from the cited text.",
@@ -298,12 +299,17 @@ class PromptBuilder:
                 if any(w in query_lower for w in ["block", "risk", "delay", "stuck", "issue", "problem"]):
                     table_cols = "| Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |"
                     parts.append(f"• BLOCKER/RISK TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• COLUMN DEFINITIONS FOR SCQA BLOCKER TABLE:")
+                    parts.append("  - Column 1 (Trainee): Name of the trainee.")
+                    parts.append("  - Column 2 (Situation): The technical component, task, or context being worked on.")
+                    parts.append("  - Column 3 (Complication): The specific impediment, confusion, error, mic bleed, or delay encountered.")
+                    parts.append("  - Column 4 (Question): The technical impact or core question caused by the blocker.")
+                    parts.append("  - Column 5 (Answer / Mitigation): The actionable solution, mentor instruction, or fix proposed in the meeting. Do NOT write 'Completed' or 'In Progress' in this column; describe the concrete mitigation.")
+                    parts.append("• STRICT BLOCKER-ONLY RULE: Only output rows for actual complications, blockers, challenges, misunderstandings, rate-limits, audio bleed, or delays discussed in the transcripts. Do NOT output rows for smooth accomplishments that have no blocker.")
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
                     table_cols = "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |"
                     parts.append(f"• MILESTONE TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
-                    parts.append("• BALANCED MULTI-ROW REQUIREMENT (EQUAL COVERAGE): You MUST output 2 to 3 distinct rows for EVERY SINGLE trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). No trainee should have only 1 row.")
-                    parts.append("• DAKSHINYA NACHIMUTHU 3 ROWS TO REPORT: 1. Feature Engineering & Baseline Models (28 July), 2. Vector Search & Reranker Architecture (29 July), 3. ML Model Experiments & Data Summarization (28 July).")
-                    parts.append("• STRICT STATUS RULE: All historical trainee tasks and milestone deliverables for Himaya, Ganesh, and Dakshinya are COMPLETED. Mark their Status as 'Completed' (do NOT mark completed historical training deliverables as 'In Progress').")
+                    parts.append("• DYNAMIC MILESTONE EXTRACTION: Extract the major milestone commitments, completion dates, and reported progress dynamically from <transcript_evidence>.")
                 elif any(w in query_lower for w in ["decision", "executive", "resource", "allocat"]):
                     table_cols = "| Owner | Recommended Decision | Rationale | Verbatim Citation Proof |"
                     parts.append(f"• DECISIONS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")

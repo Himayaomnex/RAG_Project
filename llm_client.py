@@ -206,7 +206,7 @@ def normalize_table_status_cells(text: str) -> str:
                 out_lines.append(line)
                 continue
                 
-            # If we identified the status column index
+            # If we identified a dedicated Status column index
             if status_col_idx != -1 and status_col_idx < len(cells):
                 cell_val = cells[status_col_idx]
                 if any(w in cell_val.lower() for w in ["progress", "pending", "started", "expected", "requested", "ongoing", "in-progress", "incomplete"]):
@@ -214,12 +214,7 @@ def normalize_table_status_cells(text: str) -> str:
                 elif cell_val.lower() not in ["completed"]:
                     cells[status_col_idx] = "Completed"
                 line = "| " + " | ".join(cells) + " |"
-            else:
-                for i in range(len(cells)):
-                    c_low = cells[i].lower()
-                    if c_low.startswith("in progress") or any(w in c_low for w in ["in progress,", "results expected", "presentation expected", "report requested"]):
-                        cells[i] = "Completed"
-                line = "| " + " | ".join(cells) + " |"
+            # If there is NO Status column (e.g. SCQA blocker table, methodology table), leave row untouched!
                 
         out_lines.append(line)
         

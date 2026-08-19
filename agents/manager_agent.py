@@ -294,6 +294,7 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
         mentees_to_cover = ["Himaya", "Ganesh", "Dakshinya"]
         
     completion_indicators = ["completed", "finished", "done", "integrated", "tested", "working", "we have collection", "i have done", "reduced", "cache", "qdrant", "deepseek", "langgraph"]
+    is_blocker_query = any(w in prompt_lower for w in ["block", "risk", "delay", "stuck", "issue", "problem", "impediment", "challenge", "failure"])
     
     for m in mentees_to_cover:
         m_low = m.lower()
@@ -304,12 +305,15 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
             dt = chunk.get("date", "").lower()
             if m_low in spk or m_low in txt:
                 score = sum(1 for w in query_words if w in txt) + 3
-                # Boost completion evidence over initial early drafts
-                if any(ci in txt for ci in completion_indicators):
-                    score += 4
+                if is_blocker_query:
+                    if any(k in txt for k in BLOCKER_KEYWORDS + RISK_KEYWORDS + ["stuck", "confused", "error", "failing", "delay", "problem", "difficult", "leak", "bleed", "rate limit"]):
+                        score += 8
+                else:
+                    if any(ci in txt for ci in completion_indicators):
+                        score += 4
                 # Recency bonus prioritizing August 4 final wrap-up & late July
                 if any(rd in dt for rd in ["4 august", "august", "aug", "31 july"]):
-                    score += 6
+                    score += 4
                 elif any(rd in dt for rd in ["28 july", "29 july", "30 july"]):
                     score += 3
                 m_chunks.append((score, chunk))
@@ -326,8 +330,12 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
         txt = chunk.get("text", "").lower()
         dt = chunk.get("date", "").lower()
         score = sum(1 for w in query_words if w in txt)
-        if any(ci in txt for ci in completion_indicators):
-            score += 3
+        if is_blocker_query:
+            if any(k in txt for k in BLOCKER_KEYWORDS + RISK_KEYWORDS + ["stuck", "confused", "error", "failing", "delay", "problem", "difficult", "leak", "bleed", "rate limit"]):
+                score += 6
+        else:
+            if any(ci in txt for ci in completion_indicators):
+                score += 3
         if any(rd in dt for rd in ["4 august", "august", "31 july"]):
             score += 4
         elif any(rd in dt for rd in ["28 july", "29 july", "30 july"]):
