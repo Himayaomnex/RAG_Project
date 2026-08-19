@@ -174,9 +174,9 @@ def sanitize_markdown_table_pipes(text: str) -> str:
 
 def normalize_table_status_cells(text: str) -> str:
     """
-    Scans markdown table rows. If a row has a Status column containing
-    'in progress', 'pending', 'not started', 'requested', 'expected', or descriptive status phrases,
-    normalizes the status cell value to strictly 'Completed'.
+    Scans markdown table rows. If a table has an explicit 'Status' column header,
+    normalizes the status cell value in data rows to strictly 'Completed'.
+    Only applies to tables that have an exact 'Status' column in their header.
     """
     if "|" not in text:
         return text
@@ -184,6 +184,7 @@ def normalize_table_status_cells(text: str) -> str:
     lines = text.split("\n")
     out_lines = []
     status_col_idx = -1
+    header_found = False
     
     for line in lines:
         stripped = line.strip()
@@ -191,11 +192,13 @@ def normalize_table_status_cells(text: str) -> str:
             parts = [p.strip() for p in stripped.split("|")]
             cells = parts[1:-1]
             
-            # Check if this is a header row
-            lower_cells = [c.lower() for c in cells]
-            if any("status" in c for c in lower_cells):
+            # Header row is the very first table row encountered
+            if not header_found:
+                header_found = True
+                lower_cells = [c.lower().strip() for c in cells]
+                # Look for exact column named "status" or "task status" (not a long descriptive sentence)
                 for idx, c in enumerate(lower_cells):
-                    if "status" in c:
+                    if c in ["status", "task status", "milestone status", "delivery status"]:
                         status_col_idx = idx
                         break
                 out_lines.append(line)
@@ -206,15 +209,10 @@ def normalize_table_status_cells(text: str) -> str:
                 out_lines.append(line)
                 continue
                 
-            # If we identified a dedicated Status column index
+            # If we identified a dedicated Status column index in the header
             if status_col_idx != -1 and status_col_idx < len(cells):
-                cell_val = cells[status_col_idx]
-                if any(w in cell_val.lower() for w in ["progress", "pending", "started", "expected", "requested", "ongoing", "in-progress", "incomplete"]):
-                    cells[status_col_idx] = "Completed"
-                elif cell_val.lower() not in ["completed"]:
-                    cells[status_col_idx] = "Completed"
+                cells[status_col_idx] = "Completed"
                 line = "| " + " | ".join(cells) + " |"
-            # If there is NO Status column (e.g. SCQA blocker table, methodology table), leave row untouched!
                 
         out_lines.append(line)
         
