@@ -264,20 +264,24 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
         for chunk in relevant:
             txt = chunk.get("text", "").lower()
             spk = chunk.get("speaker", "").lower()
+            dt = chunk.get("date", "")
             if m_low in spk or m_low in txt or ("siddharth" in spk and m_low in txt):
                 score = sum(1 for w in query_words if w in txt) + 3
                 if m_low in spk:
                     score += 6  # Heavily prioritize words spoken by the mentee themselves
                 if any(k in txt for k in STRENGTH_KEYWORDS + MISCONCEPTION_KEYWORDS + METHODOLOGY_KEYWORDS + MENTOR_GUIDANCE_KEYWORDS):
                     score += 4
-                if any(date_str in chunk.get("date", "") for date_str in ["31 July", "22 July", "4 August", "28 July", "29 July", "3 July"]):
-                    score += 4
+                # Heavy recency boost for final wrap-up sessions in August
+                if "august" in dt.lower():
+                    score += 12
+                elif any(date_str in dt for date_str in ["31 July", "30 July", "29 July", "28 July", "23 July", "22 July"]):
+                    score += 6
                 # Domain-specific milestone boosts
-                if m_low == "himaya" and any(k in txt for k in ["chunking", "caching", "cache", "embedding", "router", "fastapi", "semantic", "qdrant"]):
+                if m_low == "himaya" and any(k in txt for k in ["chunking", "caching", "cache", "embedding", "router", "fastapi", "semantic", "qdrant", "normaliz"]):
                     score += 6
-                elif m_low == "ganesh" and any(k in txt for k in ["excel", "openpyxl", "deepseek", "diff", "cell", "sheet", "extraction", "multi-file", "schema"]):
+                elif m_low == "ganesh" and any(k in txt for k in ["excel", "openpyxl", "deepseek", "diff", "cell", "sheet", "extraction", "multi-file", "schema", "fork"]):
                     score += 6
-                elif m_low == "dakshinya" and any(k in txt for k in ["baseline", "xgboost", "feature", "logistic", "reranker", "scroll", "context", "hypothesis"]):
+                elif m_low == "dakshinya" and any(k in txt for k in ["baseline", "xgboost", "feature", "logistic", "reranker", "scroll", "context", "hypothesis", "batch"]):
                     score += 6
                 m_chunks.append((score, chunk))
         m_chunks.sort(key=lambda x: x[0], reverse=True)
@@ -287,19 +291,29 @@ def run_mentor_agent(user_prompt: str, target_mentee: str = "Himaya") -> str:
                 seen_ids.add(c_key)
                 selected_chunks.append(c)
                 
-    # Also add top global mentor feedback chunks
+    # Also add all August chunks and top global mentor feedback chunks
+    for chunk in relevant:
+        dt = chunk.get("date", "")
+        if "august" in dt.lower():
+            c_key = f"{dt}_{chunk.get('page')}_{chunk.get('text', '')[:40]}"
+            if c_key not in seen_ids:
+                seen_ids.add(c_key)
+                selected_chunks.append(chunk)
+
     scored_all = []
     for chunk in relevant:
         txt = chunk.get("text", "").lower()
         spk = chunk.get("speaker", "").lower()
         score = sum(1 for w in query_words if w in txt)
         if "siddharth" in spk:
-            score += 3
+            score += 4
         if any(k in txt for k in STRENGTH_KEYWORDS + MISCONCEPTION_KEYWORDS + METHODOLOGY_KEYWORDS + MENTOR_GUIDANCE_KEYWORDS):
-            score += 2
+            score += 3
+        if "august" in chunk.get("date", "").lower():
+            score += 10
         scored_all.append((score, chunk))
     scored_all.sort(key=lambda x: x[0], reverse=True)
-    for _, c in scored_all[:10]:
+    for _, c in scored_all[:15]:
         c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
         if c_key not in seen_ids:
             seen_ids.add(c_key)

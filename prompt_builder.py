@@ -328,9 +328,14 @@ class PromptBuilder:
                 elif any(w in query_lower for w in ["strength", "gap", "misconception", "weak"]):
                     table_cols = "| Trainee | Strength / Misconception | Evidence Type | Verbatim Citation Proof |"
                     parts.append(f"• EVALUATION TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                elif any(w in query_lower for w in ["feedback", "guidance", "mentorship", "advice", "coach", "targeted"]):
+                    table_cols = "| Trainee | Mentorship Guidance / Feedback Topic | Meeting Date | Verbatim Citation Proof |"
+                    parts.append(f"• MENTOR FEEDBACK TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• DYNAMIC FULL-TIMELINE FEEDBACK EXTRACTION: Extract Siddharth's direct mentorship feedback across the entire timeline (specifically ensuring final August 4 sessions like transcript normalization, repo forking, HNSW indexing, and capability docs are represented alongside July baseline sessions).")
                 else:
                     table_cols = "| Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification |"
                     parts.append(f"• TASKS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
+                    parts.append("• FULL-TIMELINE TASKS EXTRACTION: Extract assigned tasks and homework topics across the full cohort history, including late-stage August wrap-up assignments.")
             else:
                 parts.append("• RESPONSE TABLE REQUEST: Present the answer inside a structured Markdown Pipe Table where appropriate.")
 
