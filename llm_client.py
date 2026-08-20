@@ -357,7 +357,7 @@ def generate_llm_response(
                 user_instruction += (
                     f"\n\n== STRICT OUTPUT RULE ==\n"
                     f"Format your output strictly as a single Markdown Pipe Table using this exact header:\n{table_header}\n"
-                    f"MANDATORY REQUIREMENT: Complete the table fully without truncating. Include verified rows spanning multiple distinct meeting dates across the entire timeline for EVERY team member: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu (covering early July baseline, mid July implementations, late July caching/MCP, and August wrap-ups). Never stop mid-row or mid-sentence."
+                    f"MANDATORY REQUIREMENT: Complete the table fully without truncating. Include verified rows spanning multiple distinct meeting dates across the entire timeline for EVERY team member: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu (covering early July baseline, mid July implementations, late July caching/MCP, and August wrap-ups). Adhere to the 70/30 rule: provide rich, intelligent technical descriptions (70%) and clean, concise citations (30%) like '[Date, Page — Speaker]'. Never stop mid-row or mid-sentence."
                 )
             
             gemini_payload = {

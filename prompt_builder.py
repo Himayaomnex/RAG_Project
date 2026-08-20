@@ -340,6 +340,7 @@ class PromptBuilder:
             else:
                 parts.append("• RESPONSE TABLE REQUEST: Present the answer inside a structured Markdown Pipe Table where appropriate.")
 
+            parts.append("• THE 70/30 SYNTHESIS-TO-EVIDENCE RULE: Produce rich, articulate technical summaries (70%) explaining what was built, how it works, and architectural mechanics. In the Citation column, provide a concise, clean reference (30%) like '[Date, Page — Speaker]' rather than dumping raw paragraph-length transcript blocks ('we are not putting someone on the stand in court').")
             parts.append("• You MUST follow the STRICT MARKDOWN TABLE FORMATTING RULES (using pipe | symbols and the header alignment separator row on the second line). Do NOT output any reasoning, thinking steps, or surrounding text outside of this single table.")
             parts.append("• SYNONYM & CONTEXT RESOLUTION: Be smart and resolve common synonyms or terminology differences. For example, if the user asks about an 'Excel schema splitter', connect it to the closest discussed tasks in the evidence (like 'Excel editing', 'Excel extraction', 'storing Excel in DB', or 'openpyxl validation'). Tell the user what the transcripts actually say about the status of those related tasks, citing the exact quotes.")
             parts.append("• If the evidence has absolutely no relation to the query, state that clearly.")
