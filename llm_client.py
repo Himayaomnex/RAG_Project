@@ -31,20 +31,20 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 
 TABLE_HEADERS = {
     "manager_accomplishments": (
-        "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |\n"
-        "| :--- | :--- | :--- | :--- |"
+        "| Trainee | Synthesized Technical Deliverable (70% Quality) | Status | Citation (30% Proof) |\n"
+        "| :--- | :--- | :---: | :--- |"
     ),
     "manager_blockers": (
-        "| Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |\n"
+        "| Trainee | Situation (Context) | Complication (Impediment) | Question (Impact) | Answer (Agreed Mitigation) |\n"
         "| :--- | :--- | :--- | :--- | :--- |"
     ),
     "manager_decisions": (
-        "| Owner | Recommended Decision | Rationale | Verbatim Citation Proof |\n"
-        "| :--- | :--- | :--- | :--- |"
+        "| Owner | Decision Type (Fact vs Recommendation) | Synthesized Decision & Strategy (70%) | Trade-off Given Up | Citation (30% Proof) |\n"
+        "| :--- | :--- | :--- | :--- | :--- |"
     ),
     "manager_milestones": (
-        "| Owner | Task / Milestone | Meeting Date | Status | Verbatim Citation Proof |\n"
-        "| :--- | :--- | :--- | :--- | :--- |"
+        "| Owner | Synthesized Milestone Description (70%) | Meeting Date | Status | Citation (30% Proof) |\n"
+        "| :--- | :--- | :---: | :---: | :--- |"
     ),
     "mentor_scores": (
         "| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n"
@@ -144,79 +144,117 @@ def ensure_single_table_header(content: str, table_header: str) -> str:
 
 def sanitize_markdown_table_pipes(text: str) -> str:
     """
-    Replaces unescaped pipe characters '|' inside brackets [...] or citations within table lines
+    Stitches broken multiline table rows and sanitizes unescaped pipe characters
     so they don't break markdown table column alignment.
     """
-    lines = text.splitlines()
-    out_lines = []
-    for line in lines:
+    if "|" not in text:
+        return text
+        
+    raw_lines = text.splitlines()
+    stitched_lines = []
+    
+    # 1. Stitch multiline broken rows (lines that wrap without starting with '|')
+    for line in raw_lines:
         stripped = line.strip()
+        if not stripped:
+            continue
         if stripped.startswith("|"):
-            # Replace '|' inside [...] with ' — '
-            def replace_bracket_pipes(match):
-                inside = match.group(1)
-                inside_cleaned = inside.replace("|", " — ").replace("\t", " ")
-                return f"[{inside_cleaned}]"
-            line = re.sub(r"\[(.*?)\]", replace_bracket_pipes, line)
+            stitched_lines.append(stripped)
+        else:
+            if stitched_lines and stitched_lines[-1].startswith("|"):
+                # Append to previous table line instead of creating a broken row
+                prev = stitched_lines[-1].rstrip()
+                if prev.endswith("|"):
+                    prev = prev[:-1].rstrip()
+                stitched_lines[-1] = f"{prev} {stripped} |"
+            else:
+                stitched_lines.append(stripped)
+
+    # 2. Re-align columns based on expected header column count
+    out_lines = []
+    expected_cols = -1
+    
+    for line in stitched_lines:
+        if not line.startswith("|"):
+            out_lines.append(line)
+            continue
             
-            # Also replace '|' inside `...` with ' — '
-            def replace_backtick_pipes(match):
-                inside = match.group(1)
-                inside_cleaned = inside.replace("|", " — ").replace("\t", " ")
-                return f"`{inside_cleaned}`"
-            line = re.sub(r"`(.*?)`", replace_backtick_pipes, line)
+        # Replace all internal pipes inside [...] or `...` or "..."
+        def replace_brackets(m):
+            return "[" + m.group(1).replace("|", " — ").replace("\t", " ") + "]"
+        line = re.sub(r"\[(.*?)\]", replace_brackets, line)
+        
+        def replace_backticks(m):
+            return "`" + m.group(1).replace("|", " — ").replace("\t", " ") + "`"
+        line = re.sub(r"`(.*?)`", replace_backticks, line)
+        
+        # Check if header row
+        if expected_cols == -1 and not re.match(r"^\|[\s|:\-]+\|$", line):
+            parts = [p.strip() for p in line.split("|") if p.strip()]
+            expected_cols = len(parts)
+            out_lines.append(line)
+            continue
             
-            # Replace any stray tabs with space
-            line = line.replace("\t", " ")
+        # If separator row e.g. | :--- | :--- |
+        if re.match(r"^\|[\s|:\-]+\|$", line):
+            out_lines.append(line)
+            continue
+            
+        # Parse data row cells
+        parts = [p.strip() for p in line.split("|")]
+        # Remove empty leading and trailing from split("|")
+        if parts and parts[0] == "": parts.pop(0)
+        if parts and parts[-1] == "": parts.pop()
+        
+        if expected_cols > 0 and len(parts) > expected_cols:
+            # Re-merge excess columns into the last column
+            fixed_parts = parts[:expected_cols - 1]
+            last_cell = " — ".join(parts[expected_cols - 1:])
+            fixed_parts.append(last_cell)
+            line = "| " + " | ".join(fixed_parts) + " |"
+        elif expected_cols > 0 and len(parts) < expected_cols:
+            # Pad missing columns
+            while len(parts) < expected_cols:
+                parts.append("—")
+            line = "| " + " | ".join(parts) + " |"
+        else:
+            line = "| " + " | ".join(parts) + " |"
+            
         out_lines.append(line)
+        
     return "\n".join(out_lines)
 
 
 def normalize_table_status_cells(text: str) -> str:
     """
-    Scans markdown table rows. If a table has an explicit 'Status' column header,
-    normalizes the status cell value in data rows to strictly 'Completed'.
-    Only applies to tables that have an exact 'Status' column in their header.
+    Sanitizes markdown pipes and normalizes status cells to 'Completed' for finished accomplishments.
     """
+    text = sanitize_markdown_table_pipes(text)
     if "|" not in text:
         return text
         
-    lines = text.split("\n")
-    out_lines = []
-    status_col_idx = -1
-    header_found = False
+    lines = text.splitlines()
+    out = []
+    is_accomplishment_table = False
     
     for line in lines:
-        stripped = line.strip()
-        if stripped.startswith("|") and stripped.endswith("|"):
-            parts = [p.strip() for p in stripped.split("|")]
-            cells = parts[1:-1]
+        if "Synthesized Technical Deliverable" in line or "Task / Deliverable" in line:
+            is_accomplishment_table = True
+            out.append(line)
+            continue
             
-            # Header row is the very first table row encountered
-            if not header_found:
-                header_found = True
-                lower_cells = [c.lower().strip() for c in cells]
-                # Look for exact column named "status" or "task status" (not a long descriptive sentence)
-                for idx, c in enumerate(lower_cells):
-                    if c in ["status", "task status", "milestone status", "delivery status"]:
-                        status_col_idx = idx
-                        break
-                out_lines.append(line)
-                continue
-                
-            # Check if this is a separator row e.g. | :--- | :--- |
-            if any(re.match(r"^:?-+:?$", c) for c in cells):
-                out_lines.append(line)
-                continue
-                
-            # If we identified a dedicated Status column index in the header
-            if status_col_idx != -1 and status_col_idx < len(cells):
-                cells[status_col_idx] = "Completed"
-                line = "| " + " | ".join(cells) + " |"
-                
-        out_lines.append(line)
+        if is_accomplishment_table and line.startswith("|") and not re.match(r"^\|[\s|:\-]+\|$", line):
+            parts = [p.strip() for p in line.split("|")]
+            # Format: ['', 'Trainee', 'Deliverable', 'Status', 'Citation', '']
+            if len(parts) >= 5 and "trainee" not in parts[1].lower():
+                # Enforce clean 'Completed' status for finished deliverables
+                if any(w in parts[3].lower() for w in ["progress", "ongoing", "in progress", "auth", "fixed", "completed"]):
+                    parts[3] = "Completed"
+                    line = "| " + " | ".join(parts[1:-1]) + " |"
+                    
+        out.append(line)
         
-    return "\n".join(out_lines)
+    return "\n".join(out)
 
 
 def clean_reasoning_and_thinking(content: str, is_table_query: bool = False) -> str:

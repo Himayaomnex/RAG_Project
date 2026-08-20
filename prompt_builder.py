@@ -76,19 +76,14 @@ class PromptBuilder:
         teammates_str = ", ".join(teammates) if teammates else "Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu"
         
         self.speaker_attribution_policy = [
-            "# MODULE 2 — SPEAKER ATTRIBUTION, WORKSTREAM OWNERSHIP & CROSSTALK POLICY",
+            "# MODULE 2 — SPEAKER ATTRIBUTION, HIERARCHY & CROSSTALK POLICY",
             "• Roles & Hierarchy:",
-            f"  - {mentor_name} is the Mentor who assigns technical deliverables, reviews code, and makes executive architectural decisions.",
+            f"  - {mentor_name} is the Lead Mentor who assigns technical deliverables, reviews code, and makes executive architectural decisions.",
             f"  - Teammates ({teammates_str}) execute engineering work and report deliverables to the Mentor.",
-            "• Canonical Workstream & Deliverable Ownership Mapping:",
-            "  - Ganesh Krishna: Excel Extraction & Schema Mapping, openpyxl cell/row editing, DeepSeek V4 Integration (Pro & Flash), Excel Diff rendering, and training reporting agents. NEVER attribute DeepSeek V4 or Excel editing to Himaya.",
-            "  - Himaya Perumal: Multi-Agent System Architecture, Qdrant Vector Storage with metadata collections, SHA-256 / MD5 Embedding Caching (Latency & Cost Optimization), Custom Semantic Chunking Strategy, and FastMCP server. NEVER attribute DeepSeek V4 to Himaya.",
-            "  - Dakshinya Nachimuthu: Feature Engineering & ML Baselines (XGBoost vs Random Forest), RAG Pipeline MVP with Custom Metadata Filtering, Context Engineering & Token Window Budgeting.",
-            "• Crosstalk & Mic-Bleed Attribution Rule:",
-            "  - In group calls with shared mics or background audio bleed, ensure instructions and decisions are attributed to the correct owner.",
-            "  - When Siddharth instructs someone about DeepSeek V4, Excel editing, or LangGraph, attribute that decision/task strictly to Ganesh Krishna (NOT Himaya).",
-            "  - When Siddharth evaluates vector caching, multi-agent architecture, or chunking strategy, attribute strictly to Himaya Perumal.",
-            "  - When Siddharth evaluates ML baselines or evaluation rubrics, attribute strictly to Dakshinya Nachimuthu."
+            "• Crosstalk & Mic-Bleed Attribution Rules:",
+            "  - In group calls with shared mics or background audio bleed, ensure instructions, feedback, and decisions are attributed strictly to the true speaker.",
+            "  - Do NOT credit a trainee with guidance spoken by the mentor, and do NOT confuse turns between peer teammates.",
+            "  - Identify who actually presented the code/demo in the turn before attributing deliverable ownership."
         ]
         return self
 
@@ -303,7 +298,7 @@ class PromptBuilder:
                     parts.append("  - Column 2 (Situation): The technical component or feature being worked on.")
                     parts.append("  - Column 3 (Complication): The specific technical impediment, error, mic bleed, or challenge encountered. NEVER write 'Completed' here.")
                     parts.append("  - Column 4 (Question): The core technical problem or question caused by the blocker (e.g. 'How to resolve X?').")
-                    parts.append("  - Column 5 (Answer / Mitigation): The concise technical resolution that directly answers Column 4 (e.g. 'Redesigned diagram into modular subsystems emphasizing user flows', 'Implemented pre-chunking regex entity normalizer in transcript_normalizer.py to clean phonetic audio bleed', 'Built OpenPyXL parsing script to extract Excel rows into structured JSON diffs'). State the concrete technical fix directly in 1-2 clear sentences. Do NOT write conversational narrative preambles like 'Siddharth instructed X to...'.")
+                    parts.append("  - Column 5 (Answer / Mitigation): The concise technical resolution that directly answers Column 4 (e.g. 'Refactored module into modular subsystems to isolate failures', 'Implemented pre-processing normalization layer to resolve data bleed', 'Engineered custom parsing script to handle nested data structures'). State the concrete technical fix directly in 1-2 clear sentences. Do NOT write conversational narrative preambles like 'Siddharth instructed X to...'.")
                     parts.append("• STRICT SCQA CELL INTEGRITY: There is NO 'Status' column in this SCQA table. Do NOT write 'Completed' or 'In Progress' in any cell. Column 3 must describe the complication, Column 4 the impact question, and Column 5 the direct technical resolution.")
                     parts.append("• STRICT BLOCKER-ONLY RULE: Only output rows for actual complications, blockers, challenges, misunderstandings, rate-limits, audio bleed, or delays discussed in the transcripts. Do NOT output rows for smooth accomplishments that have no blocker.")
                 elif any(w in query_lower for w in ["milestone", "timeline", "schedule", "deadline"]):
@@ -314,10 +309,11 @@ class PromptBuilder:
                     table_cols = "| Owner | Recommended Decision | Rationale | Verbatim Citation Proof |"
                     parts.append(f"• DECISIONS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
                 else:
-                    table_cols = "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |"
+                    table_cols = "| Trainee | Synthesized Technical Deliverable (70% Quality) | Status | Citation (30% Proof) |"
                     parts.append(f"• ACCOMPLISHMENTS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
-                    parts.append("• DYNAMIC EVIDENCE EXTRACTION: Read the provided <transcript_evidence> and extract each trainee's deliverables and reported status directly from their spoken review turns.")
+                    parts.append("• CUMULATIVE COMPLETED DELIVERABLES: This report synthesizes all finished engineering deliverables completed by the trainees across the entire training program. Mark Status as 'Completed' for all delivered modules, pipelines, architectures, and features.")
                     parts.append("• FULL CHRONOLOGICAL MULTI-DATE COVERAGE: Ensure the table includes deliverables spanning multiple distinct meeting dates across the entire cohort (early July foundations, mid-July APIs/parsers, late-July caching/MCPs, and August wrap-ups) for every trainee: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu.")
+                    parts.append("• CLEAN CONCISE CITATIONS: In Column 4, provide ONLY a concise citation like '[15 July 2026, Page 2 — Speaker]'. Do NOT dump full multi-sentence spoken dialogue into the citation cell.")
             elif self.agent_type == "mentor":
                 if any(w in query_lower for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
                     table_cols = "| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |"
