@@ -21,12 +21,30 @@ from agents.manager_agent import run_manager_agent
 from agents.mentor_agent import run_mentor_agent
 from agents.teammates_agent import run_teammates_agent
 
-def route_request(user_prompt: str, user_role: str = "auto", target_member: str = "") -> str:
+def detect_agent_intent(user_prompt: str) -> str:
+    prompt_lower = user_prompt.lower()
+    mentor_keywords = [
+        "evaluate", "mentor", "weakness", "strength", "quiz", "mentee", "score",
+        "misconception", "methodology", "problem-solving", "next task", "grading",
+        "next tasks", "learning topic", "feedback", "guidance", "diagnosis", "grade",
+        "diagnose", "learning gap", "technical gap", "understanding", "coaching"
+    ]
+    teammate_keywords = [
+        "code", "pipeline", "qdrant", "how works", "explain", "architecture",
+        "semantic", "chunking", "embedding", "cachedembedding",
+        "semantictranscriptparser", "vector", "retriever", "reranker",
+        "transcript parser", "dense", "collection"
+    ]
+    if any(w in prompt_lower for w in mentor_keywords):
+        return "mentor"
+    elif any(w in prompt_lower for w in teammate_keywords):
+        return "teammate"
+    return "manager"
+
+
+def route_request_with_role(user_prompt: str, user_role: str = "auto", target_member: str = "") -> tuple:
     """
-    Central router function:
-    1. Inspects user_role or prompt intent.
-    2. Dispatches to Manager Agent, Mentor Agent, or Teammates Agent.
-    3. Uses RAG_Training semantic topic-shift chunking & Qdrant dense vector retriever.
+    Central router function that returns (result_text, dispatched_role_name).
     """
     role_lower = user_role.lower()
     prompt_lower = user_prompt.lower()
@@ -36,7 +54,7 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
     
     # 1. Manager Role Dispatch
     if role_lower in ["manager", "project_lead", "executive", "iyappan"]:
-        return run_manager_agent(user_prompt, target_member=target_member)
+        return run_manager_agent(user_prompt, target_member=target_member), "manager"
         
     # 2. Mentor Role Dispatch
     elif role_lower in ["siddharth", "mentor", "evaluator"]:
@@ -53,39 +71,18 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
             mentee = "Himaya"
         else:
             mentee = "All Team Members"
-        return run_mentor_agent(user_prompt, target_mentee=mentee)
+        return run_mentor_agent(user_prompt, target_mentee=mentee), "mentor"
         
     # 3. Teammate Specific Role Dispatch (Himaya, Ganesh, Dakshinya)
     elif role_lower in ["himaya", "ganesh", "dakshinya", "teammate", "teammates"]:
         name_map = {"himaya": "Himaya", "ganesh": "Ganesh", "dakshinya": "Dakshinya"}
         t_name = name_map.get(role_lower, target_member if target_member else "Himaya")
-        return run_teammates_agent(user_prompt, user_name=t_name)
+        return run_teammates_agent(user_prompt, user_name=t_name), "teammate"
         
     # 4. Auto Intent Dispatch
     else:
-        # Mentor Agent keywords — evaluation, learning, feedback
-        mentor_keywords = [
-            "evaluate", "mentor", "weakness", "strength", "quiz", "mentee",
-            "misconception", "methodology", "problem-solving", "next task",
-            "next tasks", "learning topic", "feedback", "guidance", "diagnosis",
-            "diagnose", "learning gap", "technical gap", "understanding"
-        ]
-        # Manager Agent keywords — executive status, progress, blockers
-        manager_keywords = [
-            "accomplishment", "milestone", "blocker", "risk", "decision",
-            "resource allocation", "executive", "progress", "status",
-            "timeline", "delay", "action item", "deliverable", "pending",
-            "completed", "what did", "project update", "team update"
-        ]
-        # Teammates / Codebase keywords
-        teammate_keywords = [
-            "code", "pipeline", "qdrant", "how works", "explain", "architecture",
-            "semantic", "chunking", "embedding", "cachedembedding",
-            "semantictranscriptparser", "vector", "retriever", "reranker",
-            "transcript parser", "dense", "collection"
-        ]
-
-        if any(w in prompt_lower for w in mentor_keywords):
+        detected = detect_agent_intent(user_prompt)
+        if detected == "mentor":
             p_low = prompt_lower
             if target_member:
                 mentee = target_member
@@ -99,11 +96,17 @@ def route_request(user_prompt: str, user_role: str = "auto", target_member: str 
                 mentee = "Himaya"
             else:
                 mentee = "All Team Members"
-            return run_mentor_agent(user_prompt, target_mentee=mentee)
-        elif any(w in prompt_lower for w in teammate_keywords):
-            return run_teammates_agent(user_prompt, user_name=target_member if target_member else "Himaya")
+            return run_mentor_agent(user_prompt, target_mentee=mentee), "mentor"
+        elif detected == "teammate":
+            return run_teammates_agent(user_prompt, user_name=target_member if target_member else "Himaya"), "teammate"
         else:
-            return run_manager_agent(user_prompt, target_member=target_member)
+            return run_manager_agent(user_prompt, target_member=target_member), "manager"
+
+
+def route_request(user_prompt: str, user_role: str = "auto", target_member: str = "") -> str:
+    result, _ = route_request_with_role(user_prompt, user_role=user_role, target_member=target_member)
+    return result
+
 
 if __name__ == "__main__":
     print(route_request("What completed work was reported by Ganesh?", user_role="manager"))

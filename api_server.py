@@ -25,7 +25,7 @@ if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 
-from router import route_request
+from router import route_request, route_request_with_role, detect_agent_intent
 from agents.manager_agent import run_manager_agent
 from agents.mentor_agent import run_mentor_agent
 from agents.teammates_agent import run_teammates_agent
@@ -115,17 +115,18 @@ if FASTAPI_AVAILABLE:
         print(f"   • User Role: {x_user_role} | Target Mentee: {req.target_member or 'Auto-Detect'}")
         
         try:
-            result = route_request(req.prompt, user_role=x_user_role or "auto", target_member=req.target_member or "")
+            result, dispatched_role = route_request_with_role(req.prompt, user_role=x_user_role or "auto", target_member=req.target_member or "")
             status = "success"
         except Exception as e:
             print(f"❌ [API Server Error]: {e}")
             result = f"⚠️ Server Error encountered while processing query: {str(e)}"
+            dispatched_role = x_user_role or "manager"
             status = "error"
             
         latency = round(time.time() - t0, 3)
-        print(f"📤 [API Server - Auto Router] Completed in {latency}s | Status: {status}")
+        print(f"📤 [API Server - Auto Router] Completed in {latency}s | Status: {status} | Dispatched Agent: {dispatched_role}")
         
-        target_key = "manager" if "manager" in (x_user_role or "").lower() else ("mentor" if "mentor" in (x_user_role or "").lower() else "teammate")
+        target_key = "manager" if "manager" in dispatched_role.lower() else ("mentor" if "mentor" in dispatched_role.lower() or "siddharth" in dispatched_role.lower() else "teammate")
         AGENT_HISTORY[target_key].append({
             "timestamp": time.strftime("%H:%M:%S"),
             "user_id": x_user_id,
@@ -135,7 +136,7 @@ if FASTAPI_AVAILABLE:
         })
 
         return QueryResponse(
-            agent_role=x_user_role or "auto",
+            agent_role=dispatched_role,
             response=result,
             latency_seconds=latency,
             status=status,

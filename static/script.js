@@ -221,6 +221,55 @@ document.addEventListener("DOMContentLoaded", () => {
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     }
 
+    function detectIntentRole(text) {
+        const lower = text.toLowerCase();
+        const mentorKeywords = [
+            "evaluate", "mentor", "weakness", "strength", "quiz", "mentee", "score",
+            "misconception", "methodology", "problem-solving", "next task", "grading",
+            "next tasks", "learning topic", "feedback", "guidance", "diagnosis", "grade",
+            "diagnose", "learning gap", "technical gap", "understanding", "coaching"
+        ];
+        const teammateKeywords = [
+            "code", "pipeline", "qdrant", "how works", "explain", "architecture",
+            "semantic", "chunking", "embedding", "cachedembedding",
+            "semantictranscriptparser", "vector", "retriever", "reranker",
+            "transcript parser", "dense", "collection"
+        ];
+        if (mentorKeywords.some(w => lower.includes(w))) return "siddharth";
+        if (teammateKeywords.some(w => lower.includes(w))) return "himaya";
+        return "manager";
+    }
+
+    function highlightCard(role) {
+        agentCards.forEach(c => c.classList.remove("active"));
+        const cardMap = {
+            "manager": "cardManager",
+            "siddharth": "cardMentor",
+            "mentor": "cardMentor",
+            "himaya": "cardTeammate",
+            "ganesh": "cardTeammate",
+            "dakshinya": "cardTeammate",
+            "teammate": "cardTeammate",
+            "auto": "cardAuto"
+        };
+        const target = document.getElementById(cardMap[role] || "cardManager");
+        if (target && !target.classList.contains("disabled")) {
+            target.classList.add("active");
+        }
+    }
+
+    // Auto-detect agent card when user types in Owner mode
+    promptInput.addEventListener("input", () => {
+        if (activeRole === "owner") {
+            const prompt = promptInput.value.trim();
+            if (prompt.length > 5) {
+                const autoRole = detectIntentRole(prompt);
+                highlightCard(autoRole);
+                selectedAgentRole = autoRole;
+            }
+        }
+    });
+
     // Submit on Enter Key Press (Shift+Enter inserts new line)
     promptInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter" && !e.shiftKey) {
@@ -243,7 +292,10 @@ document.addEventListener("DOMContentLoaded", () => {
         responseBody.innerHTML = `<div style="padding: 20px; color: var(--text-secondary);">⚡ Retrieving dense vector chunks & generating Google Gemini LLM grounded response...</div>`;
 
         const targetMember = targetMemberSelect.value;
-        const targetRole = (activeRole === "owner") ? selectedAgentRole : activeRole;
+        let targetRole = activeRole;
+        if (activeRole === "owner") {
+            targetRole = selectedAgentRole || detectIntentRole(prompt);
+        }
         const endpoint = getEndpointForRole(targetRole);
 
         try {
@@ -271,13 +323,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const data = await response.json();
             const duration = ((performance.now() - startTime) / 1000).toFixed(3);
+            const resolvedRole = data.agent_role || targetRole;
 
             resUserID.textContent = activeUserID;
-            resAgentName.textContent = getAgentDisplayName(data.agent_role || targetRole);
+            resAgentName.textContent = getAgentDisplayName(resolvedRole);
             resLatency.textContent = `${data.latency_seconds || duration}s`;
             if (data.llm_provider) {
                 resLLM.textContent = data.llm_provider;
             }
+
+            highlightCard(resolvedRole);
 
             if (typeof marked !== "undefined") {
                 responseBody.innerHTML = marked.parse(data.response);
@@ -305,7 +360,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function getEndpointForRole(role) {
         if (role === "manager") return "/api/v1/manager";
-        if (role === "siddharth") return "/api/v1/mentor";
+        if (role === "siddharth" || role === "mentor") return "/api/v1/mentor";
         if (role === "himaya" || role === "ganesh" || role === "dakshinya" || role === "teammate") return "/api/v1/teammate";
         return "/api/v1/query";
     }
