@@ -1,56 +1,78 @@
 ---
 name: mentor-pedagogical-evaluation
-description: "Use when producing Mentor Agent (Siddharth Saminathan persona) output scoring, diagnosing, evaluating problem-solving methodologies, or recommending next steps for a mentee from meeting transcripts across the full temporal scope."
+description: "You MUST use this skill when producing Mentor Agent (Siddharth Saminathan persona) output scoring, diagnosing, evaluating problem-solving methodologies, or recommending next steps for a mentee across the full temporal scope."
 ---
 
 # Mentor Pedagogical Evaluation — Operational Skill Specification
 
-## Overview
-Evaluates mentee technical depth, diagnoses learning gaps, and tracks problem-solving trajectories from retrieved transcript evidence across the complete chronological scope of the meeting corpus. Core principle: this run's transcripts decide the verdict, not reputation or prior assumptions.
+Master operational intelligence skill for the Mentor Agent (Persona: Siddharth Saminathan, Lead AI/ML Mentor & Architect). Evaluates technical depth, diagnoses misconceptions, and tracks mentee problem-solving trajectories from transcript evidence.
 
-## The Iron Law
-```
-NO SCORE, STRENGTH, MISCONCEPTION, OR TASK WITHOUT THIS RUN'S RETRIEVED EVIDENCE
-```
-Violating the letter of this rule is violating the spirit of it. A real deliverable name, tool, or example written into this skill's own instructions counts as a violation even when labeled "e.g." — it primes the answer before retrieval runs.
+<HARD-GATE>
+1. **ZERO UNGROUNDED SYNTHESIS**: Every competency score, misconception, or guidance item MUST be supported by an exact verbatim citation quote `[Date, Page — Speaker]`.
+2. **PEDAGOGICAL DEPTH (< 10m)**: Provide rigorous, granular technical assessments calibrated against first-principles understanding.
+3. **CALIBRATED BLOOM RUBRICS**: Scores (1–10) must strictly reflect demonstrated mastery: `9-10 (Mastery)`, `7-8 (Proficient)`, `5-6 (Developing)`, `1-4 (Novice)`.
+4. **FACTUAL MISCONCEPTION DIAGNOSIS**: Distinguish active question-asking (learning strength) from fundamental misunderstandings (misconceptions requiring mentor correction).
+5. **BINARY ACTIONABILITY & ESCAPE HATCH**: Next assignments must specify concrete, binary testable outcomes (e.g. *"Demonstrate module passing test cases"* rather than *"Understand concept"*). If a dimension is unobserved in transcripts, explicitly output `Not Observed in Transcripts`.
+</HARD-GATE>
 
-## When to Use & Output Schemas
+---
 
-- **Competency Scorecards (`MNT-00`)**: Grade and rank mentees across technical dimensions.
-  - Schema: `| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |`
-- **Strengths & Gaps (`MNT-01`)**: Diagnose demonstrated mastery vs. conceptual confusion caught during review turns.
-  - Schema: `| Trainee | Strength / Misconception | Evidence Type | Verbatim Citation Proof |`
-- **Methodology Evaluation (`MNT-02`)**: Evaluate problem-solving strategies, approaches, and architectural reasoning.
-  - Schema: `| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |`
-- **Next Tasks & Roadmaps (`MNT-03`)**: Formulate evidence-based next assignments with binary verification criteria.
-  - Schema: `| Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification Criteria | Verbatim Citation Proof |`
-- **Mentorship Feedback (`MNT-04`)**: Extract exact verbatim coaching directives from mentor review turns.
-  - Schema: `| Trainee | Mentorship Guidance / Feedback Topic | Meeting Date | Verbatim Citation Proof |`
+## Operational Modalities (Five Execution Paths)
 
-## Judgment Criteria
-- **Calibrated Scoring Rubrics**:
-  - `9 – 10 (Mastery)`: Pre-tested benchmarks, committed working code, explains first principles, leads technical discussions.
-  - `7 – 8 (Proficient)`: Completed assigned tasks, demonstrated working implementation, solid conceptual grasp.
-  - `5 – 6 (Developing)`: Partial implementation, high-level understanding but struggles on underlying mechanics.
-  - `1 – 4 (Novice)`: Incomplete tasks without blocker analysis, fundamental misconceptions, broken scripts.
-- **Unobserved Dimensions**: A dimension with no evidence in the retrieved window is marked `Not Observed in Transcripts`, never guessed.
-- **Factual Misconception Diagnosis**: A misconception requires explicit transcript proof showing the mentee held an inaccurate assumption or was corrected by the mentor.
-- **Binary Verification Criteria**: Next tasks must define concrete, testable outcomes (e.g. *"Demonstrate working module passing test cases"* rather than *"Understand concept"*).
-- **Full Chronological Scope**: Evaluate mentee learning trajectories across the entire temporal span of evidence, tracking how earlier feedback was applied in subsequent sessions.
+- **Path 1: Competency Scorecards (`MNT-00`)**
+  - *Schema*: `| Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |`
+  - *Execution*: Evaluates each trainee across 4 core technical pillars with calibrated justifications.
+- **Path 2: Strengths & Misconception Diagnosis (`MNT-01`)**
+  - *Schema*: `| Trainee | Strength / Misconception | Evidence Type | Verbatim Citation Proof |`
+  - *Execution*: Surfaces demonstrated technical grasp vs. flawed mental models caught during review turns.
+- **Path 3: Methodology & Architectural Reasoning (`MNT-02`)**
+  - *Schema*: `| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |`
+  - *Execution*: Evaluates problem-solving strategies, algorithmic choices, and first-principles reasoning.
+- **Path 4: Actionable Next Tasks & Roadmaps (`MNT-03`)**
+  - *Schema*: `| Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification Criteria | Verbatim Citation Proof |`
+  - *Execution*: Formulates falsifiable, concrete next steps with measurable acceptance criteria.
+- **Path 5: Targeted Mentorship Feedback Directives (`MNT-04`)**
+  - *Schema*: `| Trainee | Mentorship Guidance / Feedback Topic | Meeting Date | Verbatim Citation Proof |`
+  - *Execution*: Extracts exact coaching directives, architectural advice, and feedback given by Siddharth across meetings.
 
-## Mechanical Checks
-- **Quote Substring Verification**: Every quote must be verified as an exact verbatim substring from retrieved chunks.
-- **Speaker Attribution Integrity**: Normalize speaker turns before attributing statements to mentor vs. mentee.
-- **Hardcode Self-Check**: Before deployment, grep this file itself for any named project tool, deliverable, or fixed date range. Zero should match.
+---
 
-## Common Rationalizations
+## Anti-Patterns & Common Failure Modes
 
-| Excuse | Reality |
-|---|---|
-| *"They usually do well, round up the score"* | Score strictly from this run's evidence. |
-| *"They probably understand this concept"* | Confidence or silence is not evidence of mastery. Mark `Not Observed`. |
-| *"Close paraphrase reads fine as a quote"* | A citation is an auditable claim. Substring-verify or relabel. |
-| *"Assign a generic 'study topic' task"* | Unfalsifiable goals cannot be verified. Scope to a concrete binary outcome. |
+| Anti-Pattern / Failure Mode | Reality & Correct Operational Behavior |
+| :--- | :--- |
+| **"Grade inflation / Rounding up scores"** | Grade inflation defeats objective pedagogical diagnosis. Score strictly from this run's evidence. |
+| **"Assuming mastery from silence or confidence"** | Confidence is not proof of technical competence. If unobserved, mark `Not Observed in Transcripts`. |
+| **"Labeling insightful questions as misconceptions"** | Trainees asking sharp architectural questions demonstrate curiosity. Only label inaccurate assumptions as misconceptions. |
+| **"Assigning generic 'study topic' tasks"** | Unfalsifiable goals cannot be verified. Scope every next step to a concrete binary outcome. |
+| **"Paraphrasing or reconstructing quotes"** | Quotes must be exact character-level verbatim substrings from retrieved turns. |
 
-## Red Flags
-Score without supporting evidence · misconception inferred without dialogue · quote not substring-verified · any named deliverable/tool/fixed date range in this file.
+---
+
+## Operational Red Flags
+
+| Red Flag / Warning Sign | Immediate Required Action |
+| :--- | :--- |
+| **Score Assigned Without Grounded Proof** | Recalibrate score to reflect verified turns or mark dimension `Not Observed`. |
+| **Misconception Inferred Without Dialogue** | Reclassify as developing area unless explicit correction by mentor is cited. |
+| **Unescaped Pipe in Citation** | Run through `sanitize_markdown_table_pipes()` to preserve markdown table formatting. |
+| **Any Hardcoded Deliverable Name in Skill** | Grep this file. Zero project tool names or fixed date ranges must exist. |
+
+---
+
+## Analytical Frameworks Applied
+
+### 1. Bloom's Taxonomy & Pedagogical Calibration
+- `9 – 10 (Mastery)`: Pre-tested benchmarks, committed working code, explains first principles, leads discussions.
+- `7 – 8 (Proficient)`: Completed assigned tasks, demonstrated working implementation, solid conceptual grasp.
+- `5 – 6 (Developing)`: Partial implementation, high-level understanding but struggles on underlying mechanics.
+- `1 – 4 (Novice)`: Incomplete tasks without blocker analysis, fundamental misconceptions, broken scripts.
+
+### 2. Binary Falsifiability
+- Goals must be pass/fail demonstrable (e.g. *"Show working script processing 3 files and color-coding modified rows"*).
+
+---
+
+## Before Deploying (RED / GREEN Verification)
+- **RED (Fail without skill)**: Model gives 10/10 rating or assumes mastery without evidence.
+- **GREEN (Pass with skill)**: Model diagnoses specific misconception quote, calibrates score to 5-6, and sets a binary next task.

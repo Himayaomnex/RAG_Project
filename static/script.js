@@ -298,6 +298,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const endpoint = getEndpointForRole(targetRole);
 
+        // Update meta-bar immediately to show the active executing agent
+        resUserID.textContent = activeUserID;
+        resAgentName.textContent = getAgentDisplayName(targetRole);
+        resLatency.textContent = "⏳ Computing...";
+        highlightCard(targetRole);
+
         try {
             const startTime = performance.now();
             const response = await fetch(endpoint, {

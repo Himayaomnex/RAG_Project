@@ -1,47 +1,45 @@
 ---
-name: peer-technical-intelligence
-description: "You MUST use this skill for peer technical collaboration, codebase Q&A, shared architecture explanation, and technical implementation guidance for trainees Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu."
+name: team-technical-intelligence
+description: "You MUST use this skill when producing Team Intelligence / Teammates Agent output on shared codebase architecture, recurring peer patterns, technical guidance, or mentor standards across the full temporal scope."
 ---
 
-# Peer Technical Intelligence — Operational Skill Specification
+# Team Technical Intelligence — Operational Skill Specification
 
-Operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). Provides deep codebase Q&A, architectural explanations, and spoken transcript dialogue retrieval for peer cross-learning.
+Master operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). Provides deep codebase Q&A, architectural explanations, and spoken dialogue retrieval for peer cross-learning.
 
 <HARD-GATE>
 1. **ACCURATE CODEBASE GROUNDING**: All code architecture explanations must reference actual local workspace classes, modules, and pipeline components (`pipeline.py`, `prompt_builder.py`, `llm_client.py`, `router.py`, `api_server.py`). Never invent non-existent file names or functions.
 2. **AUTHENTIC PEER DIALOGUE ATTRIBUTION**: When retrieving spoken conversations from meetings, attribute each turn strictly to the correct speaker (Himaya, Ganesh, Dakshinya, or Siddharth).
-3. **PRACTICAL IMPLEMENTATION FOCUS**: Solutions must provide working, runnable Python code patterns that follow the project's established design standards (e.g. Qdrant vector database, Semantic Chunking, Multi-Provider LLM client).
+3. **FACTS VS. OBSERVATIONS DISTINCTION**: Strictly separate immutable facts (code files, timestamps, committed features) from evolving observations (trainee learning progress, design hypotheses).
+4. **MULTI-SESSION PATTERN REQUIREMENT**: Classify an issue as a recurring knowledge gap or team pattern *only* if it appears across multiple distinct review sessions.
+5. **FIRST-PRINCIPLES EXPLANATION**: Explanations must emphasize *why* a technical solution was chosen (memory, latency, modularity), not just *that* it was implemented.
 </HARD-GATE>
 
 ---
 
 ## Operational Modalities (Three Execution Paths)
 
-- **Path 1: System Architecture & Pipeline Deep Dive**
-  - *Trigger*: User asks how the RAG pipeline works, how chunking is implemented, or how embeddings are cached.
-  - *Codebase References*:
-    - `pipeline.py`: `CachedEmbeddingModel`, `SemanticTranscriptParser`, `VectorDatabase`, `CustomMeetingReranker`.
-    - `transcript_normalizer.py`: `normalize_speaker_name()`, `clean_audio_artifacts()`, `reattribute_crosstalk_turn()`.
-    - `llm_client.py`: `generate_llm_response()`, `normalize_table_status_cells()`, `sanitize_markdown_table_pipes()`.
-    - `prompt_builder.py`: `PromptBuilder`, `build_system_prompt()`, `build_user_prompt()`.
-    - `router.py`: `route_query()`, `detect_agent_type()`, `resolve_target_trainee()`.
-    - `api_server.py`: `POST /api/v1/query`, `POST /api/v1/manager`, `POST /api/v1/mentor`, `POST /api/v1/teammates`.
-- **Path 2: Spoken Transcript Dialogue Retrieval**
-  - *Trigger*: User asks what a specific teammate said during a meeting or how a technical issue was discussed.
-  - *Scope*: Retrieves verbatim transcript exchanges with speaker, date, document, and page citations.
-- **Path 3: Implementation Guidance & Troubleshooting**
-  - *Trigger*: User asks for help implementing a feature, handling rate limits, or resolving vector search errors.
-  - *Scope*: Provides step-by-step code guidance, error diagnostics, and reproducible examples.
+- **Path 1: System Architecture & Codebase Guide (`TI-01`)**
+  - *Schema*: `| Component | File / Module | Operational Mechanics | Verbatim Evidence / Code Reference |`
+  - *Execution*: Explains end-to-end RAG architecture, semantic chunking, vector indexing, and multi-provider failover using real workspace code references.
+- **Path 2: Recurring Team Patterns & Knowledge Gaps (`TI-02`)**
+  - *Schema*: `| Recurring Topic / Question | Frequency | Trainees Involved | Root Cause / Knowledge Gap | Verbatim Citation Proof |`
+  - *Execution*: Mines cross-meeting dialogue to identify repeated technical challenges, rate-limit bottlenecks, and conceptual hurdles.
+- **Path 3: Mentor Standards & Guidance Archetypes (`TI-03`)**
+  - *Schema*: `| Mentorship Principle | Practical Expectation | Demonstrated Scenario | Verbatim Citation Proof |`
+  - *Execution*: Extracts Siddharth's core engineering principles (Quality & Completeness, Understanding Over Results, Independent Design, Actionable Tasks) with verbatim citations.
 
 ---
 
-## Anti-Patterns & Failure Modes
+## Anti-Patterns & Common Failure Modes
 
 | Anti-Pattern / Failure Mode | Reality & Correct Operational Behavior |
 | :--- | :--- |
-| **"Explaining generic RAG concepts instead of our codebase"** | Ground all explanations in our actual implementation (e.g., `pipeline.py`'s `CachedEmbeddingModel` and `SemanticTranscriptParser`). |
-| **"Hallucinating external libraries not used in the repo"** | Only reference libraries and packages present in the local Python environment (Qdrant client, SentenceTransformers, Requests). |
-| **"Misattributing technical solutions between teammates"** | Maintain strict speaker attribution derived from transcript evidence rather than guessing who implemented a feature. |
+| **"Explaining generic RAG concepts instead of our codebase"** | Ground all explanations in our actual implementation (`pipeline.py`, `prompt_builder.py`, `llm_client.py`). |
+| **"Labeling a single-meeting question as a team pattern"** | Require multi-session occurrence before designating a recurring pattern or gap. |
+| **"Misattributing technical solutions between teammates"** | Maintain strict speaker attribution derived from transcript turns rather than guessing who built a feature. |
+| **"Hallucinating external libraries not in repo"** | Only reference libraries and packages present in the local Python environment (Qdrant client, SentenceTransformers, Requests). |
+| **"Paraphrasing or reconstructing quotes"** | Quotes must be exact character-level verbatim substrings from retrieved turns. |
 
 ---
 
@@ -49,34 +47,24 @@ Operational technical intelligence skill for the Teammates Agent (Persona: Engin
 
 | Red Flag / Warning Sign | Immediate Required Action |
 | :--- | :--- |
-| **Outdated File Paths or Deprecated Scripts** | Reference active workspace scripts (`pipeline.py`, `llm_client.py`, `prompt_builder.py`, `router.py`, `api_server.py`). |
-| **Phonetic Transcriptions in Spoken Code** (e.g. "team seek" for "DeepSeek") | Run through `transcript_normalizer.clean_audio_artifacts()` before presenting dialogue quotes. |
+| **Non-Existent Code File Referenced** | Restrict references to active workspace scripts (`pipeline.py`, `llm_client.py`, `prompt_builder.py`, `router.py`, `api_server.py`). |
+| **Speaker Crosstalk Bleed in Attribution** | Run through `transcript_normalizer.reattribute_crosstalk_turn()` before presenting dialogue quotes. |
+| **Unescaped Pipe in Citation** | Run through `sanitize_markdown_table_pipes()` to preserve markdown table formatting. |
+| **Any Hardcoded Deliverable Name in Skill** | Grep this file. Zero project tool names or fixed date ranges must exist. |
 
 ---
 
-## Execution Lifecycle Checklist
+## Analytical Frameworks Applied
 
-1. **[Query Domain Classification]**: Identify whether the query is Codebase Architecture, Spoken Dialogue, or Implementation Guidance.
-2. **[Workspace Code Inspection / Qdrant Query]**: Inspect local source files or query Qdrant vectors depending on technical domain.
-3. **[Speaker Attribution & Normalization]**: Ensure spoken dialogue quotes are accurately assigned to Himaya, Ganesh, Dakshinya, or Siddharth.
-4. **[Technical Response Synthesis]**: Generate clear, modular explanations with exact file links and code references.
-5. **[Final Quality Check]**: Ensure code snippets are runnable and transcript citations include exact metadata.
+### 1. First-Principles Code Grounding
+- Ground explanations in concrete Python classes (`CachedEmbeddingModel`, `SemanticTranscriptParser`, `VectorDatabase`).
+- Focus on practical trade-offs: latency reduction, memory footprint, vector dimensionalities.
+
+### 2. Multi-Session Pattern Mining
+- Surface cross-team synchronization gaps and shared architectural challenges across the entire cohort.
 
 ---
 
-## Process Flow (State Machine)
-
-```mermaid
-graph TD
-    A["Teammates Query Received"] --> B{"Determine Technical Domain"}
-    B -->|"Architecture / Pipeline"| C["Path 1: Workspace Code Deep Dive"]
-    B -->|"Spoken Dialogue"| D["Path 2: Transcript Qdrant Search"]
-    B -->|"Debugging / How-To"| E["Path 3: Implementation Guidance"]
-
-    C --> F["Inspect Local Modules (pipeline.py, llm_client.py)"]
-    D --> G["Retrieve Dialogue Turns from Qdrant"]
-    E --> H["Generate Concrete Code Patterns"]
-
-    F & G & H --> I["Multi-Provider LLM Synthesis"]
-    I --> J["Deliver Grounded Technical Response"]
-```
+## Before Deploying (RED / GREEN Verification)
+- **RED (Fail without skill)**: Outputs generic textbook RAG text or invents non-existent modules.
+- **GREEN (Pass with skill)**: Grounds explanation strictly in workspace modules with exact verbatim quotes illustrating the design trade-off.

@@ -205,11 +205,12 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
     
     for m in mentees_to_cover:
         m_low = m.lower()
-        m_chunks = []
+        # Group chunks by date to ensure temporal diversity
+        by_date_chunks = {}
         for chunk in results:
             txt = chunk.get("text", "").lower()
             spk = chunk.get("speaker", "").lower()
-            dt = chunk.get("date", "").lower()
+            dt = chunk.get("date", "Unknown Date")
             if m_low in spk or m_low in txt:
                 score = sum(1 for w in query_words if w in txt) + 3
                 if is_blocker_query:
@@ -217,19 +218,21 @@ def run_manager_agent(user_prompt: str, target_member: str = "") -> str:
                         score += 8
                 else:
                     if any(ci in txt for ci in completion_indicators):
+                        score += 5
+                    if m_low in spk:
                         score += 4
-                # Recency bonus prioritizing August 4 final wrap-up & late July
-                if any(rd in dt for rd in ["4 august", "august", "aug", "31 july"]):
-                    score += 4
-                elif any(rd in dt for rd in ["28 july", "29 july", "30 july"]):
-                    score += 3
-                m_chunks.append((score, chunk))
-        m_chunks.sort(key=lambda x: x[0], reverse=True)
-        for _, c in m_chunks[:15]:
-            c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
-            if c_key not in seen_ids:
-                seen_ids.add(c_key)
-                selected_chunks.append(c)
+                if dt not in by_date_chunks:
+                    by_date_chunks[dt] = []
+                by_date_chunks[dt].append((score, chunk))
+        
+        # Take the top 2 chunks from every available date to guarantee chronological breadth
+        for dt, chunk_list in by_date_chunks.items():
+            chunk_list.sort(key=lambda x: x[0], reverse=True)
+            for _, c in chunk_list[:2]:
+                c_key = f"{c.get('date')}_{c.get('page')}_{c.get('text', '')[:40]}"
+                if c_key not in seen_ids:
+                    seen_ids.add(c_key)
+                    selected_chunks.append(c)
                 
     # Also add top global decision/accomplishment chunks with recency bonus
     scored_all = []

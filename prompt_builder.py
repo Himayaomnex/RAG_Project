@@ -317,6 +317,7 @@ class PromptBuilder:
                     table_cols = "| Trainee | Task / Deliverable | Status | Verbatim Citation Proof |"
                     parts.append(f"• ACCOMPLISHMENTS TABLE REQUEST: Present the entire answer inside a single Markdown Pipe Table with columns: {table_cols}")
                     parts.append("• DYNAMIC EVIDENCE EXTRACTION: Read the provided <transcript_evidence> and extract each trainee's deliverables and reported status directly from their spoken review turns.")
+                    parts.append("• FULL CHRONOLOGICAL MULTI-DATE COVERAGE: Ensure the table includes deliverables spanning multiple distinct meeting dates across the entire cohort (early July foundations, mid-July APIs/parsers, late-July caching/MCPs, and August wrap-ups) for every trainee: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu.")
             elif self.agent_type == "mentor":
                 if any(w in query_lower for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
                     table_cols = "| Trainee | Technical Methodology / Approach | Demonstrated Problem-Solving Strategy | Verbatim Citation Proof |"
