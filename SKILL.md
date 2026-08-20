@@ -11,7 +11,7 @@ Master operational intelligence skill for ingesting, indexing, analyzing, and sy
 1. **ZERO UNGROUNDED SYNTHESIS**: Every factual assertion, score, task status, or technical evaluation MUST be supported by an exact verbatim citation quote with `[Date — Source Document — Page — Speaker]`.
 2. **STRICT PIPE TABLE FORMAT**: When presenting structured intelligence, format the ENTIRE output inside a single, valid Markdown Pipe Table with header alignment rows (`| :--- | :--- |`).
 3. **DYNAMIC EVIDENCE-BASED STATUS**: Deliverable status (Completed, In Progress, Blocked) must be derived dynamically from transcript evidence — never defaulted or assumed without verified spoken proof.
-4. **FULL CHRONOLOGICAL TIMELINE (JULY — AUGUST)**: Analysis must sweep across the full 22-transcript corpus, ensuring late-stage August sessions (Aug 4–7) are retrieved alongside earlier July baseline work.
+4. **FULL CHRONOLOGICAL TIMELINE**: Analysis must sweep across the full temporal scope of retrieved evidence, tracking baseline discussions through final wrap-up sessions.
 5. **NO PROMPT LEAKAGE**: Never output internal reasoning, thinking tags (`<think>`), or markdown conversational preamble outside the requested analytical structure.
 </HARD-GATE>
 
@@ -23,13 +23,13 @@ Before initiating retrieval and synthesis, classify the request into one of the 
 
 - **Path 1: Full Corpus Map-Reduce Scan (Multi-Transcript Synthesis)**
   - *Scope*: System-wide overview queries (e.g. "What did the team accomplish across all sessions?", "What are the overall project milestones?").
-  - *Execution*: Iterates across all 22 meeting transcripts (July 1 to August 7), performs dense semantic retrieval and cross-encoder reranking, maps evidence into structured buckets, and reduces into balanced MECE tables with grounded coverage across all three trainees.
+  - *Execution*: Iterates across the complete chronological scope of the corpus, performs dense semantic retrieval and cross-encoder reranking, maps evidence into structured buckets, and reduces into balanced tables with grounded coverage across all team members.
 - **Path 2: Targeted Trainee / Topic Drilldown (Deep Entity Analysis)**
-  - *Scope*: Focused single-mentee or single-technology investigations (e.g. "What was Dakshinya's context engineering progress?", "How did Ganesh implement Excel diffing?").
+  - *Scope*: Focused single-mentee or single-topic investigations.
   - *Execution*: Applies targeted speaker payload filtering and semantic query expansion, aggregates chronologically ordered evidence turns, and outputs detailed SCQA or task verification tables.
 - **Path 3: Direct Dialogue Verification & Citation Audit (Verbatim Grounding)**
   - *Scope*: Exact quote lookups, decision dispute resolution, and crosstalk attribution audits.
-  - *Execution*: Scans normalized transcript turns using `transcript_normalizer.py`, re-attributes crosstalk turns, verifies verbatim quote strings, and provides exact timestamped citations.
+  - *Execution*: Scans normalized transcript turns, re-attributes crosstalk turns, verifies verbatim quote strings, and provides exact timestamped citations.
 
 ---
 
