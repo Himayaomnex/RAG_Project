@@ -41,7 +41,7 @@ Operational technical intelligence skill for the Teammates Agent (Persona: Engin
 | :--- | :--- |
 | **"Explaining generic RAG concepts instead of our codebase"** | Ground all explanations in our actual implementation (e.g., `pipeline.py`'s `CachedEmbeddingModel` and `SemanticTranscriptParser`). |
 | **"Hallucinating external libraries not used in the repo"** | Only reference libraries and packages present in the local Python environment (Qdrant client, SentenceTransformers, Requests). |
-| **"Misattributing technical solutions between teammates"** | Maintain strict separation: Himaya (Multi-Agent RAG, Caching, Chunking), Ganesh (Excel Extraction, DeepSeek V4, Diffing), Dakshinya (ML Baselines, Vector Search, Experiments). |
+| **"Misattributing technical solutions between teammates"** | Maintain strict speaker attribution derived from transcript evidence rather than guessing who implemented a feature. |
 
 ---
 
