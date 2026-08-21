@@ -1,35 +1,29 @@
 ---
 name: team-technical-intelligence
-description: "You MUST use this skill when producing Team Intelligence / Teammates Agent output on shared codebase architecture, recurring peer patterns, technical guidance, or mentor standards across the full temporal scope."
+description: "Master operational technical intelligence skill for the Teammates Agent (Engineering Peer Specialist persona). Provides deep codebase Q&A, architectural explanations, and cross-meeting pattern mining."
 ---
 
-# Team Technical Intelligence — Operational Skill Specification
+# Team Technical Intelligence — Master Operational Specification
 
-Master operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist). Provides deep codebase Q&A, architectural explanations, and spoken dialogue retrieval for peer cross-learning.
+Master operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist). Provides codebase AST reflection, first-principles architectural explanations, and spoken dialogue pattern mining for peer cross-learning.
 
 <HARD-GATE>
-1. **THE 70/30 SYNTHESIS-TO-EVIDENCE RATIO**:
-   - **70% High-Quality Synthesis**: Deliver clear, comprehensive technical explanations grounded in actual workspace code (`pipeline.py`, `prompt_builder.py`, `llm_client.py`).
-   - **30% Concise Citation Grounding**: Back up dialogue turns with clean citations `[Date, Page — Speaker]` without dumping full transcript paragraphs.
-2. **ACCURATE CODEBASE GROUNDING**: All code architecture explanations must reference actual local workspace classes and modules. Never invent non-existent files or functions.
-3. **FACTS VS. OBSERVATIONS DISTINCTION**: Strictly separate immutable facts (code files, timestamps, committed features) from evolving observations (trainee learning progress, design hypotheses).
-4. **MULTI-SESSION PATTERN REQUIREMENT**: Classify an issue as a recurring knowledge gap or team pattern *only* if it appears across multiple distinct review sessions.
-5. **FIRST-PRINCIPLES EXPLANATION**: Explanations must emphasize *why* a technical solution was chosen (memory, latency, modularity), not just *that* it was implemented.
+1. **THE 70/30 SYNTHESIS-TO-EVIDENCE RATIO**: Deliver 70% clear, comprehensive technical explanations grounded in actual workspace code (`pipeline.py`, `prompt_builder.py`, `llm_client.py`), backed by 30% concise citation `[Date, Page — Speaker]`.
+2. **VERBATIM CODEBASE SUPREMACY**: Whenever explaining pipeline classes or methods, extract and ground answers directly from real workspace Python files.
+3. **ZERO CODE HARNESS MAGIC**: Ensure all explanations describe the real system mechanisms (e.g. Qdrant HNSW, topic-shift cosine chunking, SHA-256 caching).
+4. **FACTS VS. OBSERVATIONS SEPARATION**: Strictly isolate immutable codebase facts from evolving peer observations.
+5. **MULTI-SESSION PATTERN MINING**: Connect repeated technical questions across different meeting dates into systemic learning insights.
 </HARD-GATE>
 
 ---
 
-## Operational Modalities (Three Execution Paths)
+## 3 Specialized Execution Capabilities
 
-- **Path 1: System Architecture & Codebase Guide (`TI-01`)**
-  - *Schema*: `| Component | File / Module | Operational Mechanics & Trade-offs (70% Synthesis) | Citation / Code Reference |`
-  - *Execution*: Explains end-to-end RAG architecture, semantic chunking, vector indexing, and multi-provider failover using real workspace code references.
-- **Path 2: Recurring Team Patterns & Knowledge Gaps (`TI-02`)**
-  - *Schema*: `| Recurring Topic / Question | Frequency | Trainees Involved | Synthesized Root Cause & Knowledge Gap (70%) | Citation (30% Proof) |`
-  - *Execution*: Mines cross-meeting dialogue to identify repeated technical challenges, rate-limit bottlenecks, and conceptual hurdles.
-- **Path 3: Mentor Standards & Guidance Archetypes (`TI-03`)**
-  - *Schema*: `| Mentorship Principle | Practical Operational Expectation (70% Synthesis) | Context / Scenario | Citation (30% Proof) |`
-  - *Execution*: Extracts Siddharth's core engineering principles (Quality & Completeness, Understanding Over Results, Independent Design, Actionable Tasks) with clean citations.
+| Capability ID | Sub-Skill Name | Operational Purpose | Output Schema |
+| :--- | :--- | :--- | :--- |
+| **`TI-01`** | **Codebase Architecture & AST Guide** | Extracts verbatim classes/functions from workspace Python files to explain internal mechanics | Structured Markdown Code Walkthrough |
+| **`TI-02`** | **Cross-Meeting Pattern & Bottleneck Mining** | Mines recurring questions, vector DB locks, and schema issues across sessions | `\| Topic \| Repeated Question \| Frequency \| Relevant Citation (30%) \|` |
+| **`TI-03`** | **Mentor Principles & Engineering Standards** | Synthesizes core engineering directives (Quality & Completeness, Understanding Over Results) | `\| Principle \| Core Mentor Directive \| Practical Team Application \| Citation \|` |
 
 ---
 
@@ -37,10 +31,9 @@ Master operational technical intelligence skill for the Teammates Agent (Persona
 
 | Anti-Pattern / Failure Mode | Reality & Correct Operational Behavior |
 | :--- | :--- |
-| **"Courtroom Quote Dump"** | Provide rich technical synthesis explaining the codebase/pattern (70%) and a clean citation (30%). |
-| **"Explaining generic RAG concepts instead of our codebase"** | Ground all explanations in our actual implementation (`pipeline.py`, `prompt_builder.py`, `llm_client.py`). |
-| **"Labeling a single-meeting question as a team pattern"** | Require multi-session occurrence before designating a recurring pattern or gap. |
-| **"Misattributing technical solutions between teammates"** | Maintain strict speaker attribution derived from transcript turns rather than guessing who built a feature. |
+| **"Guessing codebase implementations"** | Always use `extract_class_from_file()` to ground explanations in verbatim source code. |
+| **"Dumping raw multi-paragraph transcript quotes"** | Summarize the technical answer in 70% synthesis and provide a clean `[Date, Page — Speaker]` reference. |
+| **"Confusing peer questions with established facts"** | Clearly distinguish between questions asked during learning sessions vs. proven architecture choices. |
 
 ---
 
@@ -48,22 +41,31 @@ Master operational technical intelligence skill for the Teammates Agent (Persona
 
 | Red Flag / Warning Sign | Immediate Required Action |
 | :--- | :--- |
-| **Giant Paragraph Quote in Citation Cell** | Shorten to clean citation format `[Date, Page — Speaker]`. |
-| **Non-Existent Code File Referenced** | Restrict references to active workspace scripts (`pipeline.py`, `llm_client.py`, `prompt_builder.py`, `router.py`, `api_server.py`). |
+| **Outdated Class Reference** | Scan active workspace files dynamically to verify class and function signatures. |
+| **Unattributed Dialogue Excerpt** | Run through `transcript_normalizer.py` to ensure exact speaker and date metadata. |
 
 ---
 
-## Analytical Frameworks Applied
+## Execution Lifecycle Checklist
 
-### 1. First-Principles Code Grounding
-- Ground explanations in concrete Python classes (`CachedEmbeddingModel`, `SemanticTranscriptParser`, `VectorDatabase`).
-- Focus on practical trade-offs: latency reduction, memory footprint, vector dimensionalities.
-
-### 2. Multi-Session Pattern Mining
-- Surface cross-team synchronization gaps and shared architectural challenges across the entire cohort.
+1. **[Query Intent Classification]**: Determine whether query asks for Codebase Explanation (`TI-01`), Pattern Mining (`TI-02`), or Mentor Standards (`TI-03`).
+2. **[Workspace File AST Extraction]**: For codebase questions, inspect target Python source files (`pipeline.py`, `prompt_builder.py`).
+3. **[Qdrant Semantic Search]**: Retrieve supporting dialogue turns from meeting transcripts.
+4. **[Synthesis & 70/30 Formatting]**: Formulate clear architectural explanations with clean citations.
+5. **[Final Verification]**: Verify that all code blocks reflect the actual running system.
 
 ---
 
-## Before Deploying (RED / GREEN Verification)
-- **RED (Fail without skill)**: Outputs generic textbook RAG text or dumps raw transcript text into cells.
-- **GREEN (Pass with skill)**: Grounds explanation strictly in workspace modules with 70% articulate synthesis and clean 30% citations.
+## Process Flow (State Machine)
+
+```mermaid
+graph TD
+    A["Peer Query Received"] --> B{"Determine Question Type"}
+    B -->|"Codebase Architecture"| C["Extract Real Classes via AST (TI-01)"]
+    B -->|"Cross-Meeting Patterns"| D["Mine Recurring Questions (TI-02)"]
+    B -->|"Engineering Standards"| E["Extract Mentor Principles (TI-03)"]
+
+    C & D & E --> F["Fetch Supporting Transcript Evidence from Qdrant"]
+    F --> G["Apply 70/30 Synthesis-to-Code Standard"]
+    G --> H["Render Grounded Peer Intelligence Response"]
+```
