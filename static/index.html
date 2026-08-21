@@ -83,32 +83,32 @@
                     <div class="agent-badge">⏱️ < 60s Decision</div>
                     <div class="agent-icon">👔</div>
                     <h3>Manager Agent</h3>
-                    <p class="agent-persona">Iyappan Sir Persona</p>
-                    <span class="agent-desc">Executive progress, active blockers, project risks & required decisions.</span>
+                    <p class="agent-persona">Iyappan Sir (Executive Director)</p>
+                    <span class="agent-desc">Skill: <strong>manager_weekly_rollup</strong><br>State-of-work, verified deliverables, active blockers, and executive interventions.</span>
                 </div>
 
                 <div class="agent-card" data-role="siddharth" id="cardMentor">
-                    <div class="agent-badge">⏱️ < 10m Evaluation</div>
+                    <div class="agent-badge">⏱️ Cognitive Ladder</div>
                     <div class="agent-icon">🎓</div>
                     <h3>Mentor Agent</h3>
-                    <p class="agent-persona">Siddharth Saminathan Persona</p>
-                    <span class="agent-desc">Mentee technical strengths, misconceptions, quizzes & assignments.</span>
+                    <p class="agent-persona">Siddharth Saminathan (Lead AI Mentor)</p>
+                    <span class="agent-desc">Skill: <strong>mentor_trainee_assessment</strong><br>Evaluates demonstrated understanding vs taught concepts, misconceptions, and next tasks.</span>
                 </div>
 
                 <div class="agent-card" data-role="himaya" id="cardTeammate">
-                    <div class="agent-badge">⏱️ < 30m Assistance</div>
+                    <div class="agent-badge">⏱️ Peer Catch-Up</div>
                     <div class="agent-icon">👥</div>
-                    <h3>Teammates Agent</h3>
-                    <p class="agent-persona">Himaya / Ganesh / Dakshinya</p>
-                    <span class="agent-desc">Codebase architecture, Qdrant pipeline guides & spoken transcript quotes.</span>
+                    <h3>Team Intelligence</h3>
+                    <p class="agent-persona">Peer Trainee Specialist</p>
+                    <span class="agent-desc">Skill: <strong>team_session_catchup</strong><br>Actionable missed-session briefings: technical topics, assignments, decisions, and next steps.</span>
                 </div>
 
                 <div class="agent-card" data-role="auto" id="cardAuto">
                     <div class="agent-badge">⚡ Auto Dispatch</div>
                     <div class="agent-icon">🔀</div>
                     <h3>Central Router</h3>
-                    <p class="agent-persona">Dynamic Intent Classifier</p>
-                    <span class="agent-desc">Automatically inspects query keywords to dispatch the ideal agent.</span>
+                    <p class="agent-persona">Intent Classifier</p>
+                    <span class="agent-desc">Automatically inspects query keywords to dispatch the ideal agent workflow.</span>
                 </div>
             </div>
         </section>
@@ -117,21 +117,17 @@
         <section class="console-section">
             <div class="glass-panel">
                 <div class="panel-header">
-                    <h3>💬 Prompt Console</h3>
+                    <h3>💬 Production Prompt Console</h3>
                     <div class="sample-chips" id="sampleChips">
-                        <span class="chip-label">👔 Manager Agent:</span>
-                        <button class="chip-btn" data-agent="manager" data-prompt="What are the key technical accomplishments completed by Himaya, Ganesh, and Dakshinya?">MGR-01 Accomplishments</button>
-                        <button class="chip-btn" data-agent="manager" data-prompt="What are the active blockers, risks, and delays affecting the team right now?">MGR-02 Blockers & Risks</button>
-                        <button class="chip-btn" data-agent="manager" data-prompt="What executive decisions and resource allocation recommendations are needed for the project?">MGR-03 Executive Decisions</button>
-                        <button class="chip-btn" data-agent="manager" data-prompt="Show the milestone progress and task timelines for Himaya, Ganesh, and Dakshinya across all meetings.">MGR-04 Milestones</button>
-                        <span class="chip-label">🎓 Mentor Agent:</span>
-                        <button class="chip-btn" data-agent="siddharth" data-prompt="Diagnose the technical strengths and misconceptions of Himaya, Ganesh, and Dakshinya from the meeting transcripts.">MNT-01 Strengths & Gaps</button>
-                        <button class="chip-btn" data-agent="siddharth" data-prompt="Evaluate the technical problem-solving methodologies demonstrated by all trainees (Himaya, Ganesh, Dakshinya) in review meetings.">MNT-02 Methodology Eval</button>
-                        <button class="chip-btn" data-agent="siddharth" data-prompt="What are the evidence-based next tasks and learning topics assigned to Himaya, Ganesh, and Dakshinya by Siddharth?">MNT-03 Next Tasks</button>
-                        <button class="chip-btn" data-agent="siddharth" data-prompt="Show Siddharth's targeted mentorship feedback and verbatim guidance given to the trainees across meetings.">MNT-04 Mentor Feedback</button>
-                        <span class="chip-label">👥 Teammates Agent:</span>
-                        <button class="chip-btn" data-agent="himaya" data-prompt="Explain how SemanticTranscriptParser and Qdrant work together in pipeline.py">TI-01 Architecture Guide</button>
-                        <button class="chip-btn" data-agent="himaya" data-prompt="What are the repeated technical questions and collaboration patterns across all team meetings?">TI-02 Team Patterns</button>
+                        <span class="chip-label">👔 Manager Skill:</span>
+                        <button class="chip-btn" data-agent="manager" data-prompt="Give me the training status for this week.">Weekly Rollup (Full Cohort)</button>
+                        <button class="chip-btn" data-agent="manager" data-prompt="What is the state of work, completed items, and blockers for Ganesh?">Weekly Rollup (Ganesh)</button>
+                        <span class="chip-label">🎓 Mentor Skill:</span>
+                        <button class="chip-btn" data-agent="siddharth" data-prompt="Assess Himaya's technical progress this week based on demonstrated understanding vs taught concepts.">Trainee Assessment (Himaya)</button>
+                        <button class="chip-btn" data-agent="siddharth" data-prompt="Assess Ganesh's demonstrated capabilities and recurring misconceptions on Excel tool-calling.">Trainee Assessment (Ganesh)</button>
+                        <span class="chip-label">👥 Team Skill:</span>
+                        <button class="chip-btn" data-agent="himaya" data-prompt="What did I miss in the July 24 training session? What do I need to know or do?">Session Catch-Up (July 24)</button>
+                        <button class="chip-btn" data-agent="himaya" data-prompt="What did I miss in the December 25 2099 training session?">Failure Test (No Evidence)</button>
                     </div>
                 </div>
 

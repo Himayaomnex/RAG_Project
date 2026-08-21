@@ -2,7 +2,7 @@
 ================================================================================
 Manager Skill: weekly_rollup (agents/manager/skills/weekly_rollup.py)
 ================================================================================
-Implements the locked 8-stage workflow for manager_weekly_rollup:
+Implements the 8-stage operational workflow for manager_weekly_rollup:
 1. Determine the reporting period
 2. Retrieve relevant evidence for the period (via retrieval_client)
 3. Separate evidence by trainee
@@ -59,18 +59,13 @@ class ManagerWeeklyRollupSkill:
             return logger.complete(failure_msg, status="INSUFFICIENT_EVIDENCE").output
 
         # STAGE 3: Separate Evidence by Trainee
-        trainee_chunks: Dict[str, List[EvidenceChunk]] = {"Himaya": [], "Ganesh": [], "Dakshinya": [], "General": []}
+        # STAGE 3: Dynamically Separate Evidence by Speaker
+        trainee_chunks: Dict[str, List[EvidenceChunk]] = {}
         for c in chunks:
-            spk_low = c.speaker.lower()
-            txt_low = c.text.lower()
-            if "himaya" in spk_low or "himaya" in txt_low:
-                trainee_chunks["Himaya"].append(c)
-            elif "ganesh" in spk_low or "ganesh" in txt_low:
-                trainee_chunks["Ganesh"].append(c)
-            elif "dakshinya" in spk_low or "dakshinya" in txt_low:
-                trainee_chunks["Dakshinya"].append(c)
-            else:
-                trainee_chunks["General"].append(c)
+            spk = c.speaker.strip() or "General"
+            if spk not in trainee_chunks:
+                trainee_chunks[spk] = []
+            trainee_chunks[spk].append(c)
 
         # Format XML Context for LLM
         xml_evidence_lines = ["<transcript_evidence>"]
@@ -117,8 +112,7 @@ class ManagerWeeklyRollupSkill:
             report_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1,
-                max_tokens=4096
+                temperature=0.1
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 

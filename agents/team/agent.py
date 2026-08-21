@@ -2,7 +2,7 @@
 ================================================================================
 Team Intelligence Agent (agents/team/agent.py)
 ================================================================================
-Persona: Team Intelligence Agent (Peer Catch-Up & Action Specialist)
+Persona: Peer Catch-Up & Action Specialist
 Skill: team_session_catchup
 """
 
@@ -14,7 +14,7 @@ from ..shared.schemas import TeamCatchupRequest
 class TeamAgent:
     def __init__(self):
         self.name = "Team Intelligence Agent"
-        self.persona = "Team Intelligence Specialist (Peer Catch-up & Action Enabler)"
+        self.persona = "Peer Catch-Up & Action Specialist"
         self.skill = team_session_catchup
 
     def handle_request(self, query: str, date: Optional[str] = None, trainee: Optional[str] = None) -> str:

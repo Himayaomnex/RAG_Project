@@ -2,7 +2,7 @@
 ================================================================================
 Central Agent Router (router.py)
 ================================================================================
-Dispatches user requests to the 3 Locked Agents:
+Dispatches user requests to the 3 Production Agents:
 - Manager Agent (Iyappan) -> manager_weekly_rollup
 - Mentor Agent (Siddharth) -> mentor_trainee_assessment
 - Team Intelligence Agent (Trainees) -> team_session_catchup
@@ -17,7 +17,7 @@ from agents.team.agent import team_agent
 
 def detect_agent_intent(query: str) -> str:
     """
-    Classifies intent into one of the three locked agent roles: 'manager', 'mentor', 'team'.
+    Classifies intent into one of the three agent roles: 'manager', 'mentor', 'team'.
     """
     q_low = query.lower()
 
@@ -26,7 +26,7 @@ def detect_agent_intent(query: str) -> str:
         "assess", "assessment", "score", "quiz", "misconception", "learning gap",
         "taught", "pedagogical", "cognitive", "bloom", "feedback", "trainee", "mentee",
         "how did ganesh perform", "how did himaya perform", "how did dakshinya perform",
-        "evaluate"
+        "evaluate", "progress of", "strengths"
     ]
     if any(k in q_low for k in mentor_keywords):
         return "mentor"
@@ -34,9 +34,10 @@ def detect_agent_intent(query: str) -> str:
     # Team catch-up intent keywords
     team_keywords = [
         "missed", "catchup", "catch up", "what did i miss", "session recap", "today's session",
-        "assignment given", "what should i do", "what do i need to do", "peer", "codebase"
+        "assignment given", "what should i do", "what do i need to do", "peer", "codebase", "miss in",
+        "absent", "on leave", "leave", "not present", "what happened", "missed session", "training session"
     ]
-    if any(k in q_low for k in team_keywords):
+    if any(k in q_low for k in team_keywords) and not any(k in q_low for k in ["status for this week", "weekly rollup", "executive review"]):
         return "team"
 
     # Default to Manager Agent (Status, deliverables, rollup, executive review)
@@ -45,7 +46,7 @@ def detect_agent_intent(query: str) -> str:
 
 def route_request(query: str, **kwargs) -> Tuple[str, str]:
     """
-    Routes query to the appropriate agent.
+    Routes query to the appropriate agent based on detected intent.
     Returns: (agent_role, response_text)
     """
     agent_role = detect_agent_intent(query)
@@ -53,7 +54,7 @@ def route_request(query: str, **kwargs) -> Tuple[str, str]:
     if agent_role == "mentor":
         res = mentor_agent.handle_request(
             query=query,
-            trainee=kwargs.get("trainee"),
+            trainee=kwargs.get("target_member") or kwargs.get("trainee"),
             period=kwargs.get("period"),
             focus_area=kwargs.get("focus_area")
         )
@@ -62,7 +63,7 @@ def route_request(query: str, **kwargs) -> Tuple[str, str]:
         res = team_agent.handle_request(
             query=query,
             date=kwargs.get("date"),
-            trainee=kwargs.get("trainee")
+            trainee=kwargs.get("target_member") or kwargs.get("trainee")
         )
         return "team", res
     else:
@@ -70,21 +71,42 @@ def route_request(query: str, **kwargs) -> Tuple[str, str]:
             query=query,
             period_start=kwargs.get("period_start"),
             period_end=kwargs.get("period_end"),
-            trainee=kwargs.get("trainee")
+            trainee=kwargs.get("target_member") or kwargs.get("trainee")
         )
         return "manager", res
 
 
-def route_request_with_role(query: str, forced_role: Optional[str] = None, **kwargs) -> Tuple[str, str]:
+def route_request_with_role(query: str, user_role: Optional[str] = None, forced_role: Optional[str] = None, **kwargs) -> Tuple[str, str]:
     """
     Routes with explicit role override if provided.
+    Returns: (response_text, dispatched_role)
     """
-    role = (forced_role or "").lower()
-    if role in ["manager", "mentor", "team"]:
-        if role == "mentor":
-            return "mentor", mentor_agent.handle_request(query, **kwargs)
-        elif role == "team":
-            return "team", team_agent.handle_request(query, **kwargs)
-        else:
-            return "manager", manager_agent.handle_request(query, **kwargs)
-    return route_request(query, **kwargs)
+    raw_role = (forced_role or user_role or "auto").lower()
+
+    if raw_role in ["mentor", "siddharth"]:
+        res = mentor_agent.handle_request(
+            query=query,
+            trainee=kwargs.get("target_member") or kwargs.get("trainee"),
+            period=kwargs.get("period"),
+            focus_area=kwargs.get("focus_area")
+        )
+        return res, "mentor"
+    elif raw_role in ["team", "teammate", "himaya", "ganesh", "dakshinya"]:
+        res = team_agent.handle_request(
+            query=query,
+            date=kwargs.get("date"),
+            trainee=kwargs.get("target_member") or kwargs.get("trainee")
+        )
+        return res, "team"
+    elif raw_role in ["manager", "iyappan"]:
+        res = manager_agent.handle_request(
+            query=query,
+            period_start=kwargs.get("period_start"),
+            period_end=kwargs.get("period_end"),
+            trainee=kwargs.get("target_member") or kwargs.get("trainee")
+        )
+        return res, "manager"
+
+    # Default / Auto-detect intent
+    role, res = route_request(query, **kwargs)
+    return res, role

@@ -101,35 +101,36 @@ try:
         is_valid, user_info = verify_auth_token(auth_token)
         if not is_valid:
             return f"[MCP AUTH ERROR]: {user_info}"
-        from agents.manager_agent import run_manager_agent
-        return run_manager_agent(prompt)
+        from agents.manager.agent import manager_agent
+        return manager_agent.handle_request(prompt)
 
     @mcp.tool()
-    def mentor_agent_tool(auth_token: str, prompt: str, target_member: str = "Himaya Perumal") -> str:
-        """FastMCP Tool (Agent 2: Mentor Agent): Evaluation Scorecard Matrix & Testing Quiz."""
+    def mentor_agent_tool(auth_token: str, prompt: str, target_member: str = "Himaya") -> str:
+        """FastMCP Tool (Agent 2: Mentor Agent): Mentee evaluation & learning progress."""
         is_valid, user_info = verify_auth_token(auth_token)
         if not is_valid:
             return f"[MCP AUTH ERROR]: {user_info}"
-        from agents.mentor_agent import run_mentor_agent
-        return run_mentor_agent(prompt, target_member=target_member)
+        from agents.mentor.agent import mentor_agent
+        return mentor_agent.handle_request(prompt, trainee=target_member)
 
     @mcp.tool()
     def teammates_agent_tool(auth_token: str, prompt: str, user_name: str = "Himaya") -> str:
-        """FastMCP Tool (Agent 3: Teammates Agent): Codebase scanning & learning Q&A."""
+        """FastMCP Tool (Agent 3: Team Intelligence Agent): Missed session catch-up & action items."""
         is_valid, user_info = verify_auth_token(auth_token)
         if not is_valid:
             return f"[MCP AUTH ERROR]: {user_info}"
-        from agents.teammates_agent import run_teammates_agent
-        return run_teammates_agent(prompt, user_name=user_name)
+        from agents.team.agent import team_agent
+        return team_agent.handle_request(prompt, trainee=user_name)
 
     @mcp.tool()
     def router_dispatch_tool(auth_token: str, prompt: str, role: str = "siddharth") -> str:
-        """FastMCP Tool (Central Router): Automatically routes prompt to Manager, Mentor, or Teammates Agent."""
+        """FastMCP Tool (Central Router): Automatically routes prompt to Manager, Mentor, or Team Intelligence Agent."""
         is_valid, user_info = verify_auth_token(auth_token)
         if not is_valid:
             return f"[MCP AUTH ERROR]: {user_info}"
         from router import route_request
-        return route_request(prompt, user_role=role)
+        role_name, res = route_request(prompt)
+        return res
 
 except ImportError:
     pass

@@ -1,17 +1,17 @@
 # Skill Specification: manager_weekly_rollup
 
 ## Purpose
-Answers "what do I need to know about the state of the training program?" for Iyappan within a 60-second reading budget. Determines what was completed, what is in progress, what is blocked or at risk, what important changes occurred, and what requires executive attention.
+Answers "what do I need to know about the state of the training program?" for the Executive Manager within a 60-second reading budget. Determines what was completed, what is in progress, what is blocked or at risk, what important changes occurred, and what requires executive attention.
 
 ## Inputs
 - `period_start`: Optional start date string (e.g. "2026-07-21" or "21 July 2026")
 - `period_end`: Optional end date string (e.g. "2026-07-28" or "28 July 2026")
-- `trainee`: Optional target mentee filter ("Himaya", "Ganesh", "Dakshinya", or omitted for full cohort)
+- `trainee`: Optional target trainee filter string, or omitted for full cohort
 
 ## Required Workflow
 1. **Determine the Reporting Period**: Resolve the requested time window from the query or default to the full review window.
 2. **Retrieve Evidence for the Period**: Query the retrieval service across session files in the window with completeness-first breadth.
-3. **Separate Evidence by Trainee**: Group dialogue turns for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu.
+3. **Separate Evidence by Trainee**: Group dialogue turns for each individual trainee in the cohort.
 4. **Identify Candidates**: Extract candidate completed deliverables, active progress, unresolved blockers, and decisions.
 5. **Cross-Check Every Status Against Evidence**:
    - Verify that "Completed" items were demonstrated and accepted, not merely planned.

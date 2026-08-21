@@ -1,23 +1,23 @@
 # Skill Specification: mentor_trainee_assessment
 
 ## Purpose
-Evaluates a trainee's demonstrated technical progress for Siddharth to decide what to teach next. Distinguishes what was merely taught from what was genuinely understood, maps diagnostic reasoning sequences, and isolates recurring misconceptions.
+Evaluates a trainee's demonstrated technical progress for the Technical Mentor to decide what to teach next. Distinguishes what was merely taught from what was genuinely understood, maps diagnostic reasoning sequences, and isolates recurring misconceptions.
 
 ## Inputs
-- `trainee`: Target mentee name ("Himaya", "Ganesh", or "Dakshinya") — required.
+- `trainee`: Target trainee name string — required.
 - `period`: Optional review window string (e.g. "July 2026", "2026-07-15 to 2026-07-24").
 - `focus_area`: Optional technical domain (e.g. "NLP & Chunking", "Excel Manipulation", "ML Baselines").
 
 ## Required Workflow
 1. **Identify the Trainee & Reporting Period**: Extract the target mentee and window.
-2. **Retrieve Relevant Evidence**: Query Dakshinya's retrieval service for dialogue turns where the mentee speaks or is reviewed.
+2. **Retrieve Relevant Evidence**: Query the retrieval service for dialogue turns where the mentee speaks or is reviewed.
 3. **Identify Concepts Taught**: Isolate the architectural ideas introduced by the mentor in those sessions.
 4. **Identify What the Trainee Attempted**: Document the specific scripts, features, or assignments the mentee built.
 5. **Identify Demonstrated Understanding**: Apply the cognitive ladder (`Taught` → `Attempted` → `Demonstrated` → `Correct`). Stronger states are only claimed with proof.
 6. **Identify Gaps & Misconceptions**: Note flawed mental models that were corrected by the mentor.
 7. **Compare with Previous Evidence**: Check whether feedback given in earlier sessions was successfully applied in later sessions.
 8. **Identify Recurring Feedback**: Extract repeated guidance topics spoken by the mentor.
-9. **Produce Assessment**: Synthesize clear, prose sections following the locked output shape.
+9. **Produce Assessment**: Synthesize clear, prose sections following the defined output schema.
 10. **Self-Check Every Conclusion**: Ensure that every claim is backed by transcript turns; if unproven, state "Not demonstrated from available evidence."
 
 ## Evidence Requirements
@@ -56,5 +56,5 @@ Change from previous period
 - Direct comparison showing trajectory between early and recent sessions.
 
 Evidence-backed conclusion
-- Final pedagogical recommendation for Siddharth's next teaching plan.
+- Final pedagogical recommendation for the mentor's next teaching plan.
 ```

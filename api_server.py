@@ -220,16 +220,6 @@ if FASTAPI_AVAILABLE:
         if not trace_data:
             raise HTTPException(status_code=404, detail=f"Trace '{trace_id}' not found.")
         return trace_data
-            "latency": latency
-        })
-
-        return QueryResponse(
-            agent_role="teammate",
-            response=result,
-            latency_seconds=latency,
-            status=status,
-            llm_provider=get_active_llm_provider_name()
-        )
 
     # Mount static web frontend files LAST so API routes take precedence
     static_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")

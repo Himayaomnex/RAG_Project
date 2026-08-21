@@ -2,7 +2,7 @@
 ================================================================================
 Manager Agent (agents/manager/agent.py)
 ================================================================================
-Persona: Iyappan Sir (Executive Status & Decision Specialist)
+Persona: Executive Status & Decision Specialist
 Skill: manager_weekly_rollup
 """
 
@@ -15,7 +15,7 @@ from ..shared.schemas import ManagerRollupRequest
 class ManagerAgent:
     def __init__(self):
         self.name = "Manager Agent"
-        self.persona = "Iyappan Sir (Executive Status & Decision Specialist)"
+        self.persona = "Executive Status & Decision Specialist"
         self.skill = manager_weekly_rollup
 
     def handle_request(self, query: str, period_start: Optional[str] = None, period_end: Optional[str] = None, trainee: Optional[str] = None) -> str:

@@ -1,0 +1,21 @@
+{
+  "trace_id": "trc-aa8f3c723f",
+  "timestamp": "2026-08-21T08:57:26Z",
+  "agent": "team",
+  "skill": "team_session_catchup",
+  "input_query": "What did I miss in the December 25 2099 training session?",
+  "input_params": {
+    "date": null,
+    "trainee": "System Owner",
+    "query": "What did I miss in the December 25 2099 training session?"
+  },
+  "retrieval_requests": 1,
+  "retrieved_chunk_ids": [],
+  "llm_calls": 0,
+  "llm_model": "gemini-2.5-flash",
+  "latency_seconds": 0.019,
+  "token_usage": {},
+  "failure": "INSUFFICIENT_EVIDENCE: No transcript turns found for session date 'December 25 2099'.",
+  "final_status": "INSUFFICIENT_EVIDENCE",
+  "output": "INSUFFICIENT_EVIDENCE: No transcript turns found for session date 'December 25 2099'."
+}

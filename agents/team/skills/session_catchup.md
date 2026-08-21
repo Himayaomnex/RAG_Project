@@ -5,17 +5,17 @@ Enables a trainee who missed a training session to resume work immediately. Dist
 
 ## Inputs
 - `date`: Requested meeting date string (e.g. "2026-07-24" or "24 July 2026") — required.
-- `trainee`: Optional requesting trainee name ("Himaya", "Ganesh", or "Dakshinya") to filter items specifically relevant to them.
+- `trainee`: Optional requesting trainee name string to filter items specifically relevant to them.
 
 ## Required Workflow
 1. **Identify Requested Session**: Resolve the target date from query.
-2. **Retrieve Session Evidence**: Query Dakshinya's retrieval service for all turns on that date.
+2. **Retrieve Session Evidence**: Query the retrieval service for all turns on that date.
 3. **Identify Major Technical Discussions**: Isolate architecture and implementation topics explored in the session.
 4. **Identify Assignments Given**: Extract specific tasks assigned by the mentor with binary verification criteria.
 5. **Identify Decisions Made**: Note framework, tool, or design choices settled in the session.
 6. **Identify Changes & Blockers**: Note bug fixes or architecture shifts that affect teammate code.
-7. **Filter for Requesting Trainee**: Highlight items directly assigned to or impacting the requesting mentee.
-8. **Produce Actionable Catch-Up**: Synthesize clear, prose sections following the locked output shape.
+7. **Filter for Requesting Trainee**: Highlight items directly assigned to or impacting the requesting trainee.
+8. **Produce Actionable Catch-Up**: Synthesize clear, prose sections following the defined output schema.
 9. **Self-Check**: Verify every assignment and decision traces back to a dialogue turn on that date.
 
 ## Evidence Requirements

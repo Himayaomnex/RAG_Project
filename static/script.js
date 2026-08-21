@@ -224,16 +224,15 @@ document.addEventListener("DOMContentLoaded", () => {
     function detectIntentRole(text) {
         const lower = text.toLowerCase();
         const mentorKeywords = [
-            "evaluate", "mentor", "weakness", "strength", "quiz", "mentee", "score",
-            "misconception", "methodology", "problem-solving", "next task", "grading",
+            "assess", "assessment", "evaluate", "mentor", "weakness", "strength", "strengths", "quiz", "mentee", "score",
+            "misconception", "misconceptions", "methodology", "problem-solving", "next task", "grading",
             "next tasks", "learning topic", "feedback", "guidance", "diagnosis", "grade",
-            "diagnose", "learning gap", "technical gap", "understanding", "coaching"
+            "diagnose", "learning gap", "technical gap", "understanding", "coaching", "taught", "demonstrated"
         ];
         const teammateKeywords = [
-            "code", "pipeline", "qdrant", "how works", "explain", "architecture",
-            "semantic", "chunking", "embedding", "cachedembedding",
-            "semantictranscriptparser", "vector", "retriever", "reranker",
-            "transcript parser", "dense", "collection"
+            "missed", "catchup", "catch up", "what did i miss", "session", "code", "pipeline", "qdrant",
+            "architecture", "semantic", "chunking", "action item", "what should i do", "what do i need",
+            "absent", "leave", "on leave", "not present", "what happened"
         ];
         if (mentorKeywords.some(w => lower.includes(w))) return "siddharth";
         if (teammateKeywords.some(w => lower.includes(w))) return "himaya";
@@ -250,6 +249,7 @@ document.addEventListener("DOMContentLoaded", () => {
             "ganesh": "cardTeammate",
             "dakshinya": "cardTeammate",
             "teammate": "cardTeammate",
+            "team": "cardTeammate",
             "auto": "cardAuto"
         };
         const target = document.getElementById(cardMap[role] || "cardManager");
@@ -258,9 +258,22 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    // Auto-detect agent card when user types in Owner mode
+    // Auto-detect agent card ONLY when Auto card is active or user explicitly selected Auto
+    let isExplicitCardSelected = false;
+
+    agentCards.forEach(card => {
+        card.addEventListener("click", () => {
+            if (card.classList.contains("disabled")) return;
+            agentCards.forEach(c => c.classList.remove("active"));
+            card.classList.add("active");
+            selectedAgentRole = card.getAttribute("data-role");
+            isExplicitCardSelected = (selectedAgentRole !== "auto");
+            fetchAgentHistory();
+        });
+    });
+
     promptInput.addEventListener("input", () => {
-        if (activeRole === "owner") {
+        if (activeRole === "owner" && !isExplicitCardSelected) {
             const prompt = promptInput.value.trim();
             if (prompt.length > 5) {
                 const autoRole = detectIntentRole(prompt);
@@ -374,7 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function getAgentDisplayName(role) {
         if (role === "manager") return "Manager Agent (Iyappan Sir)";
         if (role === "siddharth" || role === "mentor") return "Mentor Agent (Siddharth Saminathan)";
-        if (role === "himaya" || role === "ganesh" || role === "dakshinya" || role === "teammate") return "Teammates Agent";
+        if (role === "himaya" || role === "ganesh" || role === "dakshinya" || role === "teammate" || role === "team") return "Team Intelligence Agent (Peer Catch-Up)";
         return "Central Intent Router";
     }
 

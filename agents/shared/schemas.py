@@ -2,7 +2,7 @@
 ================================================================================
 Structured Schemas for Multi-Agent RAG Layer (agents/shared/schemas.py)
 ================================================================================
-Locked Pydantic contracts for:
+Production Pydantic contracts for:
 - Retrieval chunks
 - Manager Skill (manager_weekly_rollup)
 - Mentor Skill (mentor_trainee_assessment)

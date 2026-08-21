@@ -2,7 +2,7 @@
 ================================================================================
 Team Intelligence Skill: session_catchup (agents/team/skills/session_catchup.py)
 ================================================================================
-Implements the locked 9-stage workflow for team_session_catchup:
+Implements the 9-stage operational workflow for team_session_catchup:
 1. Identify the requested session
 2. Retrieve the session's evidence (via retrieval_client)
 3. Identify major technical discussions
@@ -47,8 +47,6 @@ class TeamSessionCatchupSkill:
             )
             if match:
                 date_val = match.group(1).strip()
-            elif any(w in request.query.lower() for w in ["today", "latest", "recent"]):
-                date_val = "7 August 2026"  # Final session date in corpus
             else:
                 date_val = None
 
@@ -109,8 +107,7 @@ class TeamSessionCatchupSkill:
             catchup_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1,
-                max_tokens=4096
+                temperature=0.1
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 

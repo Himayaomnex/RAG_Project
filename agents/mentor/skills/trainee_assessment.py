@@ -2,7 +2,7 @@
 ================================================================================
 Mentor Skill: trainee_assessment (agents/mentor/skills/trainee_assessment.py)
 ================================================================================
-Implements the locked 10-stage workflow for mentor_trainee_assessment:
+Implements the 10-stage operational workflow for mentor_trainee_assessment:
 1. Identify the trainee and reporting period
 2. Retrieve relevant work and learning evidence (via retrieval_client)
 3. Identify concepts taught
@@ -38,13 +38,12 @@ class MentorTraineeAssessmentSkill:
         )
 
         trainee = request.trainee.strip()
-        if not trainee or trainee.lower() in ["all", "team"]:
-            trainee = "Himaya"  # default fallback if unspecified
+        speaker_filter = trainee if trainee and trainee.lower() not in ["all", "team"] else None
 
         # STAGE 2: Retrieve Relevant Work & Learning Evidence
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
-            query=f"{trainee} technical implementation code review {request.focus_area or ''}",
-            speaker_filter=trainee,
+            query=f"{trainee or 'trainee'} technical implementation code review {request.focus_area or ''}",
+            speaker_filter=speaker_filter,
             limit=40,
             strategy="precision"
         )
@@ -104,8 +103,7 @@ class MentorTraineeAssessmentSkill:
             assessment_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1,
-                max_tokens=4096
+                temperature=0.1
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 

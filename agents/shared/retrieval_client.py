@@ -86,8 +86,11 @@ class RetrievalClient:
                 # Apply filter in memory if scrolling
                 if speaker_filter and speaker_filter.lower() not in ["all", "team"] and speaker_filter.lower() not in spk.lower():
                     continue
-                if date_filter and date_filter.lower() not in dt.lower():
-                    continue
+                if date_filter:
+                    df_tokens = re.findall(r'[a-zA-Z0-9]+', date_filter.lower())
+                    dt_low = dt.lower()
+                    if not all(tok in dt_low for tok in df_tokens if tok not in ["session", "meeting", "the", "training"]):
+                        continue
 
                 chunk_id = f"chk-{p.id}" if hasattr(p, 'id') else f"chk-{len(chunks)}"
                 chunks.append(EvidenceChunk(
