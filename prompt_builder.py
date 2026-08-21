@@ -140,67 +140,41 @@ class PromptBuilder:
         return self
 
     def add_agent_role(self, agent_type: str, manager_name: Optional[str] = None, mentor_name: Optional[str] = None) -> "PromptBuilder":
-        """MODULE 5 — AGENT PERSONA & TASK OBJECTIVE"""
+        """MODULE 5 — AGENT PERSONA & OPERATIONAL OBJECTIVE"""
         self.agent_type = agent_type.lower()
 
         if self.agent_type == "manager":
-            mgr = manager_name or self.user_id
-
             self.agent_role_instruction = [
-                f"# MODULE 5 — AGENT PERSONA: Manager Agent (Executive Decision Aid for {mgr})",
-                f"Role: Executive Status & Decision Specialist.",
-                f"Scope: Scans meeting transcripts using the Pyramid Principle, SCQA, and Action Items frameworks defined in meeting_transcript_analyzer skill (SKILL.md).",
-                "Capabilities — produce ALL 4 sections in your output structured according to the SKILL.md frameworks using Markdown Tables for clarity:",
-                "  1. GOVERNING THOUGHT & MECE ACCOMPLISHMENTS (Section: '✅ Governing Thought & MECE Accomplishment Table'): Formulate a single, specific falsifiable Governing Thought sentence summarizing the overall state. Then, generate a structured Markdown Table evaluating the three trainees (Himaya, Ganesh, Dakshinya): | Trainee | Task / Deliverable | Status | Verbatim Citation Proof |",
-                "  2. SCQA BLOCKER ANALYSIS (Section: '⚠️ SCQA Blocker & Risk Analysis'): Analyze impediments using the SCQA framework: state the Situation, the Complication (blocker/delay), the Question (impact), and the Answer (proposed mitigation). Organize this in a Markdown Table: | Trainee | Situation | Complication (Blocker) | Question (Impact) | Answer (Mitigation) |",
-                "  3. DECISIONS (Section: '🎯 Recommended Executive Decisions & Resource Allocation'): Recommend resource allocation based on transcript evidence.",
-                "  4. ACTION ITEMS (Section: '📅 Action Items & Milestone Timelines'): List commitments as action items in a structured Markdown Table: | Owner | Task | Deadline | Binary Verification |",
-                "  • DYNAMIC EVIDENCE EXTRACTION REQUIREMENTS:",
-                "    - Read the provided <transcript_evidence> thoroughly and extract the actual deliverables, blockers, or methodologies reported by each trainee (Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu).",
-                "    - When producing a table with a 'Status' column (Accomplishments / Milestones), determine the status dynamically ('Completed', 'In Progress', or 'Blocked').",
-                "    - When producing an SCQA Blocker table, populate the Situation, Complication, Question, and Answer columns with descriptive text from the evidence. NEVER write 'Completed' or 'N/A' into Complication or Mitigation cells.",
-                "    - Every single row and citation must be derived directly from the retrieved transcript turns.",
-                "STRICT CITATION RULES:",
-                "  • FAITHFUL PARAPHRASING: The summary text underneath each citation MUST be a 100% faithful paraphrase of that exact citation. Do NOT invent claims absent from the cited text.",
-                "  • COMPLETE CITATIONS: NEVER output truncated citations ending in ellipses ('...').",
-                "  • IF NO EXPLICIT KEYWORD: Look for ANY impediment indicator — incomplete work, inaccessible system, or assignment not yet started.",
-                "STRICT MARKDOWN TABLE FORMATTING RULES:",
-                "  • You MUST format all tables as standard Markdown Pipe Tables using '|' symbols on both ends and between all columns.",
-                "  • You MUST include the header alignment separator row on the second row (e.g. '| :--- | :--- | :--- |').",
-                "  • NEVER output space-separated, tab-separated, or comma-separated columns. Every cell and row MUST be bounded by '|'.",
-                "  • Example:",
-                "    | Owner | Task | Deadline |",
-                "    | :--- | :--- | :--- |",
-                "    | Himaya | Present plan | Tomorrow |"
+                "# MODULE 5 — AGENT OPERATIONAL SPECIFICATION: Manager Agent",
+                "Role: Executive Status & Decision Specialist (Executive Engineering Director).",
+                "Operational Capabilities:",
+                "  1. Completed Deliverables: Synthesize finished technical systems delivered across meetings (Status: Completed) with 70% technical synthesis and 30% citation.",
+                "  2. SCQA Blocker Analysis: Diagnose complications into Situation, Complication, Question, and Mitigation (use 'None Agreed / Pending Decision' if unresolved).",
+                "  3. Executive Decisions: Extract technology choices, separating Fact (Decided in Meeting) from Recommendation (Agent) with trade-offs.",
+                "  4. Milestone Timeline: Map chronological progress across meeting dates.",
+                "Output Structure: Present results in clean Markdown Pipe Tables formatted top-down (Governing Thought summary followed by structured tables)."
             ]
 
         elif self.agent_type == "mentor":
-            mnt = mentor_name or self.user_id
             self.agent_role_instruction = [
-                f"# MODULE 5 — AGENT PERSONA: Mentor Agent (Serving {mnt})",
-                f"Role: Mentee Evaluation & Learning Specialist.",
-                f"Scope: Evaluates technical performance and learning gaps using the Coaching Notes, Trainee Scores, Delta Analysis, and 10-Second Defense frameworks defined in meeting_transcript_analyzer skill (SKILL.md).",
-                "Capabilities — produce ALL 4 sections in your output structured according to the SKILL.md frameworks using Markdown Tables for evaluation metrics:",
-                "  1. TRAINEE SCORES TABLE (Section: '🌟 Trainee Evaluation Scores & Verdict Table'): Output evaluations for the three trainees (Himaya, Ganesh, Dakshinya) in a structured Markdown Table: | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |",
-                "  2. COACHING NOTES (Section: '🔬 Coaching Notes & Methodology Evaluation'): Evaluate problem-solving methodology. Document what went well, what went wrong, patterns to watch, and tomorrow's focus from SKILL.md.",
-                "  3. 10-SECOND DEFENSE QUESTIONS (Section: '🎯 10-Second Defense Questions & Next Tasks'): List 2-3 short, target-concept defense questions to test if the trainee can explain their work in 10 seconds without code, along with expected good/bad answer patterns.",
-                "  4. DELTA PROGRESS TRAJECTORY (Section: '💬 Delta Trajectory & Targeted Mentorship'): Compare current session state to previous session tasks to map the trainee's learning trajectory and output exact targeted feedback.",
-                "SCOPE BOUNDARY: The Mentor Agent evaluates individual mentee learning ONLY. It does NOT produce executive project status reports — those belong to the Manager Agent.",
-                "STRICT MARKDOWN TABLE FORMATTING RULES:",
-                "  • You MUST format all tables as standard Markdown Pipe Tables using '|' symbols on both ends and between all columns.",
-                "  • You MUST include the header alignment separator row on the second row (e.g. '| :--- | :--- | :--- |').",
-                "  • NEVER output space-separated, tab-separated, or comma-separated columns. Every cell and row MUST be bounded by '|'.",
-                "  • CITATION PIPE ESCAPING: In table cells, NEVER use raw pipe '|' characters inside citations (use '[14 July 2026, Page 18-19 — Siddharth Saminathan]' with en-dashes, NOT raw pipes). A raw pipe inside a cell splits columns and pushes the speaker into the Meeting Date column!",
-                "  • EXACT COLUMN COUNT: Every table row MUST contain the exact same number of '|' delimited columns as the header."
+                "# MODULE 5 — AGENT OPERATIONAL SPECIFICATION: Mentor Agent",
+                "Role: Mentee Evaluation & Learning Specialist (Lead AI Mentor & Architect).",
+                "Operational Capabilities:",
+                "  1. Bloom's Taxonomy Scorecards: Grade trainees on a calibrated 1-10 scale (Novice 1-4, Developing 5-6, Proficient 7-8, Mastery 9-10).",
+                "  2. Diagnostic Gaps & Misconceptions: Distinguish genuine learning questions from flawed architectural assumptions.",
+                "  3. Mentorship Directives Log: Synthesize coaching directives and engineering standards spoken during review sessions.",
+                "  4. Binary Action Roadmaps: Assign next tasks with testable, binary verification criteria.",
+                "Output Structure: Present pedagogical assessments in structured Markdown Tables with 70% evaluation synthesis and 30% citation proof."
             ]
         else: # teammates
             self.agent_role_instruction = [
-                "# MODULE 5 — AGENT PERSONA: Teammate Technical Assistant",
-                "Scope: Provide precise codebase architecture guidance, identify repeated technical questions, and retrieve exact spoken transcript excerpts.",
-                "Capabilities — structure your output using these frameworks from SKILL.md:",
-                "  1. SCQA ARCHITECTURE GUIDE: Explain codebase files and architecture using the Situation, Complication, Question, Answer framework.",
-                "  2. KEY QUOTES & TIMELINES: Extract key quotes with timestamps/dates, speaker names, and explanations of why they matter.",
-                "  3. REPEATED PATTERNS: Analyze repeated technical questions and collaboration patterns across meeting dates."
+                "# MODULE 5 — AGENT OPERATIONAL SPECIFICATION: Teammates Agent",
+                "Role: Engineering Peer Specialist.",
+                "Operational Capabilities:",
+                "  1. Codebase Architecture: Explain workspace Python classes and pipelines grounded in source code.",
+                "  2. Cross-Meeting Pattern Mining: Mine recurring technical questions, vector DB locks, and schema issues across sessions.",
+                "  3. Engineering Principles: Extract core mentor directives (Quality & Completeness, Understanding Over Results).",
+                "Output Structure: Present clear, technical explanations grounded in code and transcript evidence."
             ]
 
         return self

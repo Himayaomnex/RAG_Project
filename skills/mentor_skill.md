@@ -1,79 +1,72 @@
 ---
-name: mentor-agent-intelligence
-description: "Master operational skill for the Mentor Agent (Technical Lead Mentor & AI Architect persona). Evaluates cognitive depth, Bloom's Taxonomy scoring, problem-solving methodologies, and actionable next tasks across meeting transcripts."
+name: mentor-agent-operations
+description: "Operational skill for the Mentor Agent. Provides step-by-step procedures to grade cognitive depth using Bloom's Taxonomy, diagnose misconceptions, extract coaching directives, and define binary-verifiable next tasks from meeting transcripts."
 ---
 
-# Mentor Agent — Master Operational Specification
+# Mentor Agent — Operational Execution Skill
 
-Master pedagogical intelligence skill for the Mentor Agent (Persona: Technical Lead Mentor & AI Architect). Analyzes trainee review turns to grade technical depth, diagnose misconceptions, isolate problem-solving strategies, and define binary-verifiable next steps.
-
-<HARD-GATE>
-1. **THE 70/30 SYNTHESIS-TO-EVIDENCE RATIO**: Deliver 70% articulate pedagogical evaluation and Bloom's grading justification, backed by 30% concise citation `[Date, Page — Speaker]`.
-2. **ZERO UNGROUNDED SCORING**: Every score (1-10) and verdict MUST be backed by genuine transcript evidence.
-3. **CALIBRATED BLOOM RUBRICS**: Strictly calibrate scores according to Bloom's Taxonomy: `9-10 (Mastery)`, `7-8 (Proficient)`, `5-6 (Developing)`, `1-4 (Novice)`.
-4. **BINARY VERIFICATION NEXT TASKS**: Every recommended next task MUST include testable, binary verification criteria (e.g. *"Show diff UI on 3 test files"* instead of *"Understand diff"*).
-5. **DYNAMIC SCOPE ADAPTATION**: Adapt dynamically between single-trainee drilldown and whole-cohort comparative scorecards.
-</HARD-GATE>
+This skill defines the step-by-step operational procedures for pedagogical assessment and mentee diagnosis from meeting transcripts.
 
 ---
 
-## 5 Specialized Execution Capabilities
+## 1. Operational Capabilities & Step-by-Step Instructions
 
-| Capability ID | Sub-Skill Name | Operational Purpose | Output Schema |
-| :--- | :--- | :--- | :--- |
-| **`MNT-00`** | **Comprehensive Mentorship Report** | System-wide multi-trainee evaluation across all 4 learning dimensions | 4-Section Structured Report |
-| **`MNT-01`** | **Cognitive Depth & Bloom's Scoring** | Grades trainees across 4 technical pillars with calibrated justifications | `\| Trainee \| Prep (1-10) \| Depth (1-10) \| Code (1-10) \| Eng (1-10) \| Overall \| Verdict \|` |
-| **`MNT-02`** | **Strengths & Misconception Diagnostics** | Isolates genuine technical strengths from conceptual misunderstandings | `\| Trainee \| Strength / Misconception (70%) \| Evidence Type \| Citation (30%) \|` |
-| **`MNT-03`** | **Mentorship Feedback & Directives Log** | Synthesizes coaching directives and architectural standards across dates | `\| Trainee \| Mentorship Guidance / Feedback \| Meeting Date \| Citation (30%) \|` |
-| **`MNT-04`** | **Actionable Binary Next Roadmaps** | Formulates falsifiable, testable next milestones with acceptance criteria | `\| Trainee \| Assigned Task / Learning Topic \| Meeting Date \| Binary Verification \|` |
+### Capability 1: Bloom's Taxonomy Cognitive Scoring (`MNT-01`)
+Grade trainees across 4 core technical pillars based on demonstrated first-principles understanding.
 
----
-
-## Anti-Patterns & Common Failure Modes
-
-| Anti-Pattern / Failure Mode | Reality & Correct Operational Behavior |
-| :--- | :--- |
-| **"Uncalibrated 10/10 grade inflation"** | Reserve 9-10 scores strictly for independent architecture defense and verified code completion. Use 5-6 for WIP concepts. |
-| **"Vague homework assignments"** | Never assign *"Read about X"*. Always assign binary testable deliverables: *"Write a script that extracts Y and produces Z JSON"*. |
-| **"Confusing questions with misconceptions"** | Trainees asking clarifying questions demonstrates active engagement (Strength), whereas defending an incorrect architectural assumption is a Misconception. |
-| **"Courtroom quote dumps in verdict cells"** | Synthesize the pedagogical assessment in 70% concise feedback and cite with `[Date, Page — Speaker]`. |
+**Step-by-Step Execution Procedure:**
+1. **Filter Mentee Demonstration Turns**: Locate turns where the mentee presents code, answers review questions, or defends architectural choices.
+2. **Apply Bloom's Rubrics (1-10 Scale)**:
+   - `9-10 (Mastery)`: Explains *why* the architecture works, defends design trade-offs, and demonstrates verified working code.
+   - `7-8 (Proficient)`: Implements working features but requires minor guidance on optimization or edge cases.
+   - `5-6 (Developing)`: Understands concepts theoretically but struggles with practical implementation or debugging.
+   - `1-4 (Novice)`: Copies code without understanding underlying mechanics or fails fundamental defense questions.
+3. **Format Output**: Render as a Markdown table:
+   ```markdown
+   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |
+   | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
+   ```
 
 ---
 
-## Operational Red Flags
+### Capability 2: Diagnostic Strengths & Misconceptions (`MNT-02`)
+Isolate genuine engineering strengths from flawed mental models.
 
-| Red Flag / Warning Sign | Immediate Required Action |
-| :--- | :--- |
-| **Score Without Grounded Evidence** | Trigger secondary vector lookup in Qdrant targeting the specific mentee's review dialogue. |
-| **Trainee Evaluated on Mentor's Spoken Words** | Run through crosstalk re-attribution layer to separate mentee code presentations from mentor explanations. |
-| **Unobserved Dimension in Transcript** | Explicitly output `Not Observed in Transcripts` rather than guessing a default score. |
-
----
-
-## Execution Lifecycle Checklist
-
-1. **[Target Mentee Scoping]**: Identify whether query targets Himaya, Ganesh, Dakshinya, or the entire cohort.
-2. **[P4 Full-Corpus Sweep]**: Ingest all relevant review turns from Qdrant (`teams_dense_collection`).
-3. **[Bloom's Taxonomy Rubric Mapping]**: Map demonstrated code artifacts to 1-10 cognitive scoring levels.
-4. **[Misconception vs Strength Separation]**: Categorize feedback into verified mastery vs. flawed mental models.
-5. **[Binary Task Generation]**: Draft concrete, testable acceptance criteria for next steps.
-6. **[Markdown Pipe Table Formatting]**: Apply pipe sanitization and column alignment rules.
-7. **[Final Verification]**: Ensure 70% pedagogical synthesis and 30% concise citation balance.
+**Step-by-Step Execution Procedure:**
+1. **Differentiate Curiosity vs Misconceptions**:
+   - Asking clarifying questions or exploring options is an **Engineering Strength**.
+   - Defending an incorrect technical assumption (e.g. thinking retrieval alone answers a question, or caching raw user queries instead of embeddings) is a **Misconception**.
+2. **Synthesize Feedback (70% Synthesis)**: Explain the flawed mental model and the mentor's correction in 1-2 clear sentences.
+3. **Attach Citation (30% Proof)**: Append `[Date, Page — Speaker]`.
+4. **Format Output**: Render as a Markdown table:
+   ```markdown
+   | Trainee | Strength / Misconception (70% Synthesis) | Category | Citation (30% Proof) |
+   | :--- | :--- | :---: | :--- |
+   ```
 
 ---
 
-## Process Flow (State Machine)
+### Capability 3: Mentorship Directives & Guidance Log (`MNT-03`)
+Extract coaching feedback and architectural standards spoken by the lead mentor.
 
-```mermaid
-graph TD
-    A["Mentor Query Received"] --> B{"Identify Evaluation Scope"}
-    B -->|"Scorecard"| C["Execute MNT-01 (Bloom's Scoring)"]
-    B -->|"Strengths / Gaps"| D["Execute MNT-02 (Diagnostic Matrix)"]
-    B -->|"Feedback Log"| E["Execute MNT-03 (Coaching Directives)"]
-    B -->|"Next Tasks"| F["Execute MNT-04 (Binary Roadmaps)"]
+**Step-by-Step Execution Procedure:**
+1. **Extract Mentor Review Turns**: Scan turns spoken by the lead mentor containing architectural directives (e.g. *Quality & Completeness*, *Understanding Over Results*, *Testing Edge Cases*).
+2. **Synthesize Directive**: Summarize the core instruction and its engineering rationale.
+3. **Format Output**: Render as a Markdown table:
+   ```markdown
+   | Trainee | Mentorship Guidance / Feedback Topic | Meeting Date | Citation (30% Proof) |
+   | :--- | :--- | :---: | :--- |
+   ```
 
-    C & D & E & F --> G["Pipeline 4 Full-Corpus Ingestion"]
-    G --> H["Apply Bloom's Taxonomy & 70/30 Rule"]
-    H --> I["Sanitize Table Pipes & Ensure Binary Verification"]
-    I --> J["Render Calibrated Pedagogical Markdown Table"]
-```
+---
+
+### Capability 4: Actionable Binary Next Tasks (`MNT-04`)
+Formulate testable, binary-verifiable next steps for mentees.
+
+**Step-by-Step Execution Procedure:**
+1. **Convert Feedback to Acceptance Criteria**: Never assign vague goals (e.g. *"Read about X"*). Always define binary pass/fail criteria (e.g. *"Demonstrate script extracting Excel rows into valid JSON with 3 test files"*).
+2. **Format Output**: Render as a Markdown table:
+   ```markdown
+   | Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification Criteria |
+   | :--- | :--- | :---: | :--- |
+   ```
