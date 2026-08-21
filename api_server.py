@@ -26,9 +26,10 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 
 from router import route_request, route_request_with_role, detect_agent_intent
-from agents.manager_agent import run_manager_agent
-from agents.mentor_agent import run_mentor_agent
-from agents.teammates_agent import run_teammates_agent
+from agents.manager.agent import manager_agent
+from agents.mentor.agent import mentor_agent
+from agents.team.agent import team_agent
+from agents.shared.logging import get_trace
 
 try:
     from fastapi import FastAPI, Header, HTTPException, Depends
@@ -147,11 +148,10 @@ if FASTAPI_AVAILABLE:
     def manager_agent_endpoint(req: QueryRequest, x_user_role: Optional[str] = Header("manager"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Manager Agent Endpoint: Executive progress status, active blockers, risks, and required decisions."""
         t0 = time.time()
-        print(f"\n👔 [Manager Agent Endpoint] Request Received:")
-        print(f"   • Prompt: \"{req.prompt}\"")
+        print(f"\n👔 [Manager Agent Endpoint] Request Received: \"{req.prompt}\"")
         
         try:
-            result = run_manager_agent(req.prompt, target_member=req.target_member or "")
+            result = manager_agent.handle_request(req.prompt, trainee=req.target_member or "")
             status = "success"
         except Exception as e:
             print(f"❌ [Manager Agent Error]: {e}")
@@ -159,16 +159,6 @@ if FASTAPI_AVAILABLE:
             status = "error"
             
         latency = round(time.time() - t0, 3)
-        print(f"📤 [Manager Agent Endpoint] Completed in {latency}s | Status: {status}")
-
-        AGENT_HISTORY["manager"].append({
-            "timestamp": time.strftime("%H:%M:%S"),
-            "user_id": x_user_id,
-            "prompt": req.prompt,
-            "response": result,
-            "latency": latency
-        })
-
         return QueryResponse(
             agent_role="manager",
             response=result,
@@ -181,25 +171,10 @@ if FASTAPI_AVAILABLE:
     def mentor_agent_endpoint(req: QueryRequest, x_user_role: Optional[str] = Header("siddharth"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Mentor Agent Endpoint: Mentee evaluation scorecards, technical quizzes, and next assignments."""
         t0 = time.time()
-        p_low = req.prompt.lower()
-        if req.target_member:
-            target = req.target_member
-        elif any(w in p_low for w in ["all", "everyone", "trainees", "mentees", "team"]):
-            target = "All Team Members"
-        elif "ganesh" in p_low and "himaya" not in p_low and "dakshinya" not in p_low:
-            target = "Ganesh"
-        elif "dakshinya" in p_low and "himaya" not in p_low and "ganesh" not in p_low:
-            target = "Dakshinya"
-        elif "himaya" in p_low and "ganesh" not in p_low and "dakshinya" not in p_low:
-            target = "Himaya"
-        else:
-            target = "All Team Members"
-            
-        print(f"\n🎓 [Mentor Agent Endpoint] Request Received:")
-        print(f"   • Prompt: \"{req.prompt}\" | Target Mentee: {target}")
+        print(f"\n🎓 [Mentor Agent Endpoint] Request Received: \"{req.prompt}\"")
         
         try:
-            result = run_mentor_agent(req.prompt, target_mentee=target)
+            result = mentor_agent.handle_request(req.prompt, trainee=req.target_member or "")
             status = "success"
         except Exception as e:
             print(f"❌ [Mentor Agent Error]: {e}")
@@ -207,16 +182,6 @@ if FASTAPI_AVAILABLE:
             status = "error"
             
         latency = round(time.time() - t0, 3)
-        print(f"📤 [Mentor Agent Endpoint] Completed in {latency}s | Status: {status}")
-
-        AGENT_HISTORY["mentor"].append({
-            "timestamp": time.strftime("%H:%M:%S"),
-            "user_id": x_user_id,
-            "prompt": req.prompt,
-            "response": result,
-            "latency": latency
-        })
-
         return QueryResponse(
             agent_role="mentor",
             response=result,
@@ -227,27 +192,34 @@ if FASTAPI_AVAILABLE:
 
     @app.post("/api/v1/teammate", response_model=QueryResponse)
     def teammate_agent_endpoint(req: QueryRequest, x_user_name: Optional[str] = Header("Himaya"), x_user_id: Optional[str] = Header("USR-OWNER-01")):
-        """Teammates Agent Endpoint: Code explanations, architecture walkthroughs, and spoken meeting quotes."""
+        """Team Intelligence Agent Endpoint: Missed session catch-up, peer action items, and codebase requirements."""
         t0 = time.time()
-        print(f"\n👥 [Teammates Agent Endpoint] Request Received:")
-        print(f"   • Prompt: \"{req.prompt}\" | User: {x_user_name or 'Himaya'}")
+        print(f"\n👥 [Team Intelligence Agent Endpoint] Request Received: \"{req.prompt}\"")
         
         try:
-            result = run_teammates_agent(req.prompt, user_name=x_user_name or "Himaya")
+            result = team_agent.handle_request(req.prompt, trainee=req.target_member or x_user_name or "Himaya")
             status = "success"
         except Exception as e:
-            print(f"❌ [Teammates Agent Error]: {e}")
-            result = f"⚠️ Teammates Agent Error: {str(e)}"
+            print(f"❌ [Team Intelligence Error]: {e}")
+            result = f"⚠️ Team Intelligence Agent Error: {str(e)}"
             status = "error"
             
         latency = round(time.time() - t0, 3)
-        print(f"📤 [Teammates Agent Endpoint] Completed in {latency}s | Status: {status}")
+        return QueryResponse(
+            agent_role="team",
+            response=result,
+            latency_seconds=latency,
+            status=status,
+            llm_provider=get_active_llm_provider_name()
+        )
 
-        AGENT_HISTORY["teammate"].append({
-            "timestamp": time.strftime("%H:%M:%S"),
-            "user_id": x_user_id,
-            "prompt": req.prompt,
-            "response": result,
+    @app.get("/api/v1/trace/{trace_id}")
+    def get_execution_trace_endpoint(trace_id: str):
+        """Trace Inspection Endpoint: Expands challenged rows with underlying chunk IDs and telemetry."""
+        trace_data = get_trace(trace_id)
+        if not trace_data:
+            raise HTTPException(status_code=404, detail=f"Trace '{trace_id}' not found.")
+        return trace_data
             "latency": latency
         })
 
