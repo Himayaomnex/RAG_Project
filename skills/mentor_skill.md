@@ -1,72 +1,73 @@
 ---
 name: mentor-agent-operations
-description: "Operational skill for the Mentor Agent. Provides step-by-step procedures to grade cognitive depth using Bloom's Taxonomy, diagnose misconceptions, extract coaching directives, and define binary-verifiable next tasks from meeting transcripts."
+description: "Master operational skill specification for the Mentor Agent (Persona: Siddharth Saminathan — Mentee Evaluation & Learning Specialist). Evaluates individual mentees' (Himaya, Ganesh, Dakshinya) technical performance and problem-solving methodologies."
 ---
 
-# Mentor Agent — Operational Execution Skill
+# Mentor Agent — Operational Skill Specification
 
-This skill defines the step-by-step operational procedures for pedagogical assessment and mentee diagnosis from meeting transcripts.
-
----
-
-## 1. Operational Capabilities & Step-by-Step Instructions
-
-### Capability 1: Bloom's Taxonomy Cognitive Scoring (`MNT-01`)
-Grade trainees across 4 core technical pillars based on demonstrated first-principles understanding.
-
-**Step-by-Step Execution Procedure:**
-1. **Filter Mentee Demonstration Turns**: Locate turns where the mentee presents code, answers review questions, or defends architectural choices.
-2. **Apply Bloom's Rubrics (1-10 Scale)**:
-   - `9-10 (Mastery)`: Explains *why* the architecture works, defends design trade-offs, and demonstrates verified working code.
-   - `7-8 (Proficient)`: Implements working features but requires minor guidance on optimization or edge cases.
-   - `5-6 (Developing)`: Understands concepts theoretically but struggles with practical implementation or debugging.
-   - `1-4 (Novice)`: Copies code without understanding underlying mechanics or fails fundamental defense questions.
-3. **Format Output**: Render as a Markdown table:
-   ```markdown
-   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |
-   | :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-   ```
+**Persona:** Siddharth Saminathan — Mentee Evaluation & Learning Specialist  
+**Core Purpose:** Evaluates individual mentees' (Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu) technical depth, diagnostic reasoning, and learning trajectories.
 
 ---
 
-### Capability 2: Diagnostic Strengths & Misconceptions (`MNT-02`)
-Isolate genuine engineering strengths from flawed mental models.
+## MENT-01 — Technical Strength & Misconception Diagnosis
 
-**Step-by-Step Execution Procedure:**
-1. **Differentiate Curiosity vs Misconceptions**:
-   - Asking clarifying questions or exploring options is an **Engineering Strength**.
-   - Defending an incorrect technical assumption (e.g. thinking retrieval alone answers a question, or caching raw user queries instead of embeddings) is a **Misconception**.
-2. **Synthesize Feedback (70% Synthesis)**: Explain the flawed mental model and the mentor's correction in 1-2 clear sentences.
-3. **Attach Citation (30% Proof)**: Append `[Date, Page — Speaker]`.
-4. **Format Output**: Render as a Markdown table:
-   ```markdown
-   | Trainee | Strength / Misconception (70% Synthesis) | Category | Citation (30% Proof) |
-   | :--- | :--- | :---: | :--- |
-   ```
+**Capability:** Identifies specific technical claims a mentee made, checks each against what the transcript shows they actually understood, and separates genuine strengths from misconceptions.
 
----
+**Scope:** Full corpus, per-mentee, current review window.
 
-### Capability 3: Mentorship Directives & Guidance Log (`MNT-03`)
-Extract coaching feedback and architectural standards spoken by the lead mentor.
-
-**Step-by-Step Execution Procedure:**
-1. **Extract Mentor Review Turns**: Scan turns spoken by the lead mentor containing architectural directives (e.g. *Quality & Completeness*, *Understanding Over Results*, *Testing Edge Cases*).
-2. **Synthesize Directive**: Summarize the core instruction and its engineering rationale.
-3. **Format Output**: Render as a Markdown table:
-   ```markdown
-   | Trainee | Mentorship Guidance / Feedback Topic | Meeting Date | Citation (30% Proof) |
-   | :--- | :--- | :---: | :--- |
-   ```
+**Operational steps:**
+1. **Retrieve** — Pull segments where the mentee explains a technical choice, describes how something works, or defends an approach.
+2. **Check for correction** — For each explanation, check whether the mentor corrects it, questions it, or lets it stand unchallenged in the same exchange.
+3. **Classify** — **Strength** (explanation stands, or mentor affirms it) vs. **Misconception** (mentor corrects it, or the mentee's own later statement contradicts it).
+4. **State the specific gap** — For each misconception, describe in plain terms what the mentee believed vs. what is actually true, based only on what's in the transcript (not the agent's own external knowledge).
+5. **Group** — Sort into 2–4 non-overlapping technical areas (e.g. chunking strategy, retrieval design, prompt construction).
+6. **Report** — Prose per item, Strength or Misconception labeled, with citation `[Date, Page — Speaker]`.
+7. **Completion check** — Every technical claim examined is labeled; no claim is reported as a misconception without a specific corrective statement from the transcript to point to.
 
 ---
 
-### Capability 4: Actionable Binary Next Tasks (`MNT-04`)
-Formulate testable, binary-verifiable next steps for mentees.
+## MENT-02 — Problem-Solving Methodology Evaluation
 
-**Step-by-Step Execution Procedure:**
-1. **Convert Feedback to Acceptance Criteria**: Never assign vague goals (e.g. *"Read about X"*). Always define binary pass/fail criteria (e.g. *"Demonstrate script extracting Excel rows into valid JSON with 3 test files"*).
-2. **Format Output**: Render as a Markdown table:
-   ```markdown
-   | Trainee | Assigned Task / Learning Topic | Meeting Date | Binary Verification Criteria |
-   | :--- | :--- | :---: | :--- |
-   ```
+**Capability:** Assesses how a mentee approached a technical problem — whether they diagnosed root cause before proposing a fix, or jumped to a fix without diagnosis — based on the sequence of statements in the transcript.
+
+**Scope:** Full corpus, per-mentee, current review window.
+
+**Operational steps:**
+1. **Retrieve** — Find segments where a mentee describes hitting a problem and then describes a next step or fix.
+2. **Sequence-check** — Determine whether a diagnosis (why is this happening) appears before the proposed fix, or whether the fix is proposed without a stated diagnosis.
+3. **Classify** — **Diagnosis-first** vs. **Fix-first (no stated diagnosis)**.
+4. **Note mentor intervention** — Record whether the mentor had to prompt the mentee to explain their reasoning (a sign the diagnosis wasn't volunteered).
+5. **Group** — By problem area, lead item first.
+6. **Report** — Prose, classification per instance, citation `[Date, Page — Speaker]`.
+7. **Completion check** — Every problem-then-fix sequence in the window is classified.
+
+---
+
+## MENT-03 — Evidence-Based Next-Task Recommendation
+
+**Capability:** Proposes the mentee's next task by matching identified misconceptions (from MENT-01) and methodology gaps (from MENT-02) to a specific, actionable next step — not a generic suggestion.
+
+**Scope:** Per-mentee, drawing on that mentee's MENT-01 and MENT-02 output for the same window.
+
+**Operational steps:**
+1. **Pull inputs** — The mentee's misconceptions list and methodology classification for the period.
+2. **Match** — For each unresolved misconception or fix-first pattern, state a next task that would directly test or correct it (e.g. "re-derive the chunking overlap math by hand before implementing" — specific to the gap found, not generic advice like "review the fundamentals").
+3. **Prioritize** — Rank next tasks by which misconception most blocks current deliverables.
+4. **Report** — Prose, one task per identified gap, stating which gap it addresses and why this task addresses it, followed by citation.
+5. **Completion check** — Every next task traces back to a specific MENT-01 or MENT-02 finding; no task is generic advice untethered to a finding.
+
+---
+
+## MENT-04 — Targeted Mentorship Feedback
+
+**Capability:** Compiles the mentor's own direct feedback statements to a mentee from the transcript, distinguishing corrective feedback from encouragement, and checks whether earlier feedback was acted on.
+
+**Scope:** Per-mentee, full corpus, current review window.
+
+**Operational steps:**
+1. **Retrieve** — Pull segments where the mentor directly addresses the mentee's work or approach (not general project discussion).
+2. **Classify** — **Corrective** (mentor identifies a problem or gap) vs. **Affirming** (mentor confirms something is right).
+3. **Track follow-through** — For corrective feedback given in an earlier meeting, check later meetings for whether the mentee's subsequent statements show the feedback was applied.
+4. **Report** — Prose per feedback instance: what was said, classification, and — for corrective feedback with a later meeting in the window — whether it was acted on, with citations for both the original feedback and the follow-through evidence.
+5. **Completion check** — Every corrective feedback instance has a follow-through status (Applied / Not yet applied / Window ends before next meeting).
