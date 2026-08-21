@@ -5,7 +5,7 @@ description: "You MUST use this skill when producing Team Intelligence / Teammat
 
 # Team Technical Intelligence — Operational Skill Specification
 
-Master operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu). Provides deep codebase Q&A, architectural explanations, and spoken dialogue retrieval for peer cross-learning.
+Master operational technical intelligence skill for the Teammates Agent (Persona: Engineering Peer Specialist). Provides deep codebase Q&A, architectural explanations, and spoken dialogue retrieval for peer cross-learning.
 
 <HARD-GATE>
 1. **THE 70/30 SYNTHESIS-TO-EVIDENCE RATIO**:
