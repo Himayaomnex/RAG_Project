@@ -18,7 +18,8 @@ class MentorAgent:
         self.skill = mentor_trainee_assessment
 
     def handle_request(self, query: str, trainee: Optional[str] = None, period: Optional[str] = None, focus_area: Optional[str] = None) -> str:
-        if not trainee:
+        import re
+        if not trainee or trainee.lower() in ["all", "team", "everyone", "full"]:
             q_low = query.lower()
             if "ganesh" in q_low and "himaya" not in q_low and "dakshinya" not in q_low:
                 trainee = "Ganesh"
@@ -27,7 +28,14 @@ class MentorAgent:
             elif "himaya" in q_low and "ganesh" not in q_low and "dakshinya" not in q_low:
                 trainee = "Himaya"
             else:
-                trainee = ""
+                # Extract requested person name if mentioned e.g. "Assess Rahul Sharma's progress"
+                m = re.search(r'assess\s+([a-zA-Z\s]+?)(?:\'s|\s+progress|\s+technical|\s+understanding|\s+on|\s+for|\s*$)', query, re.IGNORECASE)
+                if m:
+                    extracted = m.group(1).strip()
+                    if extracted.lower() not in ["the", "this", "my", "our", "all", "team"]:
+                        trainee = extracted
+                if not trainee:
+                    trainee = ""
 
         req = MentorAssessmentRequest(
             trainee=trainee,

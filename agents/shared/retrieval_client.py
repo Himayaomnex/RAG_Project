@@ -191,7 +191,8 @@ class RetrievalClient:
 
             # Apply speaker filter
             if speaker_filter and speaker_filter.lower() not in ["all", "team"]:
-                if speaker_filter.lower() not in spk.lower() and "siddharth" not in spk.lower():
+                sf = speaker_filter.lower()
+                if sf not in spk.lower() and sf not in txt.lower():
                     continue
 
             # Apply Date Range filter if present
