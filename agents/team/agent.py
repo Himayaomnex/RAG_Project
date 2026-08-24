@@ -18,6 +18,17 @@ class TeamAgent:
         self.skill = team_session_catchup
 
     def handle_request(self, query: str, date: Optional[str] = None, trainee: Optional[str] = None) -> str:
+        if trainee:
+            t_low = trainee.lower()
+            if "himaya" in t_low:
+                trainee = "Himaya"
+            elif "ganesh" in t_low:
+                trainee = "Ganesh"
+            elif "dakshinya" in t_low:
+                trainee = "Dakshinya"
+            elif t_low in ["all", "team", "everyone", "cohort"]:
+                trainee = None
+
         req = TeamCatchupRequest(
             date=date,
             trainee=trainee,

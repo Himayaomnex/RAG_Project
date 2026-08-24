@@ -95,11 +95,13 @@ class TeamSessionCatchupSkill:
             "2. Focus strictly on what the requesting mentee must know and do to resume work immediately.\n"
             "3. Discard chronological small talk, mic checks, and conversational chatter.\n"
             "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
-            "5. PERSONALIZED ATTRIBUTION: When a specific 'Requesting Trainee' is provided (e.g. Himaya, Ganesh, or Dakshinya):\n"
-            "   - Under 'Assignments and actions', ONLY list tasks specifically assigned to that requesting mentee or the team as a whole.\n"
-            "   - Under 'What you need to know or do', summarize only their individual next actions.\n"
-            "   - Do NOT attribute other members' tasks (e.g. Ganesh's Knowledge Base schema or Dakshinya's 3-system RAG modularization) to the requesting mentee.\n"
-            "   - Never use placeholder headers like 'System Owner:'. Always use the mentee's real name (e.g. 'Himaya Perumal:').\n"
+            "5. PERSONALIZED ATTRIBUTION:\n"
+            "   - If 'Requesting Trainee' is specified (e.g. 'Himaya', 'Ganesh', or 'Dakshinya'):\n"
+            "     * Under 'Assignments and actions', ONLY output the bullet block for that requesting mentee (e.g. '- Himaya Perumal:') and team-wide items ('- Team-Wide Action:').\n"
+            "     * DO NOT output bullet blocks for the other teammates (e.g. completely exclude Ganesh's and Dakshinya's action lists when Himaya is the requesting trainee).\n"
+            "     * Under 'What you need to know or do', summarize only their individual next actions.\n"
+            "   - If 'Requesting Trainee' is 'All Team Members' or omitted:\n"
+            "     * List separate bullet blocks for each trainee.\n"
             "6. Present output in clean prose under short headers without markdown tables."
         )
 
