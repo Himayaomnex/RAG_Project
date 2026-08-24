@@ -1,0 +1,22 @@
+{
+  "trace_id": "trc-01cc88fc9e",
+  "timestamp": "2026-08-24T08:51:35Z",
+  "agent": "mentor",
+  "skill": "mentor_trainee_assessment",
+  "input_query": "\"Assess Rahul Sharma on deep learning\"",
+  "input_params": {
+    "trainee": "Rahul Sharma",
+    "period": null,
+    "focus_area": null,
+    "query": "\"Assess Rahul Sharma on deep learning\""
+  },
+  "retrieval_requests": 1,
+  "retrieved_chunk_ids": [],
+  "llm_calls": 0,
+  "llm_model": "gemini-2.5-flash",
+  "latency_seconds": 1.036,
+  "token_usage": {},
+  "failure": "INSUFFICIENT_EVIDENCE: No transcript evidence found for trainee 'Rahul Sharma'.",
+  "final_status": "INSUFFICIENT_EVIDENCE",
+  "output": "INSUFFICIENT_EVIDENCE: No transcript evidence found for trainee 'Rahul Sharma'."
+}

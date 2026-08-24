@@ -92,10 +92,15 @@ class TeamSessionCatchupSkill:
             f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
             "CRITICAL COGNITIVE & CITATION RULES:\n"
             "1. Read all evidence turns in <transcript_evidence>.\n"
-            "2. Focus only on what the mentee must know and do to resume work immediately.\n"
+            "2. Focus strictly on what the requesting mentee must know and do to resume work immediately.\n"
             "3. Discard chronological small talk, mic checks, and conversational chatter.\n"
             "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
-            "5. Present output in clean prose under short headers without markdown tables."
+            "5. PERSONALIZED ATTRIBUTION: When a specific 'Requesting Trainee' is provided (e.g. Himaya, Ganesh, or Dakshinya):\n"
+            "   - Under 'Assignments and actions', ONLY list tasks specifically assigned to that requesting mentee or the team as a whole.\n"
+            "   - Under 'What you need to know or do', summarize only their individual next actions.\n"
+            "   - Do NOT attribute other members' tasks (e.g. Ganesh's Knowledge Base schema or Dakshinya's 3-system RAG modularization) to the requesting mentee.\n"
+            "   - Never use placeholder headers like 'System Owner:'. Always use the mentee's real name (e.g. 'Himaya Perumal:').\n"
+            "6. Present output in clean prose under short headers without markdown tables."
         )
 
         user_prompt = (
