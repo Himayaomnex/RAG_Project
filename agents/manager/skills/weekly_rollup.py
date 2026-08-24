@@ -13,6 +13,7 @@ Implements the 8-stage operational workflow for manager_weekly_rollup:
 8. Self-check the report against evidence & log trace
 """
 
+import os
 import re
 import json
 from typing import Dict, Any, Optional, List
@@ -45,7 +46,7 @@ class ManagerWeeklyRollupSkill:
             speaker_filter=target_trainee,
             period_start=request.period_start,
             period_end=request.period_end,
-            limit=60,
+            limit=100,
             strategy="completeness"
         )
         
@@ -58,7 +59,6 @@ class ManagerWeeklyRollupSkill:
             logger.set_failure(failure_msg, status="INSUFFICIENT_EVIDENCE")
             return logger.complete(failure_msg, status="INSUFFICIENT_EVIDENCE").output
 
-        # STAGE 3: Separate Evidence by Trainee
         # STAGE 3: Dynamically Separate Evidence by Speaker
         trainee_chunks: Dict[str, List[EvidenceChunk]] = {}
         for c in chunks:
@@ -71,7 +71,7 @@ class ManagerWeeklyRollupSkill:
         xml_evidence_lines = ["<transcript_evidence>"]
         for c in chunks:
             xml_evidence_lines.append(
-                f'  <turn id="{c.chunk_id}" date="{c.date}" doc="{c.source_file}" page="{c.page}" speaker="{c.speaker}">\n'
+                f'  <turn date="{c.date}" page="{c.page}" speaker="{c.speaker}" doc="{c.source_file}">\n'
                 f'    {c.text.strip()}\n'
                 f'  </turn>'
             )
@@ -79,19 +79,28 @@ class ManagerWeeklyRollupSkill:
         xml_evidence = "\n".join(xml_evidence_lines)
 
         # STAGES 4, 5, 6 & 7: LLM Reasoning & Executive Report Production
+        # Dynamically load the skill specification markdown file
+        spec_path = os.path.join(os.path.dirname(__file__), "weekly_rollup.md")
+        skill_spec = ""
+        if os.path.exists(spec_path):
+            with open(spec_path, "r", encoding="utf-8") as f:
+                skill_spec = f.read()
+
         system_prompt = (
-            "You are Iyappan Sir, Executive Engineering Director.\n"
-            "Your task is to generate a state-of-work report from the provided transcript evidence.\n\n"
-            "OPERATIONAL RULES:\n"
+            "You are the Executive Engineering Manager.\n"
+            "Your task is to generate a comprehensive, highly concrete state-of-work report from the provided transcript evidence.\n\n"
+            f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
+            "CRITICAL FORMATTING & EVIDENCE RULES:\n"
             "1. Read all evidence turns in <transcript_evidence>.\n"
-            "2. Completed: List only discrete deliverables verified as done and demonstrated in meetings. Quote at most one supporting sentence.\n"
-            "3. In Progress: List active work currently being coded or debugged.\n"
-            "4. Blocked or At Risk: Identify impediments. Label resolution state explicitly (Agreed / Contested / Resolved / Pending Decision).\n"
-            "5. Important Changes: Note architectural or technology shifts.\n"
-            "6. Requires Attention: State where executive intervention is required.\n"
-            "7. Never invent facts or infer completion from absence of discussion.\n"
-            "8. If evidence for a mentee is missing, state 'INSUFFICIENT_EVIDENCE for [Trainee]'.\n"
-            "9. Present the output in clean prose under short headers (no markdown tables)."
+            "2. Avoid vague generalities. Always name specific systems (RAG, Qdrant, Excel openpyxl, Random Forest, BM25, MCP, etc.).\n"
+            "3. Completed: Must use exact format: '- [Trainee Name] · [Deliverable Title]: [1-2 sentences explaining technical mechanics]. Quote: \"[Exact supporting quote]\" [Date, Page — Speaker]'\n"
+            "4. In Progress: Must use exact format: '- [Trainee Name] · [Task Title]: [Current engineering state and next step] [Date, Page — Speaker]'\n"
+            "5. Blocked or At Risk: Must use exact format: '- [Trainee Name] · [Impediment]: [Details]. Resolution State: [Agreed/Contested/Pending Decision] [Date, Page — Speaker]'\n"
+            "6. Important Changes: Must use exact format: '- [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]'\n"
+            "7. Requires Attention: Must use exact format: '- [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]'\n"
+            "8. CITATION RULE: Every citation MUST be formatted as '[Date, Page — Speaker]' (e.g. '[28 July 2026, 18 — Siddharth Saminathan]'). NEVER output raw UUIDs, hex strings, or chunk IDs in citations.\n"
+            "9. Never invent facts or infer completion from absence of discussion.\n"
+            "10. If evidence for a mentee is missing, state '- [Trainee Name]: INSUFFICIENT_EVIDENCE'."
         )
 
         user_prompt = (
@@ -99,13 +108,19 @@ class ManagerWeeklyRollupSkill:
             f"Target Trainee: {target_trainee or 'All Trainees'}\n"
             f"Query: {request.query}\n\n"
             f"{xml_evidence}\n\n"
-            "Generate the Executive State-of-Work Report following the exact output schema:\n"
+            "Generate the Executive State-of-Work Report following the exact output schema:\n\n"
             "Executive conclusion\n"
+            "- [1-2 sentence governing takeaway on project health and trajectory]\n\n"
             "Completed\n"
+            "- [Trainee Name] · [Deliverable Title]: [Details]. Quote: \"[One exact supporting quote]\" [Date, Page — Speaker]\n\n"
             "In Progress\n"
+            "- [Trainee Name] · [Task Title]: [Current engineering state and next step] [Date, Page — Speaker]\n\n"
             "Blocked or At Risk\n"
+            "- [Trainee Name] · [Impediment]: [Details]. Resolution State: [Agreed/Contested/Pending Decision] [Date, Page — Speaker]\n\n"
             "Important Changes\n"
-            "Requires Attention"
+            "- [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]\n\n"
+            "Requires Attention\n"
+            "- [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]"
         )
 
         try:

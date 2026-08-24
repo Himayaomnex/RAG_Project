@@ -83,11 +83,11 @@ if FASTAPI_AVAILABLE:
     @app.on_event("startup")
     def startup_warmup():
         print("\n" + "=" * 80)
-        print("🚀 [API Server Warmup]: Pre-loading Vector DB & Embedding Models...")
+        print("🚀 [API Server Warmup]: Pre-loading Qdrant Cloud Connection & Embedding Models...")
         try:
-            from pipeline import ensure_pipeline_initialized
-            ensure_pipeline_initialized()
-            print("✅ [API Server Warmup]: Vector DB initialized and ready for instant queries!")
+            from agents.shared.retrieval_client import retrieval_client
+            retrieval_client.query_evidence("warmup", limit=1)
+            print("✅ [API Server Warmup]: Qdrant Cloud & Dense Retriever initialized and ready for instant queries!")
         except Exception as e:
             print(f"⚠️ [API Server Warmup Notice]: {e}")
         print("=" * 80 + "\n")
@@ -159,6 +159,13 @@ if FASTAPI_AVAILABLE:
             status = "error"
             
         latency = round(time.time() - t0, 3)
+        AGENT_HISTORY["manager"].append({
+            "timestamp": time.strftime("%H:%M:%S"),
+            "user_id": x_user_id,
+            "prompt": req.prompt,
+            "response": result,
+            "latency": latency
+        })
         return QueryResponse(
             agent_role="manager",
             response=result,
@@ -182,6 +189,13 @@ if FASTAPI_AVAILABLE:
             status = "error"
             
         latency = round(time.time() - t0, 3)
+        AGENT_HISTORY["mentor"].append({
+            "timestamp": time.strftime("%H:%M:%S"),
+            "user_id": x_user_id,
+            "prompt": req.prompt,
+            "response": result,
+            "latency": latency
+        })
         return QueryResponse(
             agent_role="mentor",
             response=result,
@@ -200,11 +214,18 @@ if FASTAPI_AVAILABLE:
             result = team_agent.handle_request(req.prompt, trainee=req.target_member or x_user_name or "Himaya")
             status = "success"
         except Exception as e:
-            print(f"❌ [Team Intelligence Error]: {e}")
+            print(f"❌ [Team Intelligence Agent Error]: {e}")
             result = f"⚠️ Team Intelligence Agent Error: {str(e)}"
             status = "error"
             
         latency = round(time.time() - t0, 3)
+        AGENT_HISTORY["teammate"].append({
+            "timestamp": time.strftime("%H:%M:%S"),
+            "user_id": x_user_id,
+            "prompt": req.prompt,
+            "response": result,
+            "latency": latency
+        })
         return QueryResponse(
             agent_role="team",
             response=result,

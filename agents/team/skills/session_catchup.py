@@ -14,6 +14,7 @@ Implements the 9-stage operational workflow for team_session_catchup:
 9. Self-check against evidence & log trace
 """
 
+import os
 import re
 import json
 from typing import Dict, Any, Optional, List
@@ -71,22 +72,30 @@ class TeamSessionCatchupSkill:
         xml_evidence_lines = ["<transcript_evidence>"]
         for c in chunks:
             xml_evidence_lines.append(
-                f'  <turn id="{c.chunk_id}" date="{c.date}" doc="{c.source_file}" page="{c.page}" speaker="{c.speaker}">\n'
+                f'  <turn date="{c.date}" page="{c.page}" speaker="{c.speaker}" doc="{c.source_file}">\n'
                 f'    {c.text.strip()}\n'
                 f'  </turn>'
             )
         xml_evidence_lines.append("</transcript_evidence>")
         xml_evidence = "\n".join(xml_evidence_lines)
 
-        # STAGES 3 TO 8: LLM Actionable Catch-up Production
+        # STAGES 3–10: LLM Reasoning & Catch-up Production
+        spec_path = os.path.join(os.path.dirname(__file__), "session_catchup.md")
+        skill_spec = ""
+        if os.path.exists(spec_path):
+            with open(spec_path, "r", encoding="utf-8") as f:
+                skill_spec = f.read()
+
         system_prompt = (
-            "You are the Team Intelligence Agent, helping a trainee who missed a training session get up to speed.\n\n"
-            "OPERATIONAL RULES:\n"
-            "• Discard chronological chatter, mic tests, and meeting setup.\n"
-            "• Focus 100% on what the trainee MUST know and DO to continue coding.\n"
-            "• Clearly separate technical discussions, assignments/actions, decisions, and codebase changes.\n"
-            "• Cite [Date, Page — Speaker] for every item.\n"
-            "• Output in clean prose under short headers (no markdown tables)."
+            "You are the Team Intelligence Agent.\n"
+            "Your task is to produce an actionable catch-up report for a mentee who missed a training session.\n\n"
+            f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
+            "CRITICAL COGNITIVE & CITATION RULES:\n"
+            "1. Read all evidence turns in <transcript_evidence>.\n"
+            "2. Focus only on what the mentee must know and do to resume work immediately.\n"
+            "3. Discard chronological small talk, mic checks, and conversational chatter.\n"
+            "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
+            "5. Present output in clean prose under short headers without markdown tables."
         )
 
         user_prompt = (

@@ -15,6 +15,7 @@ Implements the 10-stage operational workflow for mentor_trainee_assessment:
 10. Self-check every conclusion against evidence & log trace
 """
 
+import os
 import re
 import json
 from typing import Dict, Any, Optional, List
@@ -61,7 +62,7 @@ class MentorTraineeAssessmentSkill:
         xml_evidence_lines = ["<transcript_evidence>"]
         for c in chunks:
             xml_evidence_lines.append(
-                f'  <turn id="{c.chunk_id}" date="{c.date}" doc="{c.source_file}" page="{c.page}" speaker="{c.speaker}">\n'
+                f'  <turn date="{c.date}" page="{c.page}" speaker="{c.speaker}" doc="{c.source_file}">\n'
                 f'    {c.text.strip()}\n'
                 f'  </turn>'
             )
@@ -69,16 +70,23 @@ class MentorTraineeAssessmentSkill:
         xml_evidence = "\n".join(xml_evidence_lines)
 
         # STAGES 3 TO 9: Pedagogical Reasoning & Assessment Production
+        # Dynamically load the skill specification markdown file
+        spec_path = os.path.join(os.path.dirname(__file__), "trainee_assessment.md")
+        skill_spec = ""
+        if os.path.exists(spec_path):
+            with open(spec_path, "r", encoding="utf-8") as f:
+                skill_spec = f.read()
+
         system_prompt = (
-            "You are Siddharth Saminathan, Lead Technical Mentor & AI Architect.\n"
-            "Your task is to evaluate a trainee's demonstrated progress based strictly on transcript turns.\n\n"
-            "CRITICAL COGNITIVE RULE:\n"
-            "• Taught ≠ Understood. A concept mentioned by the mentor does NOT prove understanding.\n"
-            "• You may only claim 'Demonstrated' if the mentee defends trade-offs or shows working code.\n"
-            "• If evidence does not establish understanding, explicitly write: 'Not demonstrated from available evidence'.\n"
-            "• For every misconception, state what the mentee believed vs what is actually true.\n"
-            "• Cite [Date, Page — Speaker] for every key evaluation item.\n"
-            "• Format output in clear prose under short headers (no markdown tables)."
+            "You are the Lead Technical Mentor & AI Architect.\n"
+            "Your task is to produce a strict, evidence-backed evaluation for the specified trainee.\n\n"
+            f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
+            "CRITICAL COGNITIVE & CITATION RULES:\n"
+            "1. Read all evidence turns in <transcript_evidence>.\n"
+            "2. Enforce the ladder: Taught != Understood. Never claim demonstrated capability unless the mentee explained or built it.\n"
+            "3. If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
+            "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
+            "5. Present output in clean prose under short headers without markdown tables."
         )
 
         user_prompt = (

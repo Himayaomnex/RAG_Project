@@ -1,22 +1,22 @@
 # Skill Specification: team_session_catchup
 
 ## Purpose
-Enables a trainee who missed a training session to resume work immediately. Distills what happened into actionable requirements: technical concepts discussed, assignments given, decisions reached, important changes, and what the absent person must do.
+Enables a trainee who missed a training session to continue working immediately. Serves the request: "I missed the session. Tell me what I need to know to keep going." A chronological retelling of the meeting fails review; the output is what the absent person must know and do — nothing more.
 
 ## Inputs
-- `date`: Requested meeting date string (e.g. "2026-07-24" or "24 July 2026") — required.
-- `trainee`: Optional requesting trainee name string to filter items specifically relevant to them.
+- `date`: Requested session date string (e.g. "2026-07-31" or "31 July 2026")
+- `trainee`: Optional requesting trainee name (to filter for what concerns them)
 
 ## Required Workflow
-1. **Identify Requested Session**: Resolve the target date from query.
-2. **Retrieve Session Evidence**: Query the retrieval service for all turns on that date.
-3. **Identify Major Technical Discussions**: Isolate architecture and implementation topics explored in the session.
-4. **Identify Assignments Given**: Extract specific tasks assigned by the mentor with binary verification criteria.
-5. **Identify Decisions Made**: Note framework, tool, or design choices settled in the session.
-6. **Identify Changes & Blockers**: Note bug fixes or architecture shifts that affect teammate code.
-7. **Filter for Requesting Trainee**: Highlight items directly assigned to or impacting the requesting trainee.
-8. **Produce Actionable Catch-Up**: Synthesize clear, prose sections following the defined output schema.
-9. **Self-Check**: Verify every assignment and decision traces back to a dialogue turn on that date.
+1. **Identify the requested session**: Resolve the target date from query.
+2. **Retrieve the session's evidence**: Query the retrieval service for all turns on that date.
+3. **Identify the major technical discussions**: Isolate architecture and implementation topics explored in the session.
+4. **Identify assignments given**: Extract specific tasks assigned by the mentor with binary verification criteria.
+5. **Identify decisions made**: Note framework, tool, or design choices settled in the session.
+6. **Identify changes and blockers**: Note bug fixes or architecture shifts that affect teammate code.
+7. **Filter for the requesting trainee**: Highlight items directly assigned to or impacting the requesting trainee.
+8. **Produce the actionable catch-up**: Synthesize clear, prose sections following the defined output schema.
+9. **Self-check against evidence**: Verify every assignment and decision traces back to a dialogue turn on that date.
 
 ## Evidence Requirements
 - Discard chronological storytelling, mic checks, and conversational chatter.

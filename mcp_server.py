@@ -12,8 +12,8 @@ import os
 import json
 
 sys.path.append(os.path.dirname(__file__))
-from pipeline import get_vector_db, DenseRetriever, ensure_pipeline_initialized
-from llm_client import generate_llm_response
+from agents.shared.retrieval_client import retrieval_client
+from agents.shared.llm_client import llm_client
 
 # Valid Enterprise Auth Tokens
 VALID_AUTH_TOKENS = {
@@ -30,7 +30,7 @@ def verify_auth_token(auth_token: str):
 
 def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", date: str = "") -> str:
     """
-    MCP Tool: Searches Teams meeting transcripts via Qdrant + emb_cache + Re-ranker.
+    MCP Tool: Searches Teams meeting transcripts via Qdrant Cloud + Retrieval Client.
     Requires a valid auth_token.
     """
     is_valid, user_info = verify_auth_token(auth_token)
@@ -39,23 +39,33 @@ def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", 
         
     print(f"[MCP Request Authenticated]: {user_info}")
     
-    db = ensure_pipeline_initialized()
-    retriever = DenseRetriever(db)
     query_text = f"{speaker} {topic} {date}".strip() or "project status"
-    results = retriever.retrieve_p1_scroll_reranker(query_text, top_k=6, rerank_top_k=4)
+    chunks = retrieval_client.query_evidence(
+        query=query_text,
+        speaker_filter=speaker or None,
+        date_filter=date or None,
+        limit=5,
+        strategy="precision"
+    )
 
-    if not results:
+    if not chunks:
         return f"No transcript entries found for Speaker: '{speaker}', Topic: '{topic}', Date: '{date}'."
 
     context_lines = []
-    for p in results:
-        payload = p.payload if hasattr(p, "payload") else (p if isinstance(p, dict) else {})
-        context_lines.append(f"  [Date: {payload.get('date','Unknown')} | Page {payload.get('page','1')} | Speaker: {payload.get('speaker','Unknown')}]: {payload.get('text','')}")
+    for c in chunks:
+        context_lines.append(f"  [Date: {c.date} | Page {c.page} | Speaker: {c.speaker}]: {c.text}")
     context_str = "\n".join(context_lines)
     
     prompt = f"[CONTEXT]\n{context_str}\n\n[INSTRUCTION]\nExtract grounded findings for {speaker or 'the team'} regarding {topic or 'status updates'}.\n\n[QUERY]\n{topic}"
-    response = generate_llm_response(prompt, query_text, fallback_response=context_str)
-    return response if response else context_str
+    try:
+        response, _, _, _ = llm_client.generate(
+            system_instruction="You are a precise technical transcript analyzer.",
+            user_prompt=prompt,
+            temperature=0.1
+        )
+        return response if response else context_str
+    except Exception:
+        return context_str
 
 # FastMCP Initialization with 6 Enterprise RAG Tools
 try:
