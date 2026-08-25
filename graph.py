@@ -98,10 +98,11 @@ def intent_classifier_node(state: AgentState) -> AgentState:
     return {
         **state,
         "agent_intent": result["agent"],
-        "trainee":  state.get("trainee") or result.get("trainee"),
-        "date":     state.get("date")    or result.get("date"),
-        "period":   state.get("period")  or result.get("period"),
-        "trace_id": f"trc-{uuid.uuid4().hex[:10]}",
+        "trainee":    state.get("trainee") or result.get("trainee"),
+        "date":       state.get("date")    or result.get("date"),
+        "period":     state.get("period")  or result.get("period"),
+        "focus_area": state.get("focus_area") or result.get("focus_area"),
+        "trace_id":   f"trc-{uuid.uuid4().hex[:10]}",
     }
 
 

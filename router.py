@@ -45,7 +45,8 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "agent":   "manager" | "mentor" | "team",
         "trainee": str | null,   # canonical name extracted from query or hint
         "date":    str | null,   # session date if catch-up query
-        "period":  str | null    # reporting period if rollup query
+        "period":  str | null,   # reporting period if rollup query
+        "focus_area": str | null # technical topic/focus area mentioned (e.g. 'RAG', 'Qdrant') or null
     }
 
     Falls back to rule-based heuristic if LLM call fails.
@@ -57,10 +58,11 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  • mentor   — Trainee evaluation, knowledge gaps, misconceptions, progress, assessment, quiz\n"
         "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
         "Given a user query, output a JSON object with exactly these keys:\n"
-        "  agent:   one of 'manager', 'mentor', 'team'\n"
-        "  trainee: canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
-        "  date:    session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
-        "  period:  date range string if agent=manager (e.g. 'July 21 to July 28') or null\n\n"
+        "  agent:      one of 'manager', 'mentor', 'team'\n"
+        "  trainee:    canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
+        "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
+        "  period:     date range string if agent=manager (e.g. 'July 21 to July 28') or null\n"
+        "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
         "RULES:\n"
         "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, misconceptions, knowledge gaps, strengths, how they are performing, or feedback given by the mentor.\n"
         "- agent=team    when query is about catching up on a missed session, what happened in a session, what assignments were given, what decisions were made in a specific session.\n"
@@ -89,10 +91,11 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         if agent not in ("manager", "mentor", "team"):
             agent = "manager"
         return {
-            "agent":   agent,
-            "trainee": result.get("trainee") or trainee_hint or None,
-            "date":    result.get("date") or None,
-            "period":  result.get("period") or None,
+            "agent":      agent,
+            "trainee":    result.get("trainee") or trainee_hint or None,
+            "date":       result.get("date") or None,
+            "period":     result.get("period") or None,
+            "focus_area": result.get("focus_area") or None,
         }
     except Exception as e:
         print(f"  - [Router] LLM classifier failed ({e}). Using rule-based fallback.")
@@ -149,7 +152,7 @@ def _rule_fallback(query: str, trainee_hint: Optional[str] = None) -> dict:
             trainee = name
             break
 
-    return {"agent": agent, "trainee": trainee, "date": date, "period": None}
+    return {"agent": agent, "trainee": trainee, "date": date, "period": None, "focus_area": None}
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
