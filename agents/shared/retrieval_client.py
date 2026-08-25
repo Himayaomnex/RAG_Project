@@ -202,12 +202,15 @@ class RetrievalClient:
         # Auto-detect speaker filter from query if not explicitly provided
         q_low = query.lower()
         if not speaker_filter or speaker_filter.lower() in ["all", "everyone", "team"]:
-            if "ganesh" in q_low and "himaya" not in q_low and "dakshinya" not in q_low:
-                speaker_filter = "Ganesh"
-            elif "himaya" in q_low and "ganesh" not in q_low and "dakshinya" not in q_low:
-                speaker_filter = "Himaya"
-            elif "dakshinya" in q_low and "ganesh" not in q_low and "himaya" not in q_low:
-                speaker_filter = "Dakshinya"
+            try:
+                from router import _TRAINEE_ROLE_MAP
+                role_map = _TRAINEE_ROLE_MAP
+            except Exception:
+                role_map = {}
+            # Find which trainee names appear in the query — only set filter if exactly one matches
+            matched = [canonical for key, canonical in role_map.items() if key in q_low]
+            if len(matched) == 1:
+                speaker_filter = matched[0]
 
         # Resolve month ranges (e.g. "July" -> July 1 to July 31)
         month_range = self._resolve_month_range(period_start or date_filter)

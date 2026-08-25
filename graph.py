@@ -278,7 +278,11 @@ def run_graph(
                 # SAFEGUARD: If the query mentions one trainee name, but the cached query mentions another, skip hit
                 q_low = query.lower()
                 cq_low = cached_query.lower()
-                trainee_names = ["himaya", "ganesh", "dakshinya"]
+                try:
+                    from router import _TRAINEE_ROLE_MAP
+                    trainee_names = list(_TRAINEE_ROLE_MAP.keys())
+                except Exception:
+                    trainee_names = []
                 name_mismatch = False
                 for name in trainee_names:
                     if (name in q_low) != (name in cq_low):

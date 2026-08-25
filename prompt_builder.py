@@ -29,7 +29,18 @@ class PromptBuilder:
         self.role = role
         self.team_id = "aqua_rag_team"
         self.meeting_id = "Latest Meetings"
-        self.team_members = team_members or ["Himaya Perumal", "Ganesh Krishna", "Dakshinya Nachimuthu", "Siddharth Saminathan"]
+        # Dynamically load team members from the router's canonical role map
+        if team_members:
+            self.team_members = team_members
+        else:
+            try:
+                from router import _TRAINEE_ROLE_MAP
+                # Get unique canonical names (values), preserving order
+                seen = set()
+                trainees = [v for v in _TRAINEE_ROLE_MAP.values() if not (v in seen or seen.add(v))]
+                self.team_members = trainees + ["Siddharth Saminathan"]
+            except Exception:
+                self.team_members = []
         
         # Policy Modules
         self.security_guardrails: List[str] = []
@@ -73,7 +84,7 @@ class PromptBuilder:
         """MODULE 2 — SPEAKER ATTRIBUTION & HIERARCHY POLICY"""
         mentor_name = "Siddharth Saminathan"
         teammates = [m for m in self.team_members if m != mentor_name]
-        teammates_str = ", ".join(teammates) if teammates else "Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu"
+        teammates_str = ", ".join(teammates) if teammates else "the trainees"
         
         self.speaker_attribution_policy = [
             "# MODULE 2 — SPEAKER ATTRIBUTION, HIERARCHY & CROSSTALK POLICY",
