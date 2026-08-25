@@ -64,7 +64,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  period:     date range string if agent=manager (e.g. 'July 21 to July 28') or null\n"
         "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
         "RULES:\n"
-        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, misconceptions, knowledge gaps, strengths, how they are performing, or feedback given by the mentor.\n"
+        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, performance, technical capability, misconceptions, knowledge gaps, strengths, how they are performing, or feedback given by the mentor.\n"
         "- agent=team    when query is about catching up on a missed session, what happened in a session, what assignments were given, what decisions were made in a specific session.\n"
         "- agent=manager for everything else: executive project milestones, deliverables, blockers, risks, what tasks are completed/in-progress across the project.\n"
         "- Extract the trainee name from the query if mentioned. If a trainee_hint is provided and no name is in the query, use the hint.\n"
