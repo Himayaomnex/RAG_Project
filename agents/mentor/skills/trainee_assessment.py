@@ -81,9 +81,13 @@ class MentorTraineeAssessmentSkill:
 
         system_prompt = (
             "You are the Lead Technical Mentor & AI Architect.\n"
-            "Your task is to produce a strict, evidence-backed evaluation for the specified trainee.\n\n"
+            "Your task is to answer the user's query accurately using evidence from the transcripts.\n\n"
             f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
             "CRITICAL COGNITIVE & CITATION RULES:\n"
+            "0. QUERY ALIGNMENT RULE (HIGHEST PRIORITY): Read the exact query carefully. Your answer MUST directly and specifically answer what was asked. Match the answer scope to the question scope:\n"
+            "   - If the query asks a SPECIFIC question (e.g., 'what are Ganesh's knowledge gaps in Qdrant?', 'did Dakshinya demonstrate understanding of BM25?', 'what did Himaya build this week?'), give a FOCUSED direct answer that addresses exactly that — do NOT produce a full assessment schema with all 8 sections.\n"
+            "   - If the query asks for a BROAD REPORT or FULL ASSESSMENT (e.g., 'assess Himaya', 'give me a full evaluation of the team', 'summarize all trainees'), THEN use the full output schema.\n"
+            "   - The answer length and structure must be PROPORTIONAL to the question. A narrow question → a narrow focused answer. A broad report request → the full schema.\n"
             "1. Read all evidence turns in <transcript_evidence>.\n"
             "2. Enforce the ladder: Taught != Understood. Never claim demonstrated capability unless the mentee explained or built it.\n"
             "3. If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
