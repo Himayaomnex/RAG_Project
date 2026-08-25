@@ -183,7 +183,8 @@ def route_request_with_role(
             query=query,
             period_start=kwargs.get("period_start"),
             period_end=kwargs.get("period_end"),
-            trainee=target_member or None
+            trainee=target_member or None,
+            trace_id=kwargs.get("trace_id")
         )
         return res, "manager"
 
@@ -192,7 +193,8 @@ def route_request_with_role(
             query=query,
             trainee=target_member or None,
             period=kwargs.get("period"),
-            focus_area=kwargs.get("focus_area")
+            focus_area=kwargs.get("focus_area"),
+            trace_id=kwargs.get("trace_id")
         )
         return res, "mentor"
 
@@ -200,7 +202,8 @@ def route_request_with_role(
         res = team_agent.handle_request(
             query=query,
             date=kwargs.get("date"),
-            trainee=target_member or None
+            trainee=target_member or None,
+            trace_id=kwargs.get("trace_id")
         )
         return res, "team"
 
@@ -222,7 +225,8 @@ def route_request_with_role(
             query=query,
             trainee=resolved_trainee,
             period=resolved_period,
-            focus_area=kwargs.get("focus_area")
+            focus_area=kwargs.get("focus_area"),
+            trace_id=kwargs.get("trace_id")
         )
         return res, "mentor"
 
@@ -230,7 +234,8 @@ def route_request_with_role(
         res = team_agent.handle_request(
             query=query,
             date=resolved_date,
-            trainee=resolved_trainee
+            trainee=resolved_trainee,
+            trace_id=kwargs.get("trace_id")
         )
         return res, "team"
 
@@ -239,7 +244,8 @@ def route_request_with_role(
         query=query,
         period_start=kwargs.get("period_start"),
         period_end=kwargs.get("period_end"),
-        trainee=resolved_trainee
+        trainee=resolved_trainee,
+        trace_id=kwargs.get("trace_id")
     )
     return res, "manager"
 

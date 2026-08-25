@@ -20,6 +20,7 @@ Hybrid Ranking:
 
 import os
 import re
+import datetime
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
@@ -140,7 +141,6 @@ class RetrievalClient:
     def _parse_date_obj(self, date_str: str):
         if not date_str:
             return None
-        import datetime
         # Strip punctuation like '?', '.', ','
         date_clean = re.sub(r'[^\w\s]', '', date_str)
         # Only replace ordinal suffixes following a digit (e.g. '21st' -> '21', NOT 'August' -> 'Augus')
@@ -294,9 +294,7 @@ class RetrievalClient:
             ))
 
         # ── Date Sorting (Latest First) ──────────────────────────────────────────
-        # Ensure that if no specific date filter is applied, the most recent
-        # transcript turns (August 2026) are prioritized over older ones (July).
-        import datetime
+        # Sort chunks descending so the newest transcript turns (August 2026) take precedence
         chunks.sort(
             key=lambda x: self._parse_date_obj(x.date) or datetime.date.min,
             reverse=True
