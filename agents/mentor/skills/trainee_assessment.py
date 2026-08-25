@@ -88,7 +88,7 @@ class MentorTraineeAssessmentSkill:
             "3. If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
             "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
             "5. QUOTE QUALITY RULE: When referencing or quoting transcript turns, select clear, technically meaningful statements. Avoid selecting or focusing on conversational stutters, filler words ('uh', 'ah', 'oh', 'ok'), or mic checks.\n"
-            "6. DYNAMIC OVERALL ASSESSMENT: Read the user's Query carefully. If the user asks for a specific structure or depth in their query (e.g. 'pyramid principle breakdown', 'exhaustive', 'short summary'), you MUST adapt the style, depth, length, and layout of the '### **Trainee · Overall assessment**' section to fully satisfy their request. Otherwise, default to a 1-2 sentence verdict.\n"
+            "6. DYNAMIC OVERALL ASSESSMENT: Read the current query inside <current_query> carefully. Adapt the style, depth, length, and layout of the '### **Trainee · Overall assessment**' section ONLY to satisfy the formatting instructions requested in the <current_query> (e.g., 'pyramid principle breakdown', 'exhaustive', 'short summary'). Do NOT carry over style instructions, word counts, or formatting requests from the <conversation_history> block. If the <current_query> does not ask for a specific format or length, you MUST default to a clean, standard 1-2 sentence verdict.\n"
             "7. Present output in clean prose under short headers without markdown tables."
         )
 

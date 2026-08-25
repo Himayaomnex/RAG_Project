@@ -105,7 +105,7 @@ class TeamSessionCatchupSkill:
             "     * Under 'Assignments and actions', separate tasks into distinct named blocks: '- Himaya Perumal:', '- Ganesh Krishna:', '- Dakshinya Nachimuthu:', and '- Team-Wide Action:'.\n"
             "   - NEVER use placeholder names like 'System Owner:'. Always use the actual trainee names (Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu).\n"
             "6. QUOTE QUALITY RULE: When selecting verbatim quotes, choose clear, technically meaningful statements. Avoid selecting conversational stutters, filler words ('uh', 'ah', 'oh', 'ok', 'wait'), or mic tests.\n"
-            "7. DYNAMIC SESSION WHAT HAPPENED: Read the user's Query carefully. If the user asks for a specific structure or depth in their query (e.g. 'exhaustive recap', 'detailed analysis', 'short summary'), you MUST adapt the style, depth, length, and layout of the '### **Session · What happened**' section to fully satisfy their request. Otherwise, default to a 1-2 sentence core objective.\n"
+            "7. DYNAMIC SESSION WHAT HAPPENED: Read the current query inside <current_query> carefully. Adapt the style, depth, length, and layout of the '### **Session · What happened**' section ONLY to satisfy the formatting instructions requested in the <current_query> (e.g., 'exhaustive recap', 'detailed analysis', 'short summary'). Do NOT carry over style instructions, word counts, or formatting requests from the <conversation_history> block. If the <current_query> does not ask for a specific format or length, you MUST default to a clean, standard 1-2 sentence core objective.\n"
             "8. Present output in clean prose under short headers without markdown tables."
         )
 
