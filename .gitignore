@@ -6,3 +6,4 @@ emb_cache
 qdrant_storage/
 logs/
 scratch/
+pipeline.py

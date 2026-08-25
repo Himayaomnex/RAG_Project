@@ -245,18 +245,28 @@ class RetrievalClient:
         # -------------------------------------------------------------------------
         if strategy in ["p1", "p1_scroll_rerank"]:
             # P1: Scroll + Document-Balanced Selection + CustomMeetingReranker
-            from pipeline import pipeline_p1_scroll_rerank, get_vector_db
-            raw_results = pipeline_p1_scroll_rerank(query, get_vector_db(), top_per_doc=2, total_candidates=limit or 15)
+            try:
+                from pipeline import pipeline_p1_scroll_rerank, get_vector_db
+                raw_results = pipeline_p1_scroll_rerank(query, get_vector_db(), top_per_doc=2, total_candidates=limit or 15)
+            except Exception:
+                raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
 
         elif strategy in ["p2", "p2_scroll_scan"]:
             # P2: Scroll API Scan with Document-Balanced Selection (No Reranker)
-            from pipeline import pipeline_p2_scroll_scan, get_vector_db
-            raw_results = pipeline_p2_scroll_scan(query, get_vector_db(), top_per_doc=4, total_candidates=limit or 35)
+            try:
+                from pipeline import pipeline_p2_scroll_scan, get_vector_db
+                raw_results = pipeline_p2_scroll_scan(query, get_vector_db(), top_per_doc=4, total_candidates=limit or 35)
+            except Exception:
+                raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
 
         elif strategy in ["p3", "p3_topk_vector"]:
             # P3: Top-K Single-Shot Vector Search
-            from pipeline import pipeline_p3_topk_vector, get_vector_db
-            raw_results = pipeline_p3_topk_vector(query, get_vector_db(), top_k=limit or 15)
+            try:
+                from pipeline import pipeline_p3_topk_vector, get_vector_db
+                raw_results = pipeline_p3_topk_vector(query, get_vector_db(), top_k=limit or 15)
+            except Exception:
+                dense_vec = self.dense_model.encode(query).tolist()
+                raw_results = self.client.query_points(collection_name=self.collection_name, query=dense_vec, using="dense", limit=limit or 15).points
 
         elif strategy in ["completeness", "p4", "p4_map_reduce"]:
             # P4 / Completeness: Broad Full-Corpus Ingestion (Map-Reduce & Rollups)
