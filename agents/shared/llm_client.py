@@ -94,22 +94,30 @@ class LLMClient:
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
         
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            body = json.loads(resp.read().decode("utf-8"))
-            candidates = body.get("candidates", [])
-            if not candidates:
-                raise ValueError("Gemini returned empty candidates.")
-            finish_reason = candidates[0].get("finishReason", "STOP")
-            if finish_reason not in ["STOP", "MAX_TOKENS", "RECITATION"]:
-                print(f"  - [Gemini Notice] finishReason: {finish_reason}")
-            
-            content_parts = candidates[0].get("content", {}).get("parts", [])
-            text_out = "".join(p.get("text", "") for p in content_parts if isinstance(p, dict))
-            
-            usage = body.get("usageMetadata", {})
-            pt = usage.get("promptTokenCount", len(user_prompt) // 4)
-            ct = usage.get("candidatesTokenCount", len(text_out) // 4)
-            return text_out, pt, ct
+        try:
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                body = json.loads(resp.read().decode("utf-8"))
+                candidates = body.get("candidates", [])
+                if not candidates:
+                    raise ValueError("Gemini returned empty candidates.")
+                finish_reason = candidates[0].get("finishReason", "STOP")
+                if finish_reason not in ["STOP", "MAX_TOKENS", "RECITATION"]:
+                    print(f"  - [Gemini Notice] finishReason: {finish_reason}")
+                
+                content_parts = candidates[0].get("content", {}).get("parts", [])
+                text_out = "".join(p.get("text", "") for p in content_parts if isinstance(p, dict))
+                
+                usage = body.get("usageMetadata", {})
+                pt = usage.get("promptTokenCount", len(user_prompt) // 4)
+                ct = usage.get("candidatesTokenCount", len(text_out) // 4)
+                return text_out, pt, ct
+        except urllib.error.HTTPError as http_err:
+            try:
+                err_detail = http_err.read().decode("utf-8")
+                print(f"  - [Gemini API Error Detail]: {err_detail}")
+            except Exception:
+                pass
+            raise http_err
 
     def _call_groq(
         self,
