@@ -24,7 +24,7 @@ import datetime
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 from qdrant_client import QdrantClient
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer, util
 from .schemas import EvidenceChunk
 
 try:
@@ -248,32 +248,19 @@ class RetrievalClient:
                 date_filter = m.group(1).strip()
 
         # -------------------------------------------------------------------------
-        # THE 4 BENCHMARK EXPERIMENT PIPELINES & AGENT STRATEGIES
+        # THE 4 NATIVE RETRIEVAL PIPELINES (Extracted from benchmark architecture)
         # -------------------------------------------------------------------------
         if strategy in ["p1", "p1_scroll_rerank"]:
             # P1: Scroll + Document-Balanced Selection + CustomMeetingReranker
-            try:
-                from pipeline import pipeline_p1_scroll_rerank, get_vector_db
-                raw_results = pipeline_p1_scroll_rerank(query, get_vector_db(), top_per_doc=2, total_candidates=limit or 15)
-            except Exception:
-                raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+            raw_results = self._pipeline_p1_scroll_rerank(query, top_per_doc=2, total_candidates=limit or 15)
 
         elif strategy in ["p2", "p2_scroll_scan"]:
-            # P2: Scroll API Scan with Document-Balanced Selection (No Reranker)
-            try:
-                from pipeline import pipeline_p2_scroll_scan, get_vector_db
-                raw_results = pipeline_p2_scroll_scan(query, get_vector_db(), top_per_doc=4, total_candidates=limit or 35)
-            except Exception:
-                raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+            # P2: Scroll API Scan with Document-Balanced Selection (No Reranker, K=35)
+            raw_results = self._pipeline_p2_scroll_scan(query, top_per_doc=4, total_candidates=limit or 35)
 
         elif strategy in ["p3", "p3_topk_vector"]:
-            # P3: Top-K Single-Shot Vector Search
-            try:
-                from pipeline import pipeline_p3_topk_vector, get_vector_db
-                raw_results = pipeline_p3_topk_vector(query, get_vector_db(), top_k=limit or 15)
-            except Exception:
-                dense_vec = self.dense_model.encode(query).tolist()
-                raw_results = self.client.query_points(collection_name=self.collection_name, query=dense_vec, using="dense", limit=limit or 15).points
+            # P3: Top-K Single-Shot Vector Search (K=15)
+            raw_results = self._pipeline_p3_topk_vector(query, top_k=limit or 15)
 
         elif strategy in ["completeness", "p4", "p4_map_reduce"]:
             # P4 / Completeness: Broad Full-Corpus Ingestion (Map-Reduce & Rollups)
@@ -284,7 +271,9 @@ class RetrievalClient:
                 )
             except Exception as e:
                 print(f"  - [RetrievalClient P4 Error]: {e}. Falling back to query_points...")
-                dense_vec = self.dense_model.encode(query).tolist()
+                dense_vec = self.dense_model.encode(query)
+                if hasattr(dense_vec, 'tolist'):
+                    dense_vec = dense_vec.tolist()
                 raw_results = self.client.query_points(
                     collection_name=self.collection_name,
                     query=dense_vec,
@@ -293,7 +282,7 @@ class RetrievalClient:
                 ).points
 
         else:
-            # Default Precision: Hybrid Dense ANN + BM25 Lexical Re-ranking (P3 + Hybrid RRF)
+            # Default Precision: Hybrid Dense ANN + BM25 Lexical Re-ranking
             dense_vec = self.dense_model.encode(query)
             if hasattr(dense_vec, 'tolist'):
                 dense_vec = dense_vec.tolist()
@@ -399,6 +388,83 @@ class RetrievalClient:
         rrf_scores.sort(key=lambda x: x[0], reverse=True)
         return [c for _, c in rrf_scores[:limit]]
 
+    # ── NATIVE PIPELINES (P1, P2, P3, P4) ────────────────────────────────────
+
+    def _compute_batched_cosine_scores(self, query: str, chunks: List[Any]) -> List[tuple]:
+        """Computes in-memory cosine similarity between query and candidates."""
+        if not chunks:
+            return []
+        q_emb = self.dense_model.encode(query, convert_to_tensor=True)
+        texts = [(c.payload or {}).get("text", "") for c in chunks]
+        doc_embs = self.dense_model.encode(texts, convert_to_tensor=True)
+        sims = util.cos_sim(q_emb, doc_embs)[0]
+        
+        return [(float(sims[i].item()), c) for i, c in enumerate(chunks)]
+
+    def _pipeline_p1_scroll_rerank(self, query: str, top_per_doc: int = 2, total_candidates: int = 15) -> List[Any]:
+        """
+        P1 — Scroll + Document-Balanced Candidates + Custom Reranker
+        """
+        raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+        scored_pairs = self._compute_batched_cosine_scores(query, raw_results)
+        
+        by_doc = {}
+        for score, p in scored_pairs:
+            doc = (p.payload or {}).get("source_file", "unknown")
+            by_doc.setdefault(doc, []).append((score, p))
+            
+        balanced_candidates = []
+        for doc_file, plist in by_doc.items():
+            plist.sort(key=lambda x: x[0], reverse=True)
+            balanced_candidates.extend(plist[:top_per_doc])
+            
+        balanced_candidates.sort(key=lambda x: x[0], reverse=True)
+        top_candidates = balanced_candidates[:total_candidates]
+        
+        reranker = CustomMeetingReranker()
+        return reranker.rerank(query, top_candidates)
+
+    def _pipeline_p2_scroll_scan(self, query: str, top_per_doc: int = 4, total_candidates: int = 35) -> List[Any]:
+        """
+        P2 — Scroll API Scan with Document-Balanced Selection (No Reranker)
+        """
+        raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+        scored_pairs = self._compute_batched_cosine_scores(query, raw_results)
+        
+        by_doc = {}
+        for score, p in scored_pairs:
+            doc = (p.payload or {}).get("source_file", "unknown")
+            by_doc.setdefault(doc, []).append((score, p))
+            
+        balanced_candidates = []
+        for doc_file, plist in by_doc.items():
+            plist.sort(key=lambda x: x[0], reverse=True)
+            balanced_candidates.extend(plist[:top_per_doc])
+            
+        balanced_candidates.sort(key=lambda x: x[0], reverse=True)
+        return [p for _, p in balanced_candidates[:total_candidates]]
+
+    def _pipeline_p3_topk_vector(self, query: str, top_k: int = 15) -> List[Any]:
+        """
+        P3 — Top-K Single-Shot Vector Search
+        """
+        dense_vec = self.dense_model.encode(query)
+        if hasattr(dense_vec, 'tolist'):
+            dense_vec = dense_vec.tolist()
+        return self.client.query_points(
+            collection_name=self.collection_name,
+            query=dense_vec,
+            using="dense",
+            limit=top_k
+        ).points
+
+    def _pipeline_p4_map_reduce(self, query: str) -> List[Any]:
+        """
+        P4 — Full-Corpus Scroll for Map-Reduce
+        """
+        raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+        return raw_results
+
     def _call_remote_api(self, query: str, speaker_filter: Optional[str], date_filter: Optional[str], limit: int) -> List[EvidenceChunk]:
         import urllib.request
         import json
@@ -411,6 +477,40 @@ class RetrievalClient:
         with urllib.request.urlopen(req, timeout=10) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             return [EvidenceChunk(**item) for item in data.get("chunks", [])]
+
+
+class CustomMeetingReranker:
+    """Heuristic scoring reranker: Speaker match (+0.5), Date match (+0.5), Topic density (+0.05/keyword)."""
+    def rerank(self, query: str, candidates: List[Any]) -> List[Any]:
+        query_lower = query.lower()
+        stop_words = {"what", "is", "the", "difference", "between", "an", "and", "according", "to", "did", "say", "about", "how", "are", "you"}
+        keywords = [w for w in re.findall(r'\b\w+\b', query_lower) if w not in stop_words and len(w) > 3]
+        
+        reranked = []
+        for item in candidates:
+            if isinstance(item, tuple):
+                score, res = item
+            else:
+                score = getattr(item, 'score', 1.0)
+                res = item
+                
+            payload = getattr(res, 'payload', {}) or {}
+            chunk_speaker = payload.get("speaker", "").lower()
+            if any(s in query_lower and s in chunk_speaker for s in ["siddharth", "dakshinya", "himaya", "ganesh"]):
+                score += 0.5
+                
+            chunk_date = payload.get("date", "").lower()
+            if chunk_date and chunk_date != "unknown date" and chunk_date in query_lower:
+                score += 0.5
+                
+            chunk_text = payload.get("text", "").lower()
+            keyword_matches = sum(1 for k in keywords if k in chunk_text)
+            score += (keyword_matches * 0.05)
+            
+            reranked.append((score, res))
+            
+        reranked.sort(key=lambda x: x[0], reverse=True)
+        return [res for _, res in reranked]
 
 
 # Global singleton client
