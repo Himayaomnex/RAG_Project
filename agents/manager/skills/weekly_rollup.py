@@ -114,25 +114,49 @@ class ManagerWeeklyRollupSkill:
         except Exception as e:
             print(f"  - [GitHub MCP Injection Fail]: {e}")
 
+        # Detect if the user has requested a custom output format
+        raw_query_lower = request.query.lower()
+        custom_format_signals = [
+            "pyramid principle", "pyramid", "2000 token", "1000 token", "exhaustive",
+            "detailed breakdown", "long report", "long form", "in depth", "in-depth",
+            "comprehensive", "bullet point", "table format", "brief summary",
+            "short summary", "one liner", "one line", "tldr", "tl;dr"
+        ]
+        has_custom_format = any(sig in raw_query_lower for sig in custom_format_signals)
+
+        if has_custom_format:
+            schema_instruction = (
+                "Generate the Executive State-of-Work Report.\n"
+                "IMPORTANT FORMAT DIRECTIVE: The user has requested a specific output format in their query. "
+                "You MUST honour this format request exactly — adapt the structure, length, depth, and layout "
+                "to match what the user asked for (e.g., Pyramid Principle, exhaustive breakdown, brief summary). "
+                "Ground every claim strictly in the transcript evidence provided. "
+                "Always cite as '[Date, Page — Speaker]'. Do NOT default to the standard section schema."
+            )
+        else:
+            schema_instruction = (
+                "Generate the Executive State-of-Work Report following the exact output schema:\n\n"
+                "### **Executive conclusion**\n"
+                "[Adapt this text dynamically to fulfill any specific styling, structure (e.g., Pyramid Principle), or length instructions in the user's query]\n\n"
+                "### **Completed**\n"
+                "- [Trainee Name] · [Deliverable Title]: [Details]. Quote: \"[One exact supporting quote]\" [Date, Page — Speaker]\n\n"
+                "### **In Progress**\n"
+                "- [Trainee Name] · [Task Title]: [Current engineering state and next step] [Date, Page — Speaker]\n\n"
+                "### **Blocked or At Risk**\n"
+                "- [Trainee Name] · [Impediment]: [Details]. Resolution State: [Agreed/Contested/Pending Decision] [Date, Page — Speaker]\n\n"
+                "### **Important Changes**\n"
+                "- [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]\n\n"
+                "### **Requires Attention**\n"
+                "- [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]"
+            )
+
         user_prompt = (
             f"Review Period: {period_str or 'Full Review Window'}\n"
             f"Target Trainee: {target_trainee or 'All Trainees'}\n"
             f"Query: {request.query}\n\n"
             f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
-            "Generate the Executive State-of-Work Report following the exact output schema:\n\n"
-            "### **Executive conclusion**\n"
-            "[Adapt this text dynamically to fulfill any specific styling, structure (e.g., Pyramid Principle), or length instructions in the user's query]\n\n"
-            "### **Completed**\n"
-            "- [Trainee Name] · [Deliverable Title]: [Details]. Quote: \"[One exact supporting quote]\" [Date, Page — Speaker]\n\n"
-            "### **In Progress**\n"
-            "- [Trainee Name] · [Task Title]: [Current engineering state and next step] [Date, Page — Speaker]\n\n"
-            "### **Blocked or At Risk**\n"
-            "- [Trainee Name] · [Impediment]: [Details]. Resolution State: [Agreed/Contested/Pending Decision] [Date, Page — Speaker]\n\n"
-            "### **Important Changes**\n"
-            "- [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]\n\n"
-            "### **Requires Attention**\n"
-            "- [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]"
+            f"{schema_instruction}"
         )
 
         try:

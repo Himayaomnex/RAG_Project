@@ -69,6 +69,8 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "- agent=manager for everything else: executive project milestones, deliverables, blockers, risks, what tasks are completed/in-progress across the project.\n"
         "- Extract the trainee name from the query if mentioned. If a trainee_hint is provided and no name is in the query, use the hint.\n"
         "- BROAD REPORT RULE: If the query asks for a general rollup, status, blocker report, or refers to 'all trainees', 'entire team', or the training program as a whole, the trainee scope MUST be null (representing the entire cohort), even if the conversation history previously focused on a specific trainee.\n"
+        "- FORMAT RULE: Output format instructions (e.g., 'pyramid principle', '2000 tokens', 'exhaustive', 'detailed breakdown', 'long report') do NOT determine the agent. Focus only on WHAT information is being requested, not HOW it should be formatted.\n"
+        "- PERFORMANCE VS STATUS RULE: If the query asks how trainees/the team/teammates HAVE BEEN PERFORMING, how they are doing technically, their learning progress, or a breakdown of their capabilities — this is ALWAYS agent=mentor, even if framed as 'training breakdown', 'program summary', or 'how the program is going'. agent=manager is ONLY for task/deliverable/blocker status, not human performance evaluation.\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
     )
 

@@ -103,6 +103,40 @@ class MentorTraineeAssessmentSkill:
 
         trainee_display = trainee if trainee else "Teammates"
 
+        # Detect if the user has requested a custom output format
+        # If yes, honour their format instead of enforcing the rigid schema headers
+        raw_query_lower = request.query.lower()
+        custom_format_signals = [
+            "pyramid principle", "pyramid", "2000 token", "1000 token", "exhaustive",
+            "detailed breakdown", "long report", "long form", "in depth", "in-depth",
+            "comprehensive", "bullet point", "table format", "brief summary",
+            "short summary", "one liner", "one line", "tldr", "tl;dr"
+        ]
+        has_custom_format = any(sig in raw_query_lower for sig in custom_format_signals)
+
+        if has_custom_format:
+            schema_instruction = (
+                f"Generate the Mentor Trainee Assessment for: {trainee_display}.\n"
+                "IMPORTANT FORMAT DIRECTIVE: The user has requested a specific output format in their query. "
+                "You MUST honour this format request exactly — adapt the structure, length, depth, and layout "
+                "to match what the user asked for (e.g., Pyramid Principle, exhaustive 2000-token breakdown, "
+                "bullet points, brief summary). Ground every claim strictly in the transcript evidence provided. "
+                "Always cite as '[Date, Page — Speaker]'. Do NOT default to the standard assessment schema."
+            )
+        else:
+            schema_instruction = (
+                "Generate the Mentor Trainee Assessment following the exact output schema:\n"
+                f"### **{trainee_display} · Overall assessment**\n"
+                "### **Current work**\n"
+                "### **Demonstrated capabilities**\n"
+                "### **Learning progress**\n"
+                "### **Knowledge gaps**\n"
+                "### **Recurring misconceptions**\n"
+                "### **Feedback signals**\n"
+                "### **Change from previous period**\n"
+                "### **Evidence-backed conclusion**"
+            )
+
         user_prompt = (
             f"Target Trainee: {trainee or 'All Teammates'}\n"
             f"Period: {request.period or 'All Sessions'}\n"
@@ -110,16 +144,7 @@ class MentorTraineeAssessmentSkill:
             f"Query: {request.query}\n\n"
             f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
-            "Generate the Mentor Trainee Assessment following the exact output schema:\n"
-            f"### **{trainee_display} · Overall assessment**\n"
-            "### **Current work**\n"
-            "### **Demonstrated capabilities**\n"
-            "### **Learning progress**\n"
-            "### **Knowledge gaps**\n"
-            "### **Recurring misconceptions**\n"
-            "### **Feedback signals**\n"
-            "### **Change from previous period**\n"
-            "### **Evidence-backed conclusion**"
+            f"{schema_instruction}"
         )
 
         try:
