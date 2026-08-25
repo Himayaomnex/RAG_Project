@@ -497,7 +497,12 @@ class CustomMeetingReranker:
                 
             payload = getattr(res, 'payload', {}) or {}
             chunk_speaker = payload.get("speaker", "").lower()
-            if any(s in query_lower and s in chunk_speaker for s in ["siddharth", "dakshinya", "himaya", "ganesh"]):
+            try:
+                from router import _TRAINEE_ROLE_MAP, _PINNED_MENTOR_ROLES
+                known_speakers = [k.lower() for k in _TRAINEE_ROLE_MAP.keys()] + list(_PINNED_MENTOR_ROLES)
+            except Exception:
+                known_speakers = ["siddharth"]
+            if any(s in query_lower and s in chunk_speaker for s in known_speakers):
                 score += 0.5
                 
             chunk_date = payload.get("date", "").lower()
