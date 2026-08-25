@@ -239,8 +239,8 @@ _graph = _build_graph()
 # ── Public API ────────────────────────────────────────────────────────────────
 
 # ── Semantic Graph Cache Store ────────────────────────────────────────────────
-# Stores tuples of (normalized_query_emb, trainee_scope, final_state_dict)
-_GRAPH_CACHE: List[Tuple[Any, Optional[str], Dict[str, Any]]] = []
+# Stores tuples of (normalized_query_emb, trainee_scope, final_state_dict, raw_query)
+_GRAPH_CACHE: List[Tuple[Any, Optional[str], Dict[str, Any], str]] = []
 _GRAPH_DENSE_MODEL = None
 
 def get_graph_dense_model():
@@ -271,9 +271,21 @@ def run_graph(
         q_emb = model.encode(query)
         q_emb_norm = q_emb / np.linalg.norm(q_emb) if np.linalg.norm(q_emb) > 0 else q_emb
 
-        for cached_emb, cached_trainee, cached_state in _GRAPH_CACHE:
+        for cached_emb, cached_trainee, cached_state, cached_query in _GRAPH_CACHE:
             # Match trainee scope (e.g. if we specifically scoped one trainee, must match)
             if cached_trainee == trainee:
+                # SAFEGUARD: If the query mentions one trainee name, but the cached query mentions another, skip hit
+                q_low = query.lower()
+                cq_low = cached_query.lower()
+                trainee_names = ["himaya", "ganesh", "dakshinya"]
+                name_mismatch = False
+                for name in trainee_names:
+                    if (name in q_low) != (name in cq_low):
+                        name_mismatch = True
+                        break
+                if name_mismatch:
+                    continue
+
                 sim = np.dot(q_emb_norm, cached_emb)
                 if sim > 0.85:  # 85% semantic similarity threshold (catches paraphrases)
                     print(f"  - [Semantic Graph Cache Hit]: similarity={sim:.3f} | Bypassing Graph Invoke!")
@@ -320,7 +332,7 @@ def run_graph(
 
     # ── 2. Cache the Result ──────────────────────────────────────────────────
     try:
-        _GRAPH_CACHE.append((q_emb_norm, trainee, result_dict))
+        _GRAPH_CACHE.append((q_emb_norm, trainee, result_dict, query))
     except Exception as cache_err:
         pass
 
