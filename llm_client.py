@@ -79,7 +79,7 @@ def _detect_table_key(user_query: str, agent_type: str = "") -> str:
             return "manager_milestones"
         if any(w in q for w in ["decision","executive","resource","allocat","recommend"]):
             return "manager_decisions"
-        if any(w in q for w in ["accomplish","task","status","progress","done","complete","deliverable","himaya","ganesh","dakshinya","finish","built","implemented","created","what did","update"]):
+        if any(w in q for w in ["accomplish","task","status","progress","done","complete","deliverable","finish","built","implemented","created","what did","update","what has"]):
             return "manager_accomplishments"
     elif "mentor" in a or "siddharth" in a:
         if any(w in q for w in ["methodolog", "problem-solving", "problem solving", "approach", "technique", "strategy"]):
@@ -353,7 +353,7 @@ def generate_llm_response(
             "== STRICT OUTPUT RULE ==\n"
             "Format your ENTIRE answer as a standard Markdown Pipe Table using this header:\n"
             f"{table_header}\n"
-            "Populate rows based on transcript evidence for Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu.\n"
+            "Populate rows based on transcript evidence for every trainee mentioned in the transcripts.\n"
             "Do NOT output thinking steps, reasoning preambles, or conversational commentary. Output the Markdown table."
         )
         messages = [
@@ -395,7 +395,7 @@ def generate_llm_response(
                 user_instruction += (
                     f"\n\n== STRICT OUTPUT RULE ==\n"
                     f"Format your output strictly as a single Markdown Pipe Table using this exact header:\n{table_header}\n"
-                    f"MANDATORY REQUIREMENT: Complete the table fully without truncating. Include verified rows spanning multiple distinct meeting dates across the entire timeline for EVERY team member: Himaya Perumal, Ganesh Krishna, and Dakshinya Nachimuthu (covering early July baseline, mid July implementations, late July caching/MCP, and August wrap-ups). Adhere to the 70/30 rule: provide rich, intelligent technical descriptions (70%) and clean, concise citations (30%) like '[Date, Page — Speaker]'. Never stop mid-row or mid-sentence."
+                    f"MANDATORY REQUIREMENT: Complete the table fully without truncating. Include verified rows spanning multiple distinct meeting dates across the entire timeline for EVERY team member mentioned in the transcripts. Adhere to the 70/30 rule: provide rich, intelligent technical descriptions (70%) and clean, concise citations (30%) like '[Date, Page — Speaker]'. Never stop mid-row or mid-sentence."
                 )
             
             gemini_payload = {
