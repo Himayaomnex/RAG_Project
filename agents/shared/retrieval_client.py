@@ -89,10 +89,17 @@ class RetrievalClient:
             return "completeness"
 
         # Broad status / rollup queries → completeness
-        if any(k in q for k in [
+        broad_rollup_signals = [
             "weekly", "rollup", "this week", "past week", "overall", "all trainees",
-            "entire team", "summary of", "give me a summary", "executive"
-        ]):
+            "entire team", "summary of", "give me a summary", "executive",
+            "status report", "project update", "project status", "team status",
+            "full breakdown", "full report", "complete report", "complete summary",
+            "how is the team", "how are the trainees", "how is everyone",
+            "what is the state", "what is the status", "what is the overall",
+            "progress report", "all sessions", "entire cohort", "the whole team",
+            "across the team", "for the team", "for all", "for everyone",
+        ]
+        if any(k in q for k in broad_rollup_signals):
             return "completeness"
 
         # Speaker-scoped concept query → precision (ANN + BM25 hybrid)

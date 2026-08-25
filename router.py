@@ -104,36 +104,23 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
 
 def _rule_fallback(query: str, trainee_hint: Optional[str] = None) -> dict:
     """
-    Minimal rule-based fallback used ONLY when the LLM classifier fails.
-    Kept intentionally simple — not the primary routing path.
+    Minimal rule-based fallback used ONLY when the LLM classifier fails entirely.
+    Kept intentionally minimal — not the primary routing path.
+    Defaults to manager (safest), only overrides for the most unambiguous signals.
     """
     q = query.lower()
 
-    # Mentor signals
-    mentor_signals = [
-        "assess", "assessment", "knowledge gap", "misconception", "quiz",
-        "evaluate", "strength", "weakness", "feedback", "score",
-        "learn", "taught", "demonstrate", "cognitive", "how is ",
-        "how did ", "doing", "gap", "progress", "understanding", "performance"
-    ]
-    if any(k in q for k in mentor_signals):
-        agent = "mentor"
+    # Extract trainee name dynamically from the query
+    trainee = trainee_hint
+    for key, canonical in _TRAINEE_ROLE_MAP.items():
+        if key in q:
+            trainee = canonical
+            break
 
-    # Team catch-up signals  (check AFTER mentor to avoid 'what did' ambiguity)
-    elif any(k in q for k in [
-        "i missed", "i was absent", "i wasn't", "i was not", "catch up", "catchup",
-        "what happened in", "session recap", "absent", "on leave",
-        "what did i miss", "what should i do now", "i missed the"
-    ]) or re.search(r"\bmiss\b", q):
-        agent = "team"
-
-    # Default → Manager
-    else:
-        agent = "manager"
-
-    # Extract date for team catch-up
-    date = None
-    if agent == "team":
+    # Only the most unambiguous catch-up phrase triggers team agent
+    if "i missed" in q or re.search(r"\bi was absent\b", q) or re.search(r"\bcatch.?up\b", q):
+        # Extract date for team catch-up
+        date = None
         months = (
             "January|February|March|April|May|June|July|August|"
             "September|October|November|December"
@@ -144,15 +131,10 @@ def _rule_fallback(query: str, trainee_hint: Optional[str] = None) -> dict:
         )
         if m:
             date = m.group(1).strip()
+        return {"agent": "team", "trainee": trainee, "date": date, "period": None, "focus_area": None}
 
-    # Extract trainee
-    trainee = trainee_hint
-    for name in ("Himaya", "Ganesh", "Dakshinya"):
-        if name.lower() in q:
-            trainee = name
-            break
-
-    return {"agent": agent, "trainee": trainee, "date": date, "period": None, "focus_area": None}
+    # Default → manager (safe fallback for all other queries)
+    return {"agent": "manager", "trainee": trainee, "date": None, "period": None, "focus_area": None}
 
 
 # ── Public API ─────────────────────────────────────────────────────────────────
