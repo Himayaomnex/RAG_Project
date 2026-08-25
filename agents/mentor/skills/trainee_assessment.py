@@ -79,10 +79,34 @@ class MentorTraineeAssessmentSkill:
             with open(spec_path, "r", encoding="utf-8") as f:
                 skill_spec = f.read()
 
+        # Detect if the user has requested a custom output format BEFORE building system_prompt
+        # If yes, suppress the skill spec's rigid 8-section Output Schema to prevent it
+        # from overriding the user's format request (e.g. Pyramid Principle)
+        raw_query_lower = request.query.lower()
+        custom_format_signals = [
+            "pyramid principle", "pyramid", "2000 token", "1000 token", "exhaustive",
+            "detailed breakdown", "long report", "long form", "in depth", "in-depth",
+            "comprehensive", "bullet point", "table format", "brief summary",
+            "short summary", "one liner", "one line", "tldr", "tl;dr"
+        ]
+        has_custom_format = any(sig in raw_query_lower for sig in custom_format_signals)
+
+        if has_custom_format:
+            # Only inject the evidence requirements — suppress the output schema entirely
+            spec_context = (
+                "=== EVIDENCE GROUNDING RULES ===\n"
+                "- Taught ≠ Understood: Only claim demonstrated capability when the mentee explained or built it.\n"
+                "- Apply the cognitive ladder: Taught → Attempted → Demonstrated → Correct.\n"
+                "- If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
+                "- Ground every statement in transcript evidence. No invented facts.\n"
+            )
+        else:
+            spec_context = f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n"
+
         system_prompt = (
             "You are the Lead Technical Mentor & AI Architect.\n"
             "Your task is to answer the user's query accurately using evidence from the transcripts.\n\n"
-            f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
+            f"{spec_context}\n"
             "CRITICAL COGNITIVE & CITATION RULES:\n"
             "0. QUERY ALIGNMENT RULE (HIGHEST PRIORITY): Read the exact query carefully. Your answer MUST directly and specifically answer what was asked. Match the answer scope to the question scope:\n"
             "   - If the query asks a SPECIFIC question (e.g., 'what are Ganesh's knowledge gaps in Qdrant?', 'did Dakshinya demonstrate understanding of BM25?', 'what did Himaya build this week?'), give a FOCUSED direct answer that addresses exactly that — do NOT produce a full assessment schema with all 8 sections.\n"
