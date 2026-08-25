@@ -16,7 +16,11 @@ import glob
 import re
 from pathlib import Path
 import docx
-from pipeline import SemanticTranscriptParser, get_vector_db
+try:
+    from pipeline import SemanticTranscriptParser, get_vector_db
+except Exception:
+    SemanticTranscriptParser = None
+    get_vector_db = None
 
 DOWNLOADS_DIR = str(Path.home() / "Downloads")
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
