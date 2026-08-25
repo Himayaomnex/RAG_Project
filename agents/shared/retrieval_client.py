@@ -56,14 +56,24 @@ class RetrievalClient:
         self.qdrant_api_key = os.getenv("QDRANT_API_KEY")
         self.collection_name = os.getenv("QDRANT_COLLECTION_NAME", "teams_dense_collection")
         
+        storage_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "qdrant_storage")
+        os.makedirs(storage_path, exist_ok=True)
+        
+        connected = False
         if self.qdrant_url:
-            self.client = QdrantClient(url=self.qdrant_url, api_key=self.qdrant_api_key)
-        else:
-            self.client = QdrantClient(location=":memory:")
+            try:
+                self.client = QdrantClient(url=self.qdrant_url, api_key=self.qdrant_api_key, timeout=3)
+                self.client.get_collections()
+                connected = True
+            except Exception:
+                connected = False
+                
+        if not connected:
+            self.client = QdrantClient(path=storage_path)
             
         self.dense_model = get_shared_dense_model()
 
-    # ── Strategy auto-selection ────────────────────────────────────────────────
+    # ── Strategy auto-selection (P1, P2, P3, P4) ──────────────────────────────
 
     def _auto_select_strategy(
         self,
@@ -74,21 +84,18 @@ class RetrievalClient:
         speaker_filter: Optional[str],
     ) -> str:
         """
-        Dynamically selects retrieval strategy based on the slots present.
-
-        Rules (in priority order):
-          1. Date or period present  → completeness (need all turns in window)
-          2. Speaker/trainee present → precision    (semantic zoom on person)
-          3. Query looks like broad status report → completeness
-          4. Default                → precision    (semantic ANN + BM25)
+        Dynamically routes queries to the teammate's 4 exact pipelines:
+          • P2 (pipeline_p2_scroll_scan)   — Date/period windows or broad rollup queries (35 chunks, multi-doc balanced)
+          • P1 (pipeline_p1_scroll_rerank) — Focused technical, trainee evaluation, or concept queries (top 15 + CustomMeetingReranker)
+          • P3 (pipeline_p3_topk_vector)   — Single-shot fast vector search (fixed K=15)
+          • P4 (pipeline_p4_map_reduce)    — Full-corpus grouped by document
         """
         q = query.lower()
 
-        # Explicit date/period window → completeness for 100% coverage
+        # Explicit date/period window or broad rollups -> P2 Document-Balanced Scroll Scan
         if date_filter or period_start or period_end:
-            return "completeness"
+            return "p2"
 
-        # Broad status / rollup queries → completeness
         broad_rollup_signals = [
             "weekly", "rollup", "this week", "past week", "overall", "all trainees",
             "entire team", "summary of", "give me a summary", "executive",
@@ -100,10 +107,10 @@ class RetrievalClient:
             "across the team", "for the team", "for all", "for everyone",
         ]
         if any(k in q for k in broad_rollup_signals):
-            return "completeness"
+            return "p2"
 
-        # Speaker-scoped concept query → precision (ANN + BM25 hybrid)
-        return "precision"
+        # Focused / Concept / Assessment queries -> P1 Scroll + Custom Reranker
+        return "p1"
 
     # ── Public query_evidence ─────────────────────────────────────────────────
 

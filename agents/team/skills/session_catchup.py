@@ -56,8 +56,8 @@ class TeamSessionCatchupSkill:
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             date_filter=date_val,
-            limit=40,
-            strategy="completeness"
+            limit=35,
+            strategy="p2"
         )
 
         chunk_ids = [c.chunk_id for c in chunks]

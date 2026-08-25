@@ -47,8 +47,8 @@ class MentorTraineeAssessmentSkill:
             query=f"{trainee or 'trainee'} technical implementation code review {request.focus_area or ''}",
             speaker_filter=speaker_filter,
             date_filter=request.period or None,
-            limit=40,
-            strategy="precision"
+            limit=15,
+            strategy="p1"
         )
 
         chunk_ids = [c.chunk_id for c in chunks]
