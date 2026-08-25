@@ -3,110 +3,259 @@
 Central Agent Router (router.py)
 ================================================================================
 Dispatches user requests to the 3 Production Agents:
-- Manager Agent (Iyappan) -> manager_weekly_rollup
-- Mentor Agent (Siddharth) -> mentor_trainee_assessment
-- Team Intelligence Agent (Trainees) -> team_session_catchup
+- Manager Agent (Iyappan) → manager_weekly_rollup
+- Mentor Agent (Siddharth) → mentor_trainee_assessment
+- Team Intelligence Agent → team_session_catchup
+
+Router uses LLM-based semantic intent classification.
+Hardcoded keyword lists are REMOVED.
+Trainee identity (himaya/ganesh/dakshinya) scopes the entity — it does NOT force
+a specific agent. Intent is always derived from the query semantics.
 """
 
+import json
 import re
-from typing import Dict, Any, Tuple, Optional
+from typing import Tuple, Optional
 from agents.manager.agent import manager_agent
 from agents.mentor.agent import mentor_agent
 from agents.team.agent import team_agent
+from agents.shared.llm_client import llm_client
 
 
-def detect_agent_intent(query: str) -> str:
+# ── Trainee identity map ───────────────────────────────────────────────────────
+# Maps user_role header values → canonical trainee names used by agents
+_TRAINEE_ROLE_MAP = {
+    "himaya":    "Himaya",
+    "ganesh":    "Ganesh",
+    "dakshinya": "Dakshinya",
+}
+
+# Roles that explicitly pin a specific agent (bypass intent classification)
+_PINNED_MANAGER_ROLES  = {"manager", "iyappan"}
+_PINNED_MENTOR_ROLES   = {"mentor", "siddharth"}
+_PINNED_TEAM_ROLES     = {"team", "teammate"}
+
+
+def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
     """
-    Classifies intent into one of the three agent roles: 'manager', 'mentor', 'team'.
+    LLM-based semantic intent classifier.
+
+    Returns a dict:
+    {
+        "agent":   "manager" | "mentor" | "team",
+        "trainee": str | null,   # canonical name extracted from query or hint
+        "date":    str | null,   # session date if catch-up query
+        "period":  str | null    # reporting period if rollup query
+    }
+
+    Falls back to rule-based heuristic if LLM call fails.
     """
-    q_low = query.lower()
+    system_prompt = (
+        "You are a routing classifier for a multi-agent training RAG system.\n"
+        "There are exactly three agents:\n"
+        "  • manager  — Executive status, deliverables, blockers, decisions, weekly rollup\n"
+        "  • mentor   — Trainee evaluation, knowledge gaps, misconceptions, progress, assessment, quiz\n"
+        "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
+        "Given a user query, output a JSON object with exactly these keys:\n"
+        "  agent:   one of 'manager', 'mentor', 'team'\n"
+        "  trainee: canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
+        "  date:    session date string if agent=team (e.g. 'July 31') or null\n"
+        "  period:  date range string if agent=manager (e.g. 'July 21 to July 28') or null\n\n"
+        "RULES:\n"
+        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, misconceptions, knowledge gaps, strengths, or feedback given by the mentor.\n"
+        "- agent=team    when query is about catching up on a missed session, what happened in a session, what assignments were given, what decisions were made in a specific session.\n"
+        "- agent=manager for everything else: status reports, deliverables, blockers, overall progress, what was completed, what is at risk.\n"
+        "- Extract the trainee name from the query if mentioned. If a trainee_hint is provided and no name is in the query, use the hint.\n"
+        "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
+    )
 
-    # Mentor intent keywords
-    mentor_keywords = [
-        "assess", "assessment", "score", "quiz", "misconception", "learning gap",
-        "taught", "pedagogical", "cognitive", "bloom", "feedback", "trainee", "mentee",
-        "how did ganesh perform", "how did himaya perform", "how did dakshinya perform",
-        "evaluate", "progress of", "strengths"
-    ]
-    if any(k in q_low for k in mentor_keywords):
-        return "mentor"
+    hint_clause = f"\nTrainee hint (authenticated user): {trainee_hint}" if trainee_hint else ""
+    user_prompt = f"Query: {query}{hint_clause}"
 
-    # Team catch-up intent keywords
-    team_keywords = [
-        "missed", "catchup", "catch up", "what did i miss", "session recap", "today's session",
-        "assignment given", "what should i do", "what do i need to do", "peer", "codebase", "miss in",
-        "absent", "on leave", "leave", "not present", "what happened", "missed session", "training session"
-    ]
-    if any(k in q_low for k in team_keywords) and not any(k in q_low for k in ["status for this week", "weekly rollup", "executive review"]):
-        return "team"
-
-    # Default to Manager Agent (Status, deliverables, rollup, executive review)
-    return "manager"
-
-
-def route_request(query: str, **kwargs) -> Tuple[str, str]:
-    """
-    Routes query to the appropriate agent based on detected intent.
-    Returns: (agent_role, response_text)
-    """
-    agent_role = detect_agent_intent(query)
-    
-    if agent_role == "mentor":
-        res = mentor_agent.handle_request(
-            query=query,
-            trainee=kwargs.get("target_member") or kwargs.get("trainee"),
-            period=kwargs.get("period"),
-            focus_area=kwargs.get("focus_area")
+    try:
+        raw, _, _, _ = llm_client.generate(
+            system_instruction=system_prompt,
+            user_prompt=user_prompt,
+            temperature=0.0,
+            max_tokens=128,
+            json_mode=True
         )
-        return "mentor", res
-    elif agent_role == "team":
-        res = team_agent.handle_request(
-            query=query,
-            date=kwargs.get("date"),
-            trainee=kwargs.get("target_member") or kwargs.get("trainee")
-        )
-        return "team", res
+        # Strip markdown fences if any
+        raw = re.sub(r"```(?:json)?", "", raw).strip().strip("`").strip()
+        result = json.loads(raw)
+        # Validate and normalise
+        agent = result.get("agent", "manager").lower()
+        if agent not in ("manager", "mentor", "team"):
+            agent = "manager"
+        return {
+            "agent":   agent,
+            "trainee": result.get("trainee") or trainee_hint or None,
+            "date":    result.get("date") or None,
+            "period":  result.get("period") or None,
+        }
+    except Exception as e:
+        print(f"  - [Router] LLM classifier failed ({e}). Using rule-based fallback.")
+        return _rule_fallback(query, trainee_hint)
+
+
+def _rule_fallback(query: str, trainee_hint: Optional[str] = None) -> dict:
+    """
+    Minimal rule-based fallback used ONLY when the LLM classifier fails.
+    Kept intentionally simple — not the primary routing path.
+    """
+    q = query.lower()
+
+    # Mentor signals
+    mentor_signals = [
+        "assess", "assessment", "knowledge gap", "misconception", "quiz",
+        "evaluate", "strength", "weakness", "feedback", "score",
+        "learn", "taught", "demonstrate", "cognitive", "how is ",
+        "how did ", "doing", "gap", "progress", "understanding", "performance"
+    ]
+    if any(k in q for k in mentor_signals):
+        agent = "mentor"
+
+    # Team catch-up signals  (check AFTER mentor to avoid 'what did' ambiguity)
+    elif any(k in q for k in [
+        "i missed", "i was absent", "i wasn't", "i was not", "catch up", "catchup",
+        "what happened in", "session recap", "absent", "on leave",
+        "what did i miss", "what should i do now", "i missed the"
+    ]) or re.search(r"\bmiss\b", q):
+        agent = "team"
+
+    # Default → Manager
     else:
+        agent = "manager"
+
+    # Extract date for team catch-up
+    date = None
+    if agent == "team":
+        months = (
+            "January|February|March|April|May|June|July|August|"
+            "September|October|November|December"
+        )
+        m = re.search(
+            rf"(\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{months})|(?:{months})\s+\d{{1,2}}(?:st|nd|rd|th)?)",
+            query, re.IGNORECASE
+        )
+        if m:
+            date = m.group(1).strip()
+
+    # Extract trainee
+    trainee = trainee_hint
+    for name in ("Himaya", "Ganesh", "Dakshinya"):
+        if name.lower() in q:
+            trainee = name
+            break
+
+    return {"agent": agent, "trainee": trainee, "date": date, "period": None}
+
+
+# ── Public API ─────────────────────────────────────────────────────────────────
+
+def route_request_with_role(
+    query: str,
+    user_role: Optional[str] = None,
+    forced_role: Optional[str] = None,
+    **kwargs
+) -> Tuple[str, str]:
+    """
+    Primary routing entry point called by api_server.py and cli.py.
+
+    Returns: (response_text, dispatched_agent_role)
+
+    Logic:
+    1. If forced_role or user_role pins an agent role → dispatch directly.
+    2. If user_role is a trainee identity (himaya/ganesh/dakshinya) →
+       extract trainee name as a hint but still run intent classification
+       on the query — do NOT force Team agent.
+    3. Otherwise run full LLM intent classification.
+    """
+    raw_role = (forced_role or user_role or "auto").lower()
+
+    # Extract target_member from kwargs (from request body)
+    target_member = kwargs.get("target_member") or kwargs.get("trainee") or ""
+
+    # ── Step 1: Pinned agent roles ─────────────────────────────────────────────
+    if raw_role in _PINNED_MANAGER_ROLES:
         res = manager_agent.handle_request(
             query=query,
             period_start=kwargs.get("period_start"),
             period_end=kwargs.get("period_end"),
-            trainee=kwargs.get("target_member") or kwargs.get("trainee")
+            trainee=target_member or None
         )
-        return "manager", res
+        return res, "manager"
 
-
-def route_request_with_role(query: str, user_role: Optional[str] = None, forced_role: Optional[str] = None, **kwargs) -> Tuple[str, str]:
-    """
-    Routes with explicit role override if provided.
-    Returns: (response_text, dispatched_role)
-    """
-    raw_role = (forced_role or user_role or "auto").lower()
-
-    if raw_role in ["mentor", "siddharth"]:
+    if raw_role in _PINNED_MENTOR_ROLES:
         res = mentor_agent.handle_request(
             query=query,
-            trainee=kwargs.get("target_member") or kwargs.get("trainee"),
+            trainee=target_member or None,
             period=kwargs.get("period"),
             focus_area=kwargs.get("focus_area")
         )
         return res, "mentor"
-    elif raw_role in ["team", "teammate", "himaya", "ganesh", "dakshinya"]:
+
+    if raw_role in _PINNED_TEAM_ROLES:
         res = team_agent.handle_request(
             query=query,
             date=kwargs.get("date"),
-            trainee=kwargs.get("target_member") or kwargs.get("trainee")
+            trainee=target_member or None
         )
         return res, "team"
-    elif raw_role in ["manager", "iyappan"]:
-        res = manager_agent.handle_request(
-            query=query,
-            period_start=kwargs.get("period_start"),
-            period_end=kwargs.get("period_end"),
-            trainee=kwargs.get("target_member") or kwargs.get("trainee")
-        )
-        return res, "manager"
 
-    # Default / Auto-detect intent
-    role, res = route_request(query, **kwargs)
-    return res, role
+    # ── Step 2: Trainee identity — scope entity, classify intent from query ────
+    trainee_hint = _TRAINEE_ROLE_MAP.get(raw_role)  # "himaya" → "Himaya" or None
+    # If target_member was explicitly passed in the request body, prefer that
+    effective_trainee = target_member or trainee_hint or None
+
+    # ── Step 3: LLM-based intent classification ────────────────────────────────
+    intent = classify_intent(query, trainee_hint=effective_trainee)
+    agent  = intent["agent"]
+    # Entity slots from classifier override only if not already set by caller
+    resolved_trainee = effective_trainee or intent.get("trainee")
+    resolved_date    = kwargs.get("date")    or intent.get("date")
+    resolved_period  = kwargs.get("period")  or intent.get("period")
+
+    if agent == "mentor":
+        res = mentor_agent.handle_request(
+            query=query,
+            trainee=resolved_trainee,
+            period=resolved_period,
+            focus_area=kwargs.get("focus_area")
+        )
+        return res, "mentor"
+
+    if agent == "team":
+        res = team_agent.handle_request(
+            query=query,
+            date=resolved_date,
+            trainee=resolved_trainee
+        )
+        return res, "team"
+
+    # Default → manager
+    res = manager_agent.handle_request(
+        query=query,
+        period_start=kwargs.get("period_start"),
+        period_end=kwargs.get("period_end"),
+        trainee=resolved_trainee
+    )
+    return res, "manager"
+
+
+def route_request(query: str, **kwargs) -> Tuple[str, str]:
+    """
+    Convenience wrapper for callers that don't pass a role.
+    Returns: (agent_role, response_text)
+    """
+    res, role = route_request_with_role(query, user_role="auto", **kwargs)
+    return role, res
+
+
+def detect_agent_intent(query: str) -> str:
+    """
+    Legacy compatibility shim.
+    Returns agent role string for callers that only need the classification
+    without dispatching (e.g. script.js detectIntentRole equivalent).
+    """
+    return classify_intent(query).get("agent", "manager")
