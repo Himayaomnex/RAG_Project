@@ -92,10 +92,7 @@ class RetrievalClient:
         """
         q = query.lower()
 
-        # Explicit date/period window or broad rollups -> P2 Document-Balanced Scroll Scan
-        if date_filter or period_start or period_end:
-            return "p2"
-
+        # Broad status / rollup / cohort-wide executive queries -> P4 Full-Corpus Scan
         broad_rollup_signals = [
             "weekly", "rollup", "this week", "past week", "overall", "all trainees",
             "entire team", "summary of", "give me a summary", "executive",
@@ -107,9 +104,13 @@ class RetrievalClient:
             "across the team", "for the team", "for all", "for everyone",
         ]
         if any(k in q for k in broad_rollup_signals):
+            return "p4"
+
+        # Explicit date/period window -> P2 Document-Balanced Scroll Scan
+        if date_filter or period_start or period_end:
             return "p2"
 
-        # Focused / Concept / Assessment queries -> P1 Scroll + Custom Reranker
+        # Focused / Concept / Mentor assessment queries -> P1 Scroll + Custom Reranker
         return "p1"
 
     # ── Public query_evidence ─────────────────────────────────────────────────

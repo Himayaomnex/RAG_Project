@@ -47,8 +47,8 @@ class ManagerWeeklyRollupSkill:
             speaker_filter=target_trainee,
             period_start=request.period_start,
             period_end=request.period_end,
-            limit=35,
-            strategy="p2"
+            limit=100,
+            strategy="p4"
         )
         
         chunk_ids = [c.chunk_id for c in chunks]
