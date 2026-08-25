@@ -168,6 +168,20 @@ class RetrievalClient:
                         pass
         return None
 
+    def _resolve_month_range(self, date_str: Optional[str]) -> Optional[tuple]:
+        if not date_str:
+            return None
+        months = {
+            "january": (1, 31), "february": (2, 28), "march": (3, 31), "april": (4, 30),
+            "may": (5, 31), "june": (6, 30), "july": (7, 31), "august": (8, 31),
+            "september": (9, 30), "october": (10, 31), "november": (11, 30), "december": (12, 31)
+        }
+        cleaned = re.sub(r'[^\w\s]', '', date_str).lower().strip()
+        if cleaned in months:
+            m_idx, max_days = months[cleaned]
+            return datetime.date(2026, m_idx, 1), datetime.date(2026, m_idx, max_days)
+        return None
+
     def _query_qdrant_internal(
         self,
         query: str,
@@ -188,25 +202,31 @@ class RetrievalClient:
             elif "dakshinya" in q_low and "ganesh" not in q_low and "himaya" not in q_low:
                 speaker_filter = "Dakshinya"
 
-        # Check for date range in query like "between July 27 and August 4" or "from July 27 to August 4"
-        range_match = re.search(r'(?:between|from)\s+([a-zA-Z0-9\s]+?)\s+(?:and|to)\s+([a-zA-Z0-9\s\?]+)', query, re.IGNORECASE)
-        if range_match and not period_start and not period_end:
-            p_s = self._parse_date_obj(range_match.group(1))
-            p_e = self._parse_date_obj(range_match.group(2))
-            if p_s and p_e:
-                period_start_obj = min(p_s, p_e)
-                period_end_obj = max(p_s, p_e)
+        # Resolve month ranges (e.g. "July" -> July 1 to July 31)
+        month_range = self._resolve_month_range(period_start or date_filter)
+        if month_range and not period_end:
+            period_start_obj, period_end_obj = month_range
+            date_filter = None  # Handled by range filter
+        else:
+            # Check for date range in query like "between July 27 and August 4" or "from July 27 to August 4"
+            range_match = re.search(r'(?:between|from)\s+([a-zA-Z0-9\s]+?)\s+(?:and|to)\s+([a-zA-Z0-9\s\?]+)', query, re.IGNORECASE)
+            if range_match and not period_start and not period_end:
+                p_s = self._parse_date_obj(range_match.group(1))
+                p_e = self._parse_date_obj(range_match.group(2))
+                if p_s and p_e:
+                    period_start_obj = min(p_s, p_e)
+                    period_end_obj = max(p_s, p_e)
+                else:
+                    period_start_obj = self._parse_date_obj(period_start)
+                    period_end_obj = self._parse_date_obj(period_end)
             else:
                 period_start_obj = self._parse_date_obj(period_start)
                 period_end_obj = self._parse_date_obj(period_end)
-        else:
-            period_start_obj = self._parse_date_obj(period_start)
-            period_end_obj = self._parse_date_obj(period_end)
 
         # Auto-detect single date filter only if no period range was detected
         if not date_filter and not period_start_obj and not period_end_obj:
-            months = "January|February|March|April|May|June|July|August|September|October|November|December"
-            m = re.search(rf'(\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{months})(?:\s+\d{{2,4}})?|(?:{months})\s+\d{{1,2}}(?:st|nd|rd|th)?(?:\s*,?\s*\d{{2,4}})?)', query, re.IGNORECASE)
+            months_pattern = "January|February|March|April|May|June|July|August|September|October|November|December"
+            m = re.search(rf'(\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{months_pattern})(?:\s+\d{{2,4}})?|(?:{months_pattern})\s+\d{{1,2}}(?:st|nd|rd|th)?(?:\s*,?\s*\d{{2,4}})?)', query, re.IGNORECASE)
             if m:
                 date_filter = m.group(1).strip()
 

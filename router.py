@@ -61,7 +61,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  agent:      one of 'manager', 'mentor', 'team'\n"
         "  trainee:    canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
         "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
-        "  period:     date range string if agent=manager (e.g. 'July 21 to July 28') or null\n"
+        "  period:     date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null\n"
         "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
         "RULES:\n"
         "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, performance, technical capability, misconceptions, knowledge gaps, strengths, how they are performing, or feedback given by the mentor.\n"

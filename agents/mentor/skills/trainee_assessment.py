@@ -46,6 +46,7 @@ class MentorTraineeAssessmentSkill:
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=f"{trainee or 'trainee'} technical implementation code review {request.focus_area or ''}",
             speaker_filter=speaker_filter,
+            date_filter=request.period or None,
             limit=40,
             strategy="precision"
         )
