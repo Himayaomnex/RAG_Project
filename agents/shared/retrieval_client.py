@@ -249,55 +249,27 @@ class RetrievalClient:
                 date_filter = m.group(1).strip()
 
         # -------------------------------------------------------------------------
-        # THE 4 NATIVE RETRIEVAL PIPELINES (Extracted from benchmark architecture)
+        # THE 4 NATIVE RETRIEVAL PIPELINES (Extracted from teammate's benchmark architecture)
         # -------------------------------------------------------------------------
         if strategy in ["p1", "p1_scroll_rerank"]:
-            # P1: Scroll + Document-Balanced Selection + CustomMeetingReranker
+            # P1: Scroll + Document-Balanced Selection + CustomMeetingReranker (Top 15)
             raw_results = self._pipeline_p1_scroll_rerank(query, top_per_doc=2, total_candidates=limit or 15)
 
         elif strategy in ["p2", "p2_scroll_scan"]:
-            # P2: Scroll API Scan with Document-Balanced Selection (No Reranker, K=35)
+            # P2: Scroll API Scan with Document-Balanced Selection (No Reranker, Top 35)
             raw_results = self._pipeline_p2_scroll_scan(query, top_per_doc=4, total_candidates=limit or 35)
 
         elif strategy in ["p3", "p3_topk_vector"]:
-            # P3: Top-K Single-Shot Vector Search (K=15)
+            # P3: Top-K Vector Search (Document-Balanced Top 15, No Reranker)
             raw_results = self._pipeline_p3_topk_vector(query, top_k=limit or 15)
 
-        elif strategy in ["completeness", "p4", "p4_map_reduce"]:
-            # P4 / Completeness: Broad Full-Corpus Ingestion (Map-Reduce & Rollups)
-            try:
-                raw_results, _ = self.client.scroll(
-                    collection_name=self.collection_name,
-                    limit=2000
-                )
-            except Exception as e:
-                print(f"  - [RetrievalClient P4 Error]: {e}. Falling back to query_points...")
-                dense_vec = self.dense_model.encode(query)
-                if hasattr(dense_vec, 'tolist'):
-                    dense_vec = dense_vec.tolist()
-                raw_results = self.client.query_points(
-                    collection_name=self.collection_name,
-                    query=dense_vec,
-                    using="dense",
-                    limit=limit * 2
-                ).points
+        elif strategy in ["p4", "p4_map_reduce", "completeness"]:
+            # P4: Full-Corpus Ingestion (100% of all document chunks)
+            raw_results = self._pipeline_p4_map_reduce(query)
 
         else:
-            # Default Precision: Hybrid Dense ANN + BM25 Lexical Re-ranking
-            dense_vec = self.dense_model.encode(query)
-            if hasattr(dense_vec, 'tolist'):
-                dense_vec = dense_vec.tolist()
-            try:
-                fetch_limit = min(max(limit * 2, 100), 300)
-                raw_results = self.client.query_points(
-                    collection_name=self.collection_name,
-                    query=dense_vec,
-                    using="dense",
-                    limit=fetch_limit
-                ).points
-            except Exception as e:
-                print(f"  - [RetrievalClient Precision Error]: {e}. Falling back to scroll...")
-                raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=fetch_limit)
+            # Default to P1
+            raw_results = self._pipeline_p1_scroll_rerank(query, top_per_doc=2, total_candidates=limit or 15)
 
         chunks = []
         for p in raw_results:
@@ -447,21 +419,27 @@ class RetrievalClient:
 
     def _pipeline_p3_topk_vector(self, query: str, top_k: int = 15) -> List[Any]:
         """
-        P3 — Top-K Single-Shot Vector Search
+        P3 — Top-K Vector Search (Document-Balanced Top 15, No Reranker)
         """
-        dense_vec = self.dense_model.encode(query)
-        if hasattr(dense_vec, 'tolist'):
-            dense_vec = dense_vec.tolist()
-        return self.client.query_points(
-            collection_name=self.collection_name,
-            query=dense_vec,
-            using="dense",
-            limit=top_k
-        ).points
+        raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
+        scored_pairs = self._compute_batched_cosine_scores(query, raw_results)
+        
+        by_doc = {}
+        for score, p in scored_pairs:
+            doc = (p.payload or {}).get("source_file", "unknown")
+            by_doc.setdefault(doc, []).append((score, p))
+            
+        balanced_candidates = []
+        for doc_file, plist in by_doc.items():
+            plist.sort(key=lambda x: x[0], reverse=True)
+            balanced_candidates.extend(plist[:2])
+            
+        balanced_candidates.sort(key=lambda x: x[0], reverse=True)
+        return [p for _, p in balanced_candidates[:top_k]]
 
     def _pipeline_p4_map_reduce(self, query: str) -> List[Any]:
         """
-        P4 — Full-Corpus Scroll for Map-Reduce
+        P4 — Map-Reduce / Full-Corpus Scan Strategy (100% of all meeting chunks)
         """
         raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=2000)
         return raw_results
