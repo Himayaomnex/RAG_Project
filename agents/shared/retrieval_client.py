@@ -241,13 +241,26 @@ class RetrievalClient:
                 date_filter = m.group(1).strip()
 
         # -------------------------------------------------------------------------
-        # PIPELINE 4 (P4): Broad Full-Corpus Completeness Ingestion
-        # Used by Manager Weekly Rollup & Single-Session Catch-Up for 100% coverage
+        # THE 4 BENCHMARK EXPERIMENT PIPELINES & AGENT STRATEGIES
         # -------------------------------------------------------------------------
-        if strategy == "completeness":
+        if strategy in ["p1", "p1_scroll_rerank"]:
+            # P1: Scroll + Document-Balanced Selection + CustomMeetingReranker
+            from pipeline import pipeline_p1_scroll_rerank, get_vector_db
+            raw_results = pipeline_p1_scroll_rerank(query, get_vector_db(), top_per_doc=2, total_candidates=limit or 15)
+
+        elif strategy in ["p2", "p2_scroll_scan"]:
+            # P2: Scroll API Scan with Document-Balanced Selection (No Reranker)
+            from pipeline import pipeline_p2_scroll_scan, get_vector_db
+            raw_results = pipeline_p2_scroll_scan(query, get_vector_db(), top_per_doc=4, total_candidates=limit or 35)
+
+        elif strategy in ["p3", "p3_topk_vector"]:
+            # P3: Top-K Single-Shot Vector Search
+            from pipeline import pipeline_p3_topk_vector, get_vector_db
+            raw_results = pipeline_p3_topk_vector(query, get_vector_db(), top_k=limit or 15)
+
+        elif strategy in ["completeness", "p4", "p4_map_reduce"]:
+            # P4 / Completeness: Broad Full-Corpus Ingestion (Map-Reduce & Rollups)
             try:
-                # Retrieve the entire collection (max 2000 points) to prevent
-                # older points from page-starving the most recent August points.
                 raw_results, _ = self.client.scroll(
                     collection_name=self.collection_name,
                     limit=2000
@@ -262,11 +275,8 @@ class RetrievalClient:
                     limit=limit * 2
                 ).points
 
-        # -------------------------------------------------------------------------
-        # PIPELINE 2 (P2): Hybrid Dense ANN + BM25 Lexical Re-ranking
-        # Used for precision queries: zooms in on specific concepts & trainees
-        # -------------------------------------------------------------------------
         else:
+            # Default Precision: Hybrid Dense ANN + BM25 Lexical Re-ranking (P3 + Hybrid RRF)
             dense_vec = self.dense_model.encode(query)
             if hasattr(dense_vec, 'tolist'):
                 dense_vec = dense_vec.tolist()
@@ -279,7 +289,7 @@ class RetrievalClient:
                     limit=fetch_limit
                 ).points
             except Exception as e:
-                print(f"  - [RetrievalClient P2 Error]: {e}. Falling back to scroll...")
+                print(f"  - [RetrievalClient Precision Error]: {e}. Falling back to scroll...")
                 raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=fetch_limit)
 
         chunks = []
