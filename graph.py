@@ -287,7 +287,7 @@ def run_graph(
                     continue
 
                 sim = np.dot(q_emb_norm, cached_emb)
-                if sim > 0.85:  # 85% semantic similarity threshold (catches paraphrases)
+                if sim > 0.72:  # 72% similarity threshold (captures broad rollup variations)
                     print(f"  - [Semantic Graph Cache Hit]: similarity={sim:.3f} | Bypassing Graph Invoke!")
                     # Make sure to return a copy with fresh latency showing 0.0s cache retrieval
                     hit_res = cached_state.copy()
