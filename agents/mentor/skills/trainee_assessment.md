@@ -31,30 +31,30 @@ Shows a trainee's demonstrated progress for the Technical Mentor to decide what 
 
 ## Output Schema
 ```
-Trainee · Overall assessment
+### **Trainee · Overall assessment**
 - 1-2 sentence honest verdict on demonstrated cognitive mastery.
 
-Current work
+### **Current work**
 - Discrete engineering modules currently under active development [Date, Page — Speaker].
 
-Demonstrated capabilities
+### **Demonstrated capabilities**
 - Concepts where the mentee proved first-principles understanding through code or defense [Date, Page — Speaker].
 
-Learning progress
+### **Learning progress**
 - How the mentee's technical independence has evolved across the period.
 
-Knowledge gaps
+### **Knowledge gaps**
 - Unresolved conceptual blind spots or incomplete implementations [Date, Page — Speaker].
 
-Recurring misconceptions
+### **Recurring misconceptions**
 - Specific instances where the mentee's mental model diverged from engineering reality and required mentor correction [Date, Page — Speaker].
 
-Feedback signals
+### **Feedback signals**
 - Core coaching directives delivered by the mentor.
 
-Change from previous period
+### **Change from previous period**
 - Direct comparison showing trajectory between early and recent sessions.
 
-Evidence-backed conclusion
+### **Evidence-backed conclusion**
 - Final pedagogical recommendation for the mentor's next teaching plan.
 ```

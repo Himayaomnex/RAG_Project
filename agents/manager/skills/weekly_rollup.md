@@ -34,21 +34,21 @@ Answers "what do I need to know about the state of the training program?" for th
 
 ## Output Schema
 ```
-Executive conclusion
+### **Executive conclusion**
 - 1-2 sentence governing takeaway on project health and trajectory.
 
-Completed
+### **Completed**
 - [Trainee Name] · [Deliverable Title]: [1-2 sentences on technical mechanics and significance]. Quote: "[One exact supporting quote]" [Date, Page — Speaker]
 
-In Progress
+### **In Progress**
 - [Trainee Name] · [Task Title]: [Current engineering state and next step] [Date, Page — Speaker]
 
-Blocked or At Risk
+### **Blocked or At Risk**
 - [Trainee Name] · [Impediment]: [Details]. Resolution State: [Agreed/Contested/Pending Decision] [Date, Page — Speaker]
 
-Important Changes
+### **Important Changes**
 - [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]
 
-Requires Attention
+### **Requires Attention**
 - [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]
 ```

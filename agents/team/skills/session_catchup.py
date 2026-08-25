@@ -112,12 +112,12 @@ class TeamSessionCatchupSkill:
             f"Query: {request.query}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Team Session Catch-Up following the exact output schema:\n"
-            f"Session · What happened ({date_val})\n"
-            "Technical concepts discussed\n"
-            "Assignments and actions\n"
-            "Decisions\n"
-            "Important changes\n"
-            "What you need to know or do"
+            f"### **Session · What happened ({date_val})**\n"
+            "### **Technical concepts discussed**\n"
+            "### **Assignments and actions**\n"
+            "### **Decisions**\n"
+            "### **Important changes**\n"
+            "### **What you need to know or do**"
         )
 
         try:

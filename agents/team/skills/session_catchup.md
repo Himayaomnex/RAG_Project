@@ -29,21 +29,21 @@ Enables a trainee who missed a training session to continue working immediately.
 
 ## Output Schema
 ```
-Session · What happened
+### **Session · What happened**
 - 1-2 sentence core objective and takeaway of the session.
 
-Technical concepts discussed
+### **Technical concepts discussed**
 - Key technical topics and architectural mechanics explored [Date, Page — Speaker].
 
-Assignments and actions
+### **Assignments and actions**
 - [Owner]: [Task description and binary acceptance criteria] [Date, Page — Speaker].
 
-Decisions
+### **Decisions**
 - [Settled technical choices and tool commitments] [Date, Page — Speaker].
 
-Important changes
+### **Important changes**
 - [Codebase or system modifications that affect teammates] [Date, Page — Speaker].
 
-What you need to know or do
+### **What you need to know or do**
 - Immediate concrete next steps for the requesting trainee to resume work.
 ```
