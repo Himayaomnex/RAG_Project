@@ -109,13 +109,15 @@ class TeamSessionCatchupSkill:
             "8. Present output in clean prose under short headers without markdown tables."
         )
 
+        header_date_suffix = f" ({date_val})" if date_val else ""
+
         user_prompt = (
-            f"Session Date: {date_val}\n"
+            f"Session Date: {date_val or 'All Sessions'}\n"
             f"Requesting Trainee: {request.trainee or 'All Team Members'}\n"
             f"Query: {request.query}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Team Session Catch-Up following the exact output schema:\n"
-            f"### **Session · What happened ({date_val})**\n"
+            f"### **Session · What happened{header_date_suffix}**\n"
             "### **Technical concepts discussed**\n"
             "### **Assignments and actions**\n"
             "### **Decisions**\n"
