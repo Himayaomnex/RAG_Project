@@ -51,6 +51,10 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
 
     Falls back to rule-based heuristic if LLM call fails.
     """
+    # Build the canonical trainee list dynamically from the role map
+    canonical_names = list(dict.fromkeys(_TRAINEE_ROLE_MAP.values()))  # unique, order-preserved
+    canonical_names_str = ", ".join(f"'{n}'" for n in canonical_names)
+
     system_prompt = (
         "You are a routing classifier for a multi-agent training RAG system.\n"
         "There are exactly three agents:\n"
@@ -59,7 +63,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
         "Given a user query, output a JSON object with exactly these keys:\n"
         "  agent:      one of 'manager', 'mentor', 'team'\n"
-        "  trainee:    canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
+        f"  trainee:    canonical trainee name ({canonical_names_str}) or null\n"
         "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
         "  period:     date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null\n"
         "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
