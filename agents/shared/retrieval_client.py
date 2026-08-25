@@ -6,6 +6,16 @@ Single point of contact for all retrieval.
 Wraps Dakshinya's Retrieval Service / S2 Endpoint.
 Until her remote HTTP endpoint is live, connects to local Qdrant collection
 and returns structured EvidenceChunk models.
+
+Retrieval Strategies:
+  auto        — Inferred dynamically from query slots at runtime (DEFAULT)
+  precision   — Dense ANN semantic search + BM25 re-ranking (Hybrid)
+  completeness— Full corpus scroll + date/speaker filter (no ANN)
+
+Hybrid Ranking:
+  Precision path fuses dense similarity scores and BM25 lexical scores
+  using Reciprocal Rank Fusion (RRF), improving recall for both
+  semantic and keyword-heavy queries.
 """
 
 import os
@@ -15,6 +25,13 @@ from dotenv import load_dotenv
 from qdrant_client import QdrantClient
 from sentence_transformers import SentenceTransformer
 from .schemas import EvidenceChunk
+
+try:
+    from rank_bm25 import BM25Okapi
+    _BM25_AVAILABLE = True
+except ImportError:
+    _BM25_AVAILABLE = False
+    print("  [RetrievalClient] rank_bm25 not installed — BM25 re-ranking disabled. Run: pip install rank-bm25")
 
 load_dotenv()
 
@@ -45,6 +62,43 @@ class RetrievalClient:
             
         self.dense_model = get_shared_dense_model()
 
+    # ── Strategy auto-selection ────────────────────────────────────────────────
+
+    def _auto_select_strategy(
+        self,
+        query: str,
+        date_filter: Optional[str],
+        period_start: Optional[str],
+        period_end: Optional[str],
+        speaker_filter: Optional[str],
+    ) -> str:
+        """
+        Dynamically selects retrieval strategy based on the slots present.
+
+        Rules (in priority order):
+          1. Date or period present  → completeness (need all turns in window)
+          2. Speaker/trainee present → precision    (semantic zoom on person)
+          3. Query looks like broad status report → completeness
+          4. Default                → precision    (semantic ANN + BM25)
+        """
+        q = query.lower()
+
+        # Explicit date/period window → completeness for 100% coverage
+        if date_filter or period_start or period_end:
+            return "completeness"
+
+        # Broad status / rollup queries → completeness
+        if any(k in q for k in [
+            "weekly", "rollup", "this week", "past week", "overall", "all trainees",
+            "entire team", "summary of", "give me a summary", "executive"
+        ]):
+            return "completeness"
+
+        # Speaker-scoped concept query → precision (ANN + BM25 hybrid)
+        return "precision"
+
+    # ── Public query_evidence ─────────────────────────────────────────────────
+
     def query_evidence(
         self,
         query: str,
@@ -53,11 +107,26 @@ class RetrievalClient:
         period_start: Optional[str] = None,
         period_end: Optional[str] = None,
         limit: int = 40,
-        strategy: str = "precision"  # precision vs completeness
+        strategy: str = "auto",   # auto | precision | completeness
     ) -> List[EvidenceChunk]:
         """
         Retrieves candidate evidence chunks matching the criteria.
+
+        strategy="auto" (default) infers the best strategy from query slots.
+        Pass strategy="precision" or strategy="completeness" to override.
         """
+        resolved_strategy = strategy
+        if strategy == "auto":
+            resolved_strategy = self._auto_select_strategy(
+                query=query,
+                date_filter=date_filter,
+                period_start=period_start,
+                period_end=period_end,
+                speaker_filter=speaker_filter,
+            )
+
+        print(f"  [RetrievalClient] strategy={resolved_strategy} (requested={strategy}) speaker={speaker_filter} date={date_filter}")
+
         return self._query_qdrant_internal(
             query=query,
             speaker_filter=speaker_filter,
@@ -65,7 +134,7 @@ class RetrievalClient:
             period_start=period_start,
             period_end=period_end,
             limit=limit,
-            strategy=strategy
+            strategy=resolved_strategy
         )
 
     def _parse_date_obj(self, date_str: str):
@@ -147,10 +216,11 @@ class RetrievalClient:
         # -------------------------------------------------------------------------
         if strategy == "completeness":
             try:
-                fetch_limit = min(max(limit * 3, 300), 1000)
+                # Retrieve the entire collection (max 2000 points) to prevent
+                # older points from page-starving the most recent August points.
                 raw_results, _ = self.client.scroll(
                     collection_name=self.collection_name,
-                    limit=fetch_limit
+                    limit=2000
                 )
             except Exception as e:
                 print(f"  - [RetrievalClient P4 Error]: {e}. Falling back to query_points...")
@@ -163,8 +233,8 @@ class RetrievalClient:
                 ).points
 
         # -------------------------------------------------------------------------
-        # PIPELINES 1 & 2 (P1/P2): Dense Semantic Vector Search + Precision Ranking
-        # Used by Mentor Trainee Assessment to zoom in on specific concepts & code
+        # PIPELINE 2 (P2): Hybrid Dense ANN + BM25 Lexical Re-ranking
+        # Used for precision queries: zooms in on specific concepts & trainees
         # -------------------------------------------------------------------------
         else:
             dense_vec = self.dense_model.encode(query)
@@ -179,7 +249,7 @@ class RetrievalClient:
                     limit=fetch_limit
                 ).points
             except Exception as e:
-                print(f"  - [RetrievalClient P1/P2 Error]: {e}. Falling back to scroll...")
+                print(f"  - [RetrievalClient P2 Error]: {e}. Falling back to scroll...")
                 raw_results, _ = self.client.scroll(collection_name=self.collection_name, limit=fetch_limit)
 
         chunks = []
@@ -223,10 +293,56 @@ class RetrievalClient:
                 score=float(p.score) if hasattr(p, 'score') else 1.0
             ))
 
-            if len(chunks) >= limit:
-                break
+        # ── Date Sorting (Latest First) ──────────────────────────────────────────
+        # Ensure that if no specific date filter is applied, the most recent
+        # transcript turns (August 2026) are prioritized over older ones (July).
+        import datetime
+        chunks.sort(
+            key=lambda x: self._parse_date_obj(x.date) or datetime.date.min,
+            reverse=True
+        )
+
+        # ── BM25 Hybrid Re-ranking (precision path only) ────────────────────────
+        if strategy == "precision" and _BM25_AVAILABLE and chunks:
+            chunks = self._bm25_rerank(query, chunks, limit)
+        else:
+            chunks = chunks[:limit]
 
         return chunks
+
+    def _bm25_rerank(
+        self,
+        query: str,
+        chunks: List[EvidenceChunk],
+        limit: int,
+        k: int = 60      # RRF constant
+    ) -> List[EvidenceChunk]:
+        """
+        Reciprocal Rank Fusion: fuses dense ANN rank (already in chunks order)
+        with BM25 lexical rank to produce a hybrid final ranking.
+
+        RRF score = 1/(k + dense_rank) + 1/(k + bm25_rank)
+        """
+        if not chunks:
+            return chunks
+
+        # BM25 corpus
+        corpus = [c.text.lower().split() for c in chunks]
+        bm25 = BM25Okapi(corpus)
+        bm25_scores = bm25.get_scores(query.lower().split())
+
+        # BM25 rank order (descending score = rank 0 is best)
+        bm25_ranks = {i: rank for rank, i in enumerate(sorted(range(len(bm25_scores)), key=lambda x: bm25_scores[x], reverse=True))}
+
+        # RRF fusion
+        rrf_scores = []
+        for dense_rank, chunk in enumerate(chunks):
+            bm25_rank = bm25_ranks.get(dense_rank, len(chunks))
+            rrf = 1.0 / (k + dense_rank) + 1.0 / (k + bm25_rank)
+            rrf_scores.append((rrf, chunk))
+
+        rrf_scores.sort(key=lambda x: x[0], reverse=True)
+        return [c for _, c in rrf_scores[:limit]]
 
     def _call_remote_api(self, query: str, speaker_filter: Optional[str], date_filter: Optional[str], limit: int) -> List[EvidenceChunk]:
         import urllib.request

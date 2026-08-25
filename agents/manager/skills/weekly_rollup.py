@@ -33,7 +33,8 @@ class ManagerWeeklyRollupSkill:
             agent=self.agent_name,
             skill=self.skill_name,
             input_query=request.query,
-            input_params=request.model_dump()
+            input_params=request.model_dump(),
+            trace_id=request.trace_id
         )
 
         # STAGE 1: Determine Reporting Period & Trainee Filters
@@ -99,18 +100,29 @@ class ManagerWeeklyRollupSkill:
             "6. Important Changes: Must use exact format: '- [Topic]: [What architectural or tool shift occurred] [Date, Page — Speaker]'\n"
             "7. Requires Attention: Must use exact format: '- [Issue]: [Recommended executive intervention point] [Date, Page — Speaker]'\n"
             "8. CITATION RULE: Every citation MUST be formatted as '[Date, Page — Speaker]' (e.g. '[28 July 2026, 18 — Siddharth Saminathan]'). NEVER output raw UUIDs, hex strings, or chunk IDs in citations.\n"
-            "9. Never invent facts or infer completion from absence of discussion.\n"
-            "10. If evidence for a mentee is missing, state '- [Trainee Name]: INSUFFICIENT_EVIDENCE'."
+            "9. QUOTE QUALITY RULE: When selecting verbatim quotes, choose clear, technically meaningful statements. Avoid selecting conversational stutters, fillers ('uh', 'ah', 'wait', 'oh', 'ok'), or mic testing dialogue unless absolutely no other quote exists.\n"
+            "10. DYNAMIC EXECUTIVE CONCLUSION: Read the user's Query carefully. If the user asks for a specific structure or depth in their query (e.g. 'pyramid principle breakdown', 'exhaustive', 'short summary'), you MUST adapt the style, depth, length, and layout of the '### **Executive conclusion**' section to fully satisfy their request. Otherwise, default to a 1-2 sentence governing takeaway.\n"
+            "11. Never invent facts or infer completion from absence of discussion.\n"
+            "12. If evidence for a mentee is missing, state '- [Trainee Name]: INSUFFICIENT_EVIDENCE'."
         )
+
+        # STAGE 8: Incorporate GitHub MCP Live Repo Context
+        github_context = ""
+        try:
+            from github_mcp_client import github_mcp
+            github_context = github_mcp.format_github_context_for_llm("Himayaomnex", "RAG_Project")
+        except Exception as e:
+            print(f"  - [GitHub MCP Injection Fail]: {e}")
 
         user_prompt = (
             f"Review Period: {period_str or 'Full Review Window'}\n"
             f"Target Trainee: {target_trainee or 'All Trainees'}\n"
             f"Query: {request.query}\n\n"
+            f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Executive State-of-Work Report following the exact output schema:\n\n"
             "### **Executive conclusion**\n"
-            "- [1-2 sentence governing takeaway on project health and trajectory]\n\n"
+            "[Adapt this text dynamically to fulfill any specific styling, structure (e.g., Pyramid Principle), or length instructions in the user's query]\n\n"
             "### **Completed**\n"
             "- [Trainee Name] · [Deliverable Title]: [Details]. Quote: \"[One exact supporting quote]\" [Date, Page — Speaker]\n\n"
             "### **In Progress**\n"

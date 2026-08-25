@@ -59,13 +59,14 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "Given a user query, output a JSON object with exactly these keys:\n"
         "  agent:   one of 'manager', 'mentor', 'team'\n"
         "  trainee: canonical trainee name ('Himaya', 'Ganesh', 'Dakshinya') or null\n"
-        "  date:    session date string if agent=team (e.g. 'July 31') or null\n"
+        "  date:    session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
         "  period:  date range string if agent=manager (e.g. 'July 21 to July 28') or null\n\n"
         "RULES:\n"
-        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, misconceptions, knowledge gaps, strengths, or feedback given by the mentor.\n"
+        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, misconceptions, knowledge gaps, strengths, how they are performing, or feedback given by the mentor.\n"
         "- agent=team    when query is about catching up on a missed session, what happened in a session, what assignments were given, what decisions were made in a specific session.\n"
-        "- agent=manager for everything else: status reports, deliverables, blockers, overall progress, what was completed, what is at risk.\n"
+        "- agent=manager for everything else: executive project milestones, deliverables, blockers, risks, what tasks are completed/in-progress across the project.\n"
         "- Extract the trainee name from the query if mentioned. If a trainee_hint is provided and no name is in the query, use the hint.\n"
+        "- BROAD REPORT RULE: If the query asks for a general rollup, status, blocker report, or refers to 'all trainees', 'entire team', or the training program as a whole, the trainee scope MUST be null (representing the entire cohort), even if the conversation history previously focused on a specific trainee.\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
     )
 

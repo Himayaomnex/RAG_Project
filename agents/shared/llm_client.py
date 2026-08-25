@@ -17,7 +17,6 @@ from dotenv import load_dotenv
 # Ensure .env is loaded
 load_dotenv()
 
-
 class LLMClient:
     def __init__(self):
         self.gemini_key = os.getenv("GEMINI_API_KEY", "").strip()

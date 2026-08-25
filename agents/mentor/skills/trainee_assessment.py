@@ -35,7 +35,8 @@ class MentorTraineeAssessmentSkill:
             agent=self.agent_name,
             skill=self.skill_name,
             input_query=request.query,
-            input_params=request.model_dump()
+            input_params=request.model_dump(),
+            trace_id=request.trace_id
         )
 
         trainee = request.trainee.strip()
@@ -86,14 +87,25 @@ class MentorTraineeAssessmentSkill:
             "2. Enforce the ladder: Taught != Understood. Never claim demonstrated capability unless the mentee explained or built it.\n"
             "3. If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
             "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
-            "5. Present output in clean prose under short headers without markdown tables."
+            "5. QUOTE QUALITY RULE: When referencing or quoting transcript turns, select clear, technically meaningful statements. Avoid selecting or focusing on conversational stutters, filler words ('uh', 'ah', 'oh', 'ok'), or mic checks.\n"
+            "6. DYNAMIC OVERALL ASSESSMENT: Read the user's Query carefully. If the user asks for a specific structure or depth in their query (e.g. 'pyramid principle breakdown', 'exhaustive', 'short summary'), you MUST adapt the style, depth, length, and layout of the '### **Trainee · Overall assessment**' section to fully satisfy their request. Otherwise, default to a 1-2 sentence verdict.\n"
+            "7. Present output in clean prose under short headers without markdown tables."
         )
+
+        # STAGE 8: Incorporate GitHub MCP Live Repo Context
+        github_context = ""
+        try:
+            from github_mcp_client import github_mcp
+            github_context = github_mcp.format_github_context_for_llm("Himayaomnex", "RAG_Project")
+        except Exception as e:
+            print(f"  - [GitHub MCP Injection Fail]: {e}")
 
         user_prompt = (
             f"Target Trainee: {trainee}\n"
             f"Period: {request.period or 'All Sessions'}\n"
             f"Focus Area: {request.focus_area or 'General AI/ML Architecture'}\n"
             f"Query: {request.query}\n\n"
+            f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Mentor Trainee Assessment following the exact output schema:\n"
             f"### **{trainee} · Overall assessment**\n"

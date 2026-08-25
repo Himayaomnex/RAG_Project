@@ -17,13 +17,15 @@ os.makedirs(LOGS_DIR, exist_ok=True)
 
 
 class TraceLogger:
-    def __init__(self, agent: str, skill: str, input_query: str, input_params: Optional[Dict[str, Any]] = None):
+    def __init__(self, agent: str, skill: str, input_query: str, input_params: Optional[Dict[str, Any]] = None, trace_id: Optional[str] = None):
         self.trace = ExecutionTrace(
             agent=agent,
             skill=skill,
             input_query=input_query,
             input_params=input_params or {}
         )
+        if trace_id:
+            self.trace.trace_id = trace_id
         self.start_time = time.time()
 
     def record_retrieval(self, chunk_ids: List[str]):

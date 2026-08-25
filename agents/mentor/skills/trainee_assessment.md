@@ -32,7 +32,7 @@ Shows a trainee's demonstrated progress for the Technical Mentor to decide what 
 ## Output Schema
 ```
 ### **Trainee · Overall assessment**
-- 1-2 sentence honest verdict on demonstrated cognitive mastery.
+- Adapt this section dynamically to match the style, length, and formatting instructions requested in the user's query (e.g. write a detailed Pyramid Principle hierarchy if asked for a "pyramid principle breakdown", or write a short 1-2 sentence summary if asked for a simple evaluation). Fulfill all styling and depth directives.
 
 ### **Current work**
 - Discrete engineering modules currently under active development [Date, Page — Speaker].

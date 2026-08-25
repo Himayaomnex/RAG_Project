@@ -35,7 +35,7 @@ Answers "what do I need to know about the state of the training program?" for th
 ## Output Schema
 ```
 ### **Executive conclusion**
-- 1-2 sentence governing takeaway on project health and trajectory.
+- Adapt this section dynamically to match the style, length, and formatting instructions requested in the user's query (e.g. write a multi-paragraph Pyramid Principle hierarchy if asked for a "pyramid principle breakdown", or write a short 1-2 sentence summary if asked for a simple rollup). Fulfill all styling and depth directives.
 
 ### **Completed**
 - [Trainee Name] · [Deliverable Title]: [1-2 sentences on technical mechanics and significance]. Quote: "[One exact supporting quote]" [Date, Page — Speaker]

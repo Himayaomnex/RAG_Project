@@ -4,3 +4,5 @@ __pycache__/
 *.pyc
 emb_cache
 qdrant_storage/
+logs/
+scratch/

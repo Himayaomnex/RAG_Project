@@ -34,7 +34,8 @@ class TeamSessionCatchupSkill:
             agent=self.agent_name,
             skill=self.skill_name,
             input_query=request.query,
-            input_params=request.model_dump()
+            input_params=request.model_dump(),
+            trace_id=request.trace_id
         )
 
         date_val = request.date
@@ -103,7 +104,9 @@ class TeamSessionCatchupSkill:
             "   - If 'Requesting Trainee' is 'All Team Members' or omitted:\n"
             "     * Under 'Assignments and actions', separate tasks into distinct named blocks: '- Himaya Perumal:', '- Ganesh Krishna:', '- Dakshinya Nachimuthu:', and '- Team-Wide Action:'.\n"
             "   - NEVER use placeholder names like 'System Owner:'. Always use the actual trainee names (Himaya Perumal, Ganesh Krishna, Dakshinya Nachimuthu).\n"
-            "6. Present output in clean prose under short headers without markdown tables."
+            "6. QUOTE QUALITY RULE: When selecting verbatim quotes, choose clear, technically meaningful statements. Avoid selecting conversational stutters, filler words ('uh', 'ah', 'oh', 'ok', 'wait'), or mic tests.\n"
+            "7. DYNAMIC SESSION WHAT HAPPENED: Read the user's Query carefully. If the user asks for a specific structure or depth in their query (e.g. 'exhaustive recap', 'detailed analysis', 'short summary'), you MUST adapt the style, depth, length, and layout of the '### **Session · What happened**' section to fully satisfy their request. Otherwise, default to a 1-2 sentence core objective.\n"
+            "8. Present output in clean prose under short headers without markdown tables."
         )
 
         user_prompt = (

@@ -30,7 +30,7 @@ Enables a trainee who missed a training session to continue working immediately.
 ## Output Schema
 ```
 ### **Session · What happened**
-- 1-2 sentence core objective and takeaway of the session.
+- Adapt this section dynamically to match the style, length, and formatting instructions requested in the user's query (e.g. write a detailed chronological summary if asked for an 'exhaustive recap', or write a short 1-sentence takeaway if asked for a simple summary). Fulfill all styling and depth directives.
 
 ### **Technical concepts discussed**
 - Key technical topics and architectural mechanics explored [Date, Page — Speaker].
