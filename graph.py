@@ -286,6 +286,23 @@ def run_graph(
                 if name_mismatch:
                     continue
 
+                # MONTH SAFEGUARD: If months are different (e.g. July vs June), skip hit
+                months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+                month_mismatch = False
+                for m in months:
+                    if (m in q_low) != (m in cq_low):
+                        month_mismatch = True
+                        break
+                if month_mismatch:
+                    continue
+
+                # DAY-NUMBER SAFEGUARD: If date numbers are different (e.g. 18 vs 31), skip hit
+                import re
+                q_nums = set(re.findall(r'\b\d{1,2}\b', q_low))
+                cq_nums = set(re.findall(r'\b\d{1,2}\b', cq_low))
+                if q_nums != cq_nums:
+                    continue
+
                 sim = np.dot(q_emb_norm, cached_emb)
                 if sim > 0.72:  # 72% similarity threshold (captures broad rollup variations)
                     print(f"  - [Semantic Graph Cache Hit]: similarity={sim:.3f} | Bypassing Graph Invoke!")
