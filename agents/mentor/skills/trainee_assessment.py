@@ -100,15 +100,17 @@ class MentorTraineeAssessmentSkill:
         except Exception as e:
             print(f"  - [GitHub MCP Injection Fail]: {e}")
 
+        trainee_display = trainee if trainee else "Teammates"
+
         user_prompt = (
-            f"Target Trainee: {trainee}\n"
+            f"Target Trainee: {trainee or 'All Teammates'}\n"
             f"Period: {request.period or 'All Sessions'}\n"
             f"Focus Area: {request.focus_area or 'General AI/ML Architecture'}\n"
             f"Query: {request.query}\n\n"
             f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Mentor Trainee Assessment following the exact output schema:\n"
-            f"### **{trainee} · Overall assessment**\n"
+            f"### **{trainee_display} · Overall assessment**\n"
             "### **Current work**\n"
             "### **Demonstrated capabilities**\n"
             "### **Learning progress**\n"
