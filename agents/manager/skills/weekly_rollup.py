@@ -110,7 +110,7 @@ class ManagerWeeklyRollupSkill:
         github_context = ""
         try:
             from github_mcp_client import github_mcp
-            github_context = github_mcp.format_github_context_for_llm("Himayaomnex", "RAG_Project")
+            github_context = github_mcp.format_github_context_for_llm()
         except Exception as e:
             print(f"  - [GitHub MCP Injection Fail]: {e}")
 

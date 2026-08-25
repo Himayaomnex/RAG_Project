@@ -121,8 +121,31 @@ class GitHubMCPClient:
         except Exception as e:
             return []
 
-    def format_github_context_for_llm(self, owner: str, repo: str) -> str:
+    def _get_local_repo_details(self) -> Tuple[str, str]:
+        import subprocess
+        try:
+            url = subprocess.check_output(["git", "config", "--get", "remote.origin.url"]).decode("utf-8").strip()
+            # Strip trailing .git
+            url_clean = url.replace(".git", "")
+            # Handle standard SSH formats like git@github.com:owner/repo
+            # or HTTPS formats like https://github.com/owner/repo
+            url_clean = url_clean.replace("git@github.com:", "https://github.com/")
+            parts = url_clean.split("/")
+            if len(parts) >= 2:
+                owner = parts[-2].split(":")[-1].split("@")[-1]
+                repo = parts[-1]
+                if owner and repo:
+                    return owner, repo
+        except Exception:
+            pass
+        return "Himayaomnex", "RAG_Project"  # safe static fallback
+
+    def format_github_context_for_llm(self, owner: Optional[str] = None, repo: Optional[str] = None) -> str:
         """Formats GitHub MCP context for injection into PromptBuilder Module 7 context."""
+        if not owner or not repo:
+            from typing import Tuple
+            owner, repo = self._get_local_repo_details()
+
         issues = self.list_repository_issues(owner, repo, limit=5)
         commits = self.list_recent_commits(owner, repo, limit=5)
 
