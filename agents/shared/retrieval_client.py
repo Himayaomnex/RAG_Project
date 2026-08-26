@@ -184,7 +184,9 @@ class RetrievalClient:
             # Filter noise: remove Unknown, trailing ellipsis variants, and mentor
             speakers = [
                 s for s in speakers
-                if s and s != "Unknown"
+                if s
+                and not s.lower().startswith("unknown")
+                and s.lower() not in ["speaker", "none", "n/a", "general", "all", "system", "teammates", "trainees"]
                 and not s.endswith("...")
                 and (not exclude_mentor or not s.lower().startswith("siddharth"))
             ]

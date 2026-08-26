@@ -141,11 +141,16 @@ def get_filters_metadata():
             dt = p.get("date")
             src = p.get("source_file")
 
-            if spk and spk.strip() and spk.strip().lower() not in ["unknown", "none", "n/a"]:
+            if spk and spk.strip():
                 for s in spk.split(","):
-                    if s.strip():
-                        speakers.add(s.strip())
-            if dt and dt.strip() and dt.strip().lower() != "unknown date":
+                    clean_s = s.strip()
+                    if (
+                        clean_s
+                        and not clean_s.lower().startswith("unknown")
+                        and clean_s.lower() not in ["speaker", "none", "n/a", "general", "all", "system"]
+                    ):
+                        speakers.add(clean_s)
+            if dt and dt.strip() and dt.strip().lower() not in ["unknown date", "unknown"]:
                 dates.add(dt.strip())
             if src and src.strip():
                 files.add(src.strip())
