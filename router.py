@@ -15,19 +15,13 @@ a specific agent. Intent is always derived from the query semantics.
 
 import json
 import re
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List
 from agents.manager.agent import manager_agent
 from agents.mentor.agent import mentor_agent
 from agents.team.agent import team_agent
 from agents.shared.llm_client import llm_client
+from agents.shared.retrieval_client import retrieval_client
 
-
-# ── Dynamic Trainee Discovery from Live API Metadata ────────────────────────────
-_TRAINEE_ROLE_MAP = {
-    "himaya":    "Himaya",
-    "ganesh":    "Ganesh",
-    "dakshinya": "Dakshinya",
-}
 
 # Roles that explicitly pin a specific agent (bypass intent classification)
 _PINNED_MANAGER_ROLES  = {"manager", "iyappan"}
@@ -37,18 +31,19 @@ _PINNED_TEAM_ROLES     = {"team", "teammate"}
 
 def get_dynamic_trainees() -> List[str]:
     """Dynamically discovers all available trainee names from the live database/API metadata."""
-    try:
-        from agents.shared.retrieval_client import retrieval_client
-        meta = retrieval_client.fetch_metadata()
-        if meta and meta.get("available_speakers"):
-            # Exclude mentors/managers from trainee list dynamically
-            return [
-                s.strip() for s in meta["available_speakers"]
-                if not any(m in s.lower() for m in ["siddharth", "iyappan", "mentor", "manager"])
-            ]
-    except Exception:
-        pass
-    return list(dict.fromkeys(_TRAINEE_ROLE_MAP.values()))
+    return retrieval_client.get_active_trainees(exclude_mentor=True)
+
+
+def match_trainee_role(raw_role: str) -> Optional[str]:
+    """Dynamically matches a role/username string against discovered active trainees."""
+    if not raw_role or raw_role.lower() in ("user", "admin", "guest", "default", "none"):
+        return None
+    raw_lower = raw_role.lower().strip()
+    active_trainees = get_dynamic_trainees()
+    for trainee in active_trainees:
+        if raw_lower in trainee.lower() or trainee.lower() in raw_lower:
+            return trainee
+    return None
 
 
 def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
@@ -203,7 +198,7 @@ def route_request_with_role(
         return res, "team"
 
     # ── Step 2: Trainee identity — scope entity, classify intent from query ────
-    trainee_hint = _TRAINEE_ROLE_MAP.get(raw_role)  # "himaya" → "Himaya" or None
+    trainee_hint = match_trainee_role(raw_role)
     # If target_member was explicitly passed in the request body, prefer that
     effective_trainee = target_member or trainee_hint or None
 
