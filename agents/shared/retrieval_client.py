@@ -93,6 +93,14 @@ class RetrievalClient:
         if not effective_date and (period_start or period_end):
             effective_date = f"{period_start or ''} to {period_end or ''}".strip(" to ")
 
+        # Sanitize date filter: Only pass to API if it contains actual calendar markers (months or digits)
+        # Relative terms like "this week", "last week", "today", "recent" should NOT filter out all Qdrant documents
+        if effective_date:
+            cal_months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+            has_calendar_token = any(m in effective_date.lower() for m in cal_months) or any(char.isdigit() for char in effective_date)
+            if not has_calendar_token or effective_date.lower() in ["this week", "last week", "current week", "today", "yesterday", "recent", "all"]:
+                effective_date = None
+
         # Sanitize speaker filter
         effective_speaker = speaker_filter
         if effective_speaker and effective_speaker.lower() in ["all", "team", "everyone"]:
