@@ -83,6 +83,7 @@ class LLMClient:
             "generationConfig": {
                 "temperature": temperature,
                 "maxOutputTokens": max_tokens,
+                "seed": 42,
                 "thinkingConfig": {
                     "thinkingBudget": 0
                 }
