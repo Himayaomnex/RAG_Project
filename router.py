@@ -22,8 +22,7 @@ from agents.team.agent import team_agent
 from agents.shared.llm_client import llm_client
 
 
-# ── Trainee identity map ───────────────────────────────────────────────────────
-# Maps user_role header values → canonical trainee names used by agents
+# ── Dynamic Trainee Discovery from Live API Metadata ────────────────────────────
 _TRAINEE_ROLE_MAP = {
     "himaya":    "Himaya",
     "ganesh":    "Ganesh",
@@ -36,24 +35,31 @@ _PINNED_MENTOR_ROLES   = {"mentor", "siddharth"}
 _PINNED_TEAM_ROLES     = {"team", "teammate"}
 
 
+def get_dynamic_trainees() -> List[str]:
+    """Dynamically discovers all available trainee names from the live database/API metadata."""
+    try:
+        from agents.shared.retrieval_client import retrieval_client
+        meta = retrieval_client.fetch_metadata()
+        if meta and meta.get("available_speakers"):
+            # Exclude mentors/managers from trainee list dynamically
+            return [
+                s.strip() for s in meta["available_speakers"]
+                if not any(m in s.lower() for m in ["siddharth", "iyappan", "mentor", "manager"])
+            ]
+    except Exception:
+        pass
+    return list(dict.fromkeys(_TRAINEE_ROLE_MAP.values()))
+
+
 def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
     """
     LLM-based semantic intent classifier.
-
-    Returns a dict:
-    {
-        "agent":   "manager" | "mentor" | "team",
-        "trainee": str | null,   # canonical name extracted from query or hint
-        "date":    str | null,   # session date if catch-up query
-        "period":  str | null,   # reporting period if rollup query
-        "focus_area": str | null # technical topic/focus area mentioned (e.g. 'RAG', 'Qdrant') or null
-    }
-
-    Falls back to rule-based heuristic if LLM call fails.
+    100% dynamic — derives all intents, entity slots, dates, and focus areas from query semantics.
     """
-    # Build the canonical trainee list dynamically from the role map
-    canonical_names = list(dict.fromkeys(_TRAINEE_ROLE_MAP.values()))  # unique, order-preserved
+    # Fetch available trainee entities dynamically from the database/API
+    canonical_names = get_dynamic_trainees()
     canonical_names_str = ", ".join(f"'{n}'" for n in canonical_names)
+
 
     system_prompt = (
         "You are a routing classifier for a multi-agent training RAG system.\n"
@@ -68,10 +74,12 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  period:     date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null\n"
         "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
         "RULES:\n"
-        "- agent=mentor  when query is about evaluating, assessing, scoring, diagnosing a trainee's technical understanding, performance, technical capability, misconceptions, knowledge gaps, strengths, or mentor feedback.\n"
-        "- agent=team    when query is about catching up on a missed session, what happened in a session, assignments given, or decisions made in a specific session.\n"
-        "- agent=manager for executive project milestones, deliverables, blockers, risks, and task status across the cohort.\n"
+        "- agent=mentor  when query asks what Siddharth/mentor taught/explained, concepts introduced in a period/month, trainee evaluations, scores, understanding, knowledge gaps, learning curve, strengths, weaknesses, or mentor coaching/assessment.\n"
+        "- agent=manager ONLY when the user asks for executive project status, milestone rollup, completed task lists, blocker/risk lists, or action items across the project.\n"
+        "- agent=team    ONLY when query is about catching up on a single missed session (e.g. 'I was absent on July 24', 'I missed the meeting, what happened?').\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
+
+
     )
 
     hint_clause = f"\nTrainee hint (authenticated user): {trainee_hint}" if trainee_hint else ""

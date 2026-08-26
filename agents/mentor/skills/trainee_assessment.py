@@ -39,16 +39,43 @@ class MentorTraineeAssessmentSkill:
             trace_id=request.trace_id
         )
 
+        # Fetch active trainee names live from the API — no hardcoding
+        active_trainees: list = retrieval_client.get_active_trainees(exclude_mentor=True)
+        trainees_str = ", ".join(active_trainees) if active_trainees else "all active trainees"
+
         trainee = request.trainee.strip()
         speaker_filter = trainee if trainee and trainee.lower() not in ["all", "team"] else None
 
-        # STAGE 2: Retrieve Relevant Work & Learning Evidence
+        # STAGE 2: Retrieve Relevant Work & Learning Evidence (Precision-First via Retrieval Client)
+        search_query = request.query
+        if trainee and trainee.lower() not in ["all", "team"]:
+            search_query = f"{trainee} {request.query}"
+
+        # Detect query intent: Curriculum Summary vs Trainee Assessment
+        is_curriculum_query = any(w in request.query.lower() for w in [
+            "teach", "taught", "explain", "explained", "cover", "covered",
+            "introduce", "introduced", "what did siddharth", "what did the mentor",
+            "what was covered", "what topics", "curriculum", "lesson"
+        ])
+
+        # Cohort-wide or exhaustive queries need full corpus (p4), single-trainee needs precision (p1)
+        is_cohort_query = not speaker_filter or any(w in request.query.lower() for w in [
+            "all", "trainees", "team", "everyone", "cohort", "entire",
+            "breakdown", "performance", "exhaustive", "pyramid", "2000 token"
+        ])
+        # Mentor uses precision-first retrieval even for cohort queries.
+        # exp4 sends 689 chunks (~345k tokens) and causes Gemini 503 timeouts.
+        # Instead: exp1 with limit=45 gives broad semantic coverage with reranking,
+        # across all 3 trainees without hitting LLM context limits.
+        retrieval_strategy = "p2" if is_curriculum_query else "p1"
+        retrieval_limit   = 35 if is_curriculum_query else (45 if is_cohort_query else 15)
+
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
-            query=f"{trainee or 'trainee'} technical implementation code review {request.focus_area or ''}",
-            speaker_filter=speaker_filter,
+            query=search_query,
+            speaker_filter="Siddharth Saminathan" if is_curriculum_query else speaker_filter,
             date_filter=request.period or None,
-            limit=15,
-            strategy="p1"
+            limit=retrieval_limit,
+            strategy=retrieval_strategy
         )
 
         chunk_ids = [c.chunk_id for c in chunks]
@@ -56,7 +83,7 @@ class MentorTraineeAssessmentSkill:
 
         # FAILURE CHECK: Missing Evidence
         if not chunks:
-            failure_msg = f"INSUFFICIENT_EVIDENCE: No transcript evidence found for trainee '{trainee}'."
+            failure_msg = f"INSUFFICIENT_EVIDENCE: No transcript evidence found for query '{request.query}'."
             logger.set_failure(failure_msg, status="INSUFFICIENT_EVIDENCE")
             return logger.complete(failure_msg, status="INSUFFICIENT_EVIDENCE").output
 
@@ -72,54 +99,79 @@ class MentorTraineeAssessmentSkill:
         xml_evidence = "\n".join(xml_evidence_lines)
 
         # STAGES 3 TO 9: Pedagogical Reasoning & Assessment Production
-        # Dynamically load the skill specification markdown file
         spec_path = os.path.join(os.path.dirname(__file__), "trainee_assessment.md")
         skill_spec = ""
         if os.path.exists(spec_path):
             with open(spec_path, "r", encoding="utf-8") as f:
                 skill_spec = f.read()
 
-        # Detect if the user has requested a custom output format BEFORE building system_prompt
-        # If yes, suppress the skill spec's rigid 8-section Output Schema to prevent it
-        # from overriding the user's format request (e.g. Pyramid Principle)
-        raw_query_lower = request.query.lower()
-        custom_format_signals = [
-            "pyramid principle", "pyramid", "2000 token", "1000 token", "exhaustive",
-            "detailed breakdown", "long report", "long form", "in depth", "in-depth",
-            "comprehensive", "bullet point", "table format", "brief summary",
-            "short summary", "one liner", "one line", "tldr", "tl;dr"
-        ]
-        has_custom_format = any(sig in raw_query_lower for sig in custom_format_signals)
-
-        if has_custom_format:
-            # Only inject the evidence requirements — suppress the output schema entirely
-            spec_context = (
-                "=== EVIDENCE GROUNDING RULES ===\n"
-                "- Taught ≠ Understood: Only claim demonstrated capability when the mentee explained or built it.\n"
-                "- Apply the cognitive ladder: Taught → Attempted → Demonstrated → Correct.\n"
-                "- If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
-                "- Ground every statement in transcript evidence. No invented facts.\n"
+        if is_curriculum_query:
+            system_prompt = (
+                "You are summarising what the Lead Technical Mentor (Siddharth Saminathan) taught the trainees.\n"
+                "Based strictly on the transcript evidence provided, answer the user's curriculum question.\n\n"
+                "OUTPUT FORMAT:\n"
+                "### **Topics Taught by Siddharth**\n"
+                "Organise the answer by topic/theme — NOT by date. For each topic:\n"
+                "  - State the core concept taught\n"
+                "  - Include a direct quote or paraphrase with citation [Date, Page — Siddharth Saminathan]\n"
+                "  - Note WHY Siddharth emphasised this concept if stated in the evidence\n\n"
+                "RULES:\n"
+                "1. Only report concepts Siddharth himself explained or directed — not trainee work.\n"
+                "2. CITATION FORMAT: [Date, Page — Siddharth Saminathan] on every point.\n"
+                "3. Do not invent or assume topics not present in the evidence.\n"
             )
         else:
-            spec_context = f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n"
+            # Detect if user explicitly asked for Pyramid Principle structure
+            is_pyramid_query = any(w in request.query.lower() for w in [
+                "pyramid principle", "pyramid", "exhaustive", "2000 token", "breakdown"
+            ])
 
-        system_prompt = (
-            "You are the Lead Technical Mentor & AI Architect.\n"
-            "Your task is to answer the user's query accurately using evidence from the transcripts.\n\n"
-            f"{spec_context}\n"
-            "CRITICAL COGNITIVE & CITATION RULES:\n"
-            "0. QUERY ALIGNMENT RULE (HIGHEST PRIORITY): Read the exact query carefully. Your answer MUST directly and specifically answer what was asked. Match the answer scope to the question scope:\n"
-            "   - If the query asks a SPECIFIC question (e.g., 'what are Ganesh's knowledge gaps in Qdrant?', 'did Dakshinya demonstrate understanding of BM25?', 'what did Himaya build this week?'), give a FOCUSED direct answer that addresses exactly that — do NOT produce a full assessment schema with all 8 sections.\n"
-            "   - If the query asks for a BROAD REPORT or FULL ASSESSMENT (e.g., 'assess Himaya', 'give me a full evaluation of the team', 'summarize all trainees'), THEN use the full output schema.\n"
-            "   - The answer length and structure must be PROPORTIONAL to the question. A narrow question → a narrow focused answer. A broad report request → the full schema.\n"
-            "1. Read all evidence turns in <transcript_evidence>.\n"
-            "2. Enforce the ladder: Taught != Understood. Never claim demonstrated capability unless the mentee explained or built it.\n"
-            "3. If understanding is unproven, state 'Not demonstrated from available evidence'.\n"
-            "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
-            "5. QUOTE QUALITY RULE: When referencing or quoting transcript turns, select clear, technically meaningful statements. Avoid selecting or focusing on conversational stutters, filler words ('uh', 'ah', 'oh', 'ok'), or mic checks.\n"
-            "6. DYNAMIC OVERALL ASSESSMENT: Read the current query inside <current_query> carefully. Adapt the style, depth, length, and layout of the '### **Trainee · Overall assessment**' section ONLY to satisfy the formatting instructions requested in the <current_query> (e.g., 'pyramid principle breakdown', 'exhaustive', 'short summary'). Do NOT carry over style instructions, word counts, or formatting requests from the <conversation_history> block. If the <current_query> does not ask for a specific format or length, you MUST default to a clean, standard 1-2 sentence verdict.\n"
-            "7. Present output in clean prose under short headers without markdown tables."
-        )
+            # Build numbered KEY ARGUMENT sections dynamically from live trainee list
+            key_args_text = ""
+            for i, name in enumerate(active_trainees, start=2):
+                key_args_text += (
+                    f"{i}. ### KEY ARGUMENT {i - 1} — {name}\n"
+                    f"   - One sharp verdict sentence\n"
+                    f"   - Demonstrated capabilities with citations [Date, Page — Speaker]\n"
+                    f"   - Knowledge gaps with citations\n"
+                    f"   - Score: Overall X/10\n\n"
+                )
+
+            if is_pyramid_query:
+                system_prompt = (
+                    "You are the Lead Technical Mentor & AI Architect (Siddharth Saminathan).\n"
+                    "The user has asked for a PYRAMID PRINCIPLE breakdown. Follow this structure EXACTLY:\n\n"
+                    "=== PYRAMID PRINCIPLE STRUCTURE (MANDATORY) ===\n"
+                    "The Pyramid Principle requires: STATE THE CONCLUSION FIRST, then support it with evidence below.\n\n"
+                    "OUTPUT MUST FOLLOW THIS EXACT ORDER:\n"
+                    "1. ### GOVERNING THOUGHT (1 sharp sentence)\n"
+                    "   - The single most important conclusion about the cohort's performance.\n"
+                    "   - Example: 'The cohort builds functional systems but cannot defend design choices from first principles.'\n\n"
+                    f"{key_args_text}"
+                    f"{len(active_trainees) + 2}. ### TRAINEE EVALUATION SCORES TABLE\n"
+                    "   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n\n"
+                    f"{len(active_trainees) + 3}. ### PEDAGOGICAL RECOMMENDATION\n"
+                    "   - What the mentor must teach next, specific per trainee\n\n"
+                    "STRICT RULES:\n"
+                    "- Lead with the CONCLUSION — never start with background context.\n"
+                    "- Taught ≠ Understood: Only claim demonstrated capability when the mentee coded or defended it.\n"
+                    "- EVERY claim must have [Date, Page — Speaker] citation.\n"
+                    "- Do not invent facts not present in the evidence.\n"
+                )
+            else:
+                system_prompt = (
+                    "You are the Lead Technical Mentor & AI Architect (Siddharth Saminathan).\n"
+                    "Evaluate the trainees' technical progress based strictly on the transcript evidence.\n\n"
+                    f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
+                    "CRITICAL COGNITIVE & FORMATTING RULES:\n"
+                    f"0. If query covers all trainees, evaluate EACH one: {trainees_str}.\n"
+                    "1. Include the Trainee Evaluation Scores Table (1-10 scoring grid).\n"
+                    "2. Taught ≠ Understood: Never claim demonstrated capability without proof.\n"
+                    "3. CITATION FORMAT: [Date, Page — Speaker] on every claim.\n"
+                    "4. Avoid conversational filler in selected quotes.\n"
+                )
+
+
 
         # STAGE 8: Incorporate GitHub MCP Live Repo Context
         github_context = ""

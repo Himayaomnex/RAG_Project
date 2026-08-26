@@ -93,7 +93,7 @@ class ManagerWeeklyRollupSkill:
             f"=== OFFICIAL SKILL SPECIFICATION ===\n{skill_spec}\n\n"
             "CRITICAL FORMATTING & EVIDENCE RULES:\n"
             "0. QUERY ALIGNMENT RULE (HIGHEST PRIORITY): Read the exact query carefully. Your answer MUST directly and specifically address what was asked. Match the answer scope to the question scope:\n"
-            "   - If the query asks a SPECIFIC question (e.g., 'what did Himaya complete?', 'list the blockers for Ganesh', 'what decisions were made on July 28?'), give a FOCUSED direct answer targeting exactly that — do NOT produce all 5 schema sections when only one is relevant.\n"
+            "   - If the query asks a SPECIFIC question (e.g., 'what did a specific trainee complete?', 'list the blockers for a trainee', 'what decisions were made on a specific date?'), give a FOCUSED direct answer targeting exactly that — do NOT produce all 5 schema sections when only one is relevant.\n"
             "   - If the query asks for a FULL STATUS REPORT or ROLLUP (e.g., 'give me the weekly rollup', 'full project status', 'executive report'), THEN use the complete output schema with all sections.\n"
             "   - The answer length and structure must be PROPORTIONAL to the question. A narrow question → a focused answer. A broad rollup request → the full schema.\n"
             "1. Read all evidence turns in <transcript_evidence>.\n"

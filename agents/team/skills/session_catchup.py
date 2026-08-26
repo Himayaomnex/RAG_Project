@@ -52,7 +52,7 @@ class TeamSessionCatchupSkill:
             else:
                 date_val = None
 
-        # STAGE 2: Retrieve the session's evidence
+        # STAGE 2: Retrieve the session's evidence (Date-Scoped Scan via Retrieval Client)
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             date_filter=date_val,
@@ -101,8 +101,8 @@ class TeamSessionCatchupSkill:
             "3. Discard chronological small talk, mic checks, and conversational chatter.\n"
             "4. CITATION RULE: Always cite as '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]'). NEVER use chunk IDs, hex numbers, or UUIDs in citations.\n"
             "5. PERSONALIZED ATTRIBUTION:\n"
-            "   - If 'Requesting Trainee' is specified (e.g. 'Himaya', 'Ganesh', or 'Dakshinya'):\n"
-            "     * Under 'Assignments and actions', ONLY output the bullet block for that requesting mentee (e.g. '- Himaya Perumal:') and team-wide items ('- Team-Wide Action:').\n"
+            "   - If 'Requesting Trainee' is specified, use the name given in the query:\n"
+            "     * Under 'Assignments and actions', ONLY output the bullet block for that requesting trainee and team-wide items ('- Team-Wide Action:').\n"
             "     * DO NOT output bullet blocks for other teammates.\n"
             "     * Under 'What you need to know or do', summarize only their individual next actions.\n"
             "   - If 'Requesting Trainee' is 'All Team Members' or omitted:\n"
