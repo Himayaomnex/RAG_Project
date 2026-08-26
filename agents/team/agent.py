@@ -11,13 +11,18 @@ from .skills.session_catchup import team_session_catchup
 from ..shared.schemas import TeamCatchupRequest
 
 
-# Canonical trainee name map — single source of truth imported from router
-def _get_trainee_role_map():
+def _resolve_trainee_name(raw_name: str) -> Optional[str]:
+    if not raw_name or raw_name.lower() in ["all", "team", "everyone", "cohort"]:
+        return None
+    raw_lower = raw_name.lower().strip()
     try:
-        from router import _TRAINEE_ROLE_MAP
-        return _TRAINEE_ROLE_MAP
+        from router import get_dynamic_trainees
+        for t in get_dynamic_trainees():
+            if raw_lower in t.lower() or t.lower() in raw_lower:
+                return t
     except Exception:
-        return {}
+        pass
+    return raw_name
 
 
 class TeamAgent:
@@ -28,20 +33,7 @@ class TeamAgent:
 
     def handle_request(self, query: str, date: Optional[str] = None, trainee: Optional[str] = None, trace_id: Optional[str] = None) -> str:
         if trainee:
-            t_low = trainee.lower()
-            # Dynamically resolve canonical name from the router's trainee map
-            role_map = _get_trainee_role_map()
-            resolved = role_map.get(t_low)
-            if resolved:
-                trainee = resolved
-            elif t_low in ["all", "team", "everyone", "cohort"]:
-                trainee = None
-            else:
-                # Partial-match fallback: check if any canonical name is a substring
-                for key, canonical in role_map.items():
-                    if key in t_low or t_low in key:
-                        trainee = canonical
-                        break
+            trainee = _resolve_trainee_name(trainee)
 
         req = TeamCatchupRequest(
             date=date,

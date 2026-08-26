@@ -34,10 +34,8 @@ class PromptBuilder:
             self.team_members = team_members
         else:
             try:
-                from router import _TRAINEE_ROLE_MAP
-                # Get unique canonical names (values), preserving order
-                seen = set()
-                trainees = [v for v in _TRAINEE_ROLE_MAP.values() if not (v in seen or seen.add(v))]
+                from router import get_dynamic_trainees
+                trainees = get_dynamic_trainees()
                 self.team_members = trainees + ["Siddharth Saminathan"]
             except Exception:
                 self.team_members = []

@@ -117,10 +117,12 @@ def _rule_fallback(query: str, trainee_hint: Optional[str] = None) -> dict:
 
     # Extract trainee name dynamically from the query
     trainee = trainee_hint
-    for key, canonical in _TRAINEE_ROLE_MAP.items():
-        if key in q:
-            trainee = canonical
-            break
+    if not trainee:
+        for t in get_dynamic_trainees():
+            first_name = t.split()[0].lower() if t else ""
+            if (first_name and first_name in q) or (t.lower() in q):
+                trainee = t
+                break
 
     # Only the most unambiguous catch-up phrase triggers team agent
     if "i missed" in q or re.search(r"\bi was absent\b", q) or re.search(r"\bcatch.?up\b", q):

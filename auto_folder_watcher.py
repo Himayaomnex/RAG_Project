@@ -40,8 +40,8 @@ def is_valid_teams_transcript(file_path: str) -> bool:
             
         has_timestamps = bool(re.search(r"\b\d{1,2}:\d{2}\b", txt))
         try:
-            from router import _TRAINEE_ROLE_MAP
-            known_names = list(_TRAINEE_ROLE_MAP.values()) + ["Speaker"]
+            from router import get_dynamic_trainees
+            known_names = get_dynamic_trainees() + ["Speaker", "Siddharth Saminathan"]
         except Exception:
             known_names = ["Speaker"]
         has_known_speakers = any(name in txt for name in known_names)

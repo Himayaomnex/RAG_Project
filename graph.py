@@ -279,8 +279,8 @@ def run_graph(
                 q_low = query.lower()
                 cq_low = cached_query.lower()
                 try:
-                    from router import _TRAINEE_ROLE_MAP
-                    trainee_names = list(_TRAINEE_ROLE_MAP.keys())
+                    from router import get_dynamic_trainees
+                    trainee_names = [t.lower() for t in get_dynamic_trainees()]
                 except Exception:
                     trainee_names = []
                 name_mismatch = False
