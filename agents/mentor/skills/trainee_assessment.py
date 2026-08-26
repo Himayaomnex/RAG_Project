@@ -152,6 +152,12 @@ class MentorTraineeAssessmentSkill:
                     "   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n\n"
                     f"{len(active_trainees) + 3}. ### PEDAGOGICAL RECOMMENDATION\n"
                     "   - What the mentor must teach next, specific per trainee\n\n"
+                    "DETERMINISTIC RUBRIC SCORING SCALE (1-10):\n"
+                    "- 9-10 (Mastery): Flawless architectural defense from first principles + production-grade implementation.\n"
+                    "- 7-8 (Proficient): Working implementation with clear technical grasp; minor gaps in optimization.\n"
+                    "- 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
+                    "- 3-4 (Novice): Frequent misconceptions requiring repeated mentor intervention; unable to articulate system mechanics.\n"
+                    "- 1-2 (Incomplete): No working code or evidence of understanding.\n\n"
                     "STRICT RULES:\n"
                     "- Lead with the CONCLUSION — never start with background context.\n"
                     "- Taught ≠ Understood: Only claim demonstrated capability when the mentee coded or defended it.\n"
@@ -175,9 +181,15 @@ class MentorTraineeAssessmentSkill:
                     "1. TAUGHT ≠ UNDERSTOOD:\n"
                     "   - Never claim demonstrated capability unless the mentee explained, coded, or defended the solution.\n"
                     "   - If unproven, state 'Not demonstrated from available evidence'.\n"
-                    "2. EXACT CITATION FORMAT: Every single claim and evaluation must be backed by '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]').\n"
-                    "3. QUOTE QUALITY: Select clear, technically meaningful statements without conversational filler.\n"
-                    "4. SCORES TABLE (Include at the end):\n"
+                    "2. DETERMINISTIC RUBRIC SCORING SCALE (1-10):\n"
+                    "   - 9-10 (Mastery): Flawless architectural defense from first principles + production-grade implementation.\n"
+                    "   - 7-8 (Proficient): Working implementation with clear technical grasp; minor gaps in optimization.\n"
+                    "   - 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
+                    "   - 3-4 (Novice): Frequent misconceptions requiring repeated mentor intervention; unable to articulate system mechanics.\n"
+                    "   - 1-2 (Incomplete): No working code or evidence of understanding.\n"
+                    "3. EXACT CITATION FORMAT: Every single claim and evaluation must be backed by '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]').\n"
+                    "4. QUOTE QUALITY: Select clear, technically meaningful statements without conversational filler.\n"
+                    "5. SCORES TABLE (Include at the end):\n"
                     "   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n"
                 )
 
@@ -241,7 +253,7 @@ class MentorTraineeAssessmentSkill:
             assessment_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1
+                temperature=0.0
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 
