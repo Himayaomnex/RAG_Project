@@ -51,10 +51,10 @@ class LLMClient:
         if self.gemini_key:
             try:
                 res, pt, ct = self._call_gemini(system_instruction, user_prompt, temperature, effective_tokens, json_mode)
-                print(f"[{tid}] LLM call model={self.gemini_model} prompt_tokens={pt} completion_tokens={ct}")
+                print(f"[{tid}] LLM call model={self.gemini_model} prompt_tokens={pt} completion_tokens={ct}", flush=True)
                 return res, self.gemini_model, pt, ct
             except Exception as e:
-                print(f"  - [LLM Warning] Gemini failed: {e}. Attempting Groq failover...")
+                print(f"  - [LLM Warning] Gemini failed: {e}. Attempting Groq failover...", flush=True)
 
         # Secondary Tier: Groq
         if self.groq_key:

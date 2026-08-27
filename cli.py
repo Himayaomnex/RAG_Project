@@ -220,8 +220,10 @@ def run_cli(
             )
 
             # ── Print response ─────────────────────────────────────────────────
+            strat = "exp4 (Full-Corpus Completeness Scan)" if result['dispatched_agent'].lower() == "manager" else "exp1 (Precision Scroll + Custom Reranker)"
             print(_header(
                 f"Agent: {result['dispatched_agent'].upper()}"
+                f"  |  Pipeline: {strat}"
                 f"  |  Latency: {result['latency_seconds']}s"
                 f"  |  Trace: {result['trace_id']}"
             ))

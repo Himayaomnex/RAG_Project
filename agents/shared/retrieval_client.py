@@ -69,7 +69,7 @@ class RetrievalClient:
         dt_str = f'"{norm_date}"' if norm_date else "None"
 
         # ── Non-Negotiable Log Line 1: Pre-execution Route Decision ───────────
-        print(f"[{tid}] ROUTE agent={agent_name} skill={skill_name} strategy={strategy} collection={self.target_collection} speaker={spk_str} date={dt_str}")
+        print(f"[{tid}] ROUTE agent={agent_name} skill={skill_name} strategy={strategy} collection={self.target_collection} speaker={spk_str} date={dt_str}", flush=True)
 
         url = f"{self.endpoint_url.rstrip('/')}/retrieve"
         payload = {
@@ -87,7 +87,7 @@ class RetrievalClient:
             resp = requests.post(url, json=payload, timeout=20)
             latency_ms = round((time.time() - t0) * 1000, 1)
         except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
-            print(f"[{tid}] HTTP POST /retrieve -> ERROR: Server unreachable at {self.endpoint_url}")
+            print(f"[{tid}] HTTP POST /retrieve -> ERROR: Server unreachable at {self.endpoint_url}", flush=True)
             raise RuntimeError(
                 f"RETRIEVAL_UNAVAILABLE: Dakshinya's Retrieval Service is offline at {self.endpoint_url}.\n"
                 f"Please start her service in C:\\dev\\dakshinya-service:\n"
@@ -97,7 +97,7 @@ class RetrievalClient:
             raise RuntimeError(f"RETRIEVAL_UNAVAILABLE: S2 API call failed: {e}") from e
 
         if resp.status_code != 200:
-            print(f"[{tid}] HTTP POST /retrieve -> {resp.status_code} Error: {resp.text}")
+            print(f"[{tid}] HTTP POST /retrieve -> {resp.status_code} Error: {resp.text}", flush=True)
             raise RuntimeError(f"RETRIEVAL_UNAVAILABLE: Server returned status {resp.status_code}: {resp.text}")
 
         data = resp.json()
@@ -105,7 +105,7 @@ class RetrievalClient:
         server_latency = data.get("latency_ms", latency_ms)
 
         # ── Non-Negotiable Log Line 2: HTTP Retrieval Success ─────────────────
-        print(f"[{tid}] HTTP POST /retrieve -> 200 chunks={len(raw_chunks)} latency_ms={server_latency}")
+        print(f"[{tid}] HTTP POST /retrieve -> 200 chunks={len(raw_chunks)} latency_ms={server_latency}", flush=True)
 
         chunks: List[EvidenceChunk] = []
         for idx, c in enumerate(raw_chunks):
