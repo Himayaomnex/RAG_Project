@@ -317,7 +317,7 @@ def run_graph(
     # Cache disabled so every demo query performs live retrieval over HTTP
 
     # Inject current conversation history into state
-    history = get_history(session_id)[-MAX_HISTORY_TURNS * 2:]
+    history = get_history(session_id)[-BUFFER_WINDOW_TURNS * 2:]
 
     initial_state: AgentState = {
         "query":                query,
@@ -326,6 +326,7 @@ def run_graph(
         "period":               period,
         "focus_area":           focus_area,
         "session_id":           session_id,
+        "strategy":             None,
         "agent_intent":         forced_agent or "",   # "" triggers classifier
         "final_response":       "",
         "dispatched_agent":     "",
