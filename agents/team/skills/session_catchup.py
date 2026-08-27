@@ -52,13 +52,14 @@ class TeamSessionCatchupSkill:
             else:
                 date_val = None
 
-        # STAGE 2: Retrieve the session's evidence (Date-Scoped Scan via Retrieval Client)
+        # STAGE 2: Retrieve the session's evidence (Driven by Router Strategy)
+        strat = request.strategy or "exp1"
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             date=date_val,
             speaker=None,
-            strategy="exp1",
-            use_reranker=True,
+            strategy=strat,
+            use_reranker=(strat == "exp1"),
             agent_name="team",
             skill_name="session_catchup",
             trace_id=request.trace_id

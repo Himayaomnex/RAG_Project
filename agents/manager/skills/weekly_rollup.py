@@ -41,13 +41,14 @@ class ManagerWeeklyRollupSkill:
         period_str = f"{request.period_start or ''} to {request.period_end or ''}".strip(" to ")
         target_trainee = request.trainee if request.trainee and request.trainee.lower() not in ["all", "team"] else None
 
-        # STAGE 2: Retrieve Relevant Evidence (Completeness-First via Retrieval Client)
+        # STAGE 2: Retrieve Relevant Evidence (Driven by Router Strategy)
+        strat = request.strategy or "exp4"
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             speaker=target_trainee,
             date=period_str or None,
-            strategy="exp4",
-            use_reranker=False,
+            strategy=strat,
+            use_reranker=(strat == "exp1"),
             agent_name="manager",
             skill_name="weekly_rollup",
             trace_id=request.trace_id

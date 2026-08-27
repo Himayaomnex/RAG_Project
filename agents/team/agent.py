@@ -31,7 +31,7 @@ class TeamAgent:
         self.persona = "Peer Catch-Up & Action Specialist"
         self.skill = team_session_catchup
 
-    def handle_request(self, query: str, date: Optional[str] = None, trainee: Optional[str] = None, trace_id: Optional[str] = None) -> str:
+    def handle_request(self, query: str, date: Optional[str] = None, trainee: Optional[str] = None, strategy: Optional[str] = None, trace_id: Optional[str] = None) -> str:
         if trainee:
             trainee = _resolve_trainee_name(trainee)
 
@@ -39,6 +39,7 @@ class TeamAgent:
             date=date,
             trainee=trainee,
             query=query,
+            strategy=strategy,
             trace_id=trace_id
         )
         return self.skill.execute(req)

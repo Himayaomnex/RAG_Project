@@ -69,6 +69,7 @@ class AgentState(TypedDict):
     period: Optional[str]
     focus_area: Optional[str]
     session_id: str
+    strategy: Optional[str]
 
     # Populated by intent_classifier_node
     agent_intent: str       # "manager" | "mentor" | "team"
@@ -98,6 +99,7 @@ def intent_classifier_node(state: AgentState) -> AgentState:
     return {
         **state,
         "agent_intent": result["agent"],
+        "strategy":   state.get("strategy") or result.get("strategy") or "exp1",
         "trainee":    state.get("trainee") or result.get("trainee"),
         "date":       state.get("date")    or result.get("date"),
         "period":     state.get("period")  or result.get("period"),
@@ -137,6 +139,7 @@ def manager_node(state: AgentState) -> AgentState:
         period_start=state.get("period"),
         period_end=None,
         trainee=state.get("trainee") or "",
+        strategy=state.get("strategy"),
         trace_id=state["trace_id"]
     )
 
@@ -158,6 +161,7 @@ def mentor_node(state: AgentState) -> AgentState:
         trainee=state.get("trainee") or "",
         period=state.get("period"),
         focus_area=state.get("focus_area"),
+        strategy=state.get("strategy"),
         trace_id=state["trace_id"]
     )
 
@@ -178,6 +182,7 @@ def team_node(state: AgentState) -> AgentState:
         query=enriched_query,
         date=state.get("date"),
         trainee=state.get("trainee") or "",
+        strategy=state.get("strategy"),
         trace_id=state["trace_id"]
     )
 

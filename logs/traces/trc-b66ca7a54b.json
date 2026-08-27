@@ -1,0 +1,23 @@
+{
+  "trace_id": "trc-b66ca7a54b",
+  "timestamp": "2026-08-26T13:23:39Z",
+  "agent": "manager",
+  "skill": "manager_weekly_rollup",
+  "input_query": "> Give me the training status for this week",
+  "input_params": {
+    "period_start": "this week",
+    "period_end": null,
+    "trainee": null,
+    "query": "> Give me the training status for this week",
+    "trace_id": "trc-b66ca7a54b"
+  },
+  "retrieval_requests": 1,
+  "retrieved_chunk_ids": [],
+  "llm_calls": 0,
+  "llm_model": "gemini-2.5-flash",
+  "latency_seconds": 11.972,
+  "token_usage": {},
+  "failure": "INSUFFICIENT_EVIDENCE: No transcript evidence available for the requested review period.",
+  "final_status": "INSUFFICIENT_EVIDENCE",
+  "output": "INSUFFICIENT_EVIDENCE: No transcript evidence available for the requested review period."
+}

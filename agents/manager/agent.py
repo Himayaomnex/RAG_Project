@@ -18,12 +18,13 @@ class ManagerAgent:
         self.persona = "Executive Status & Decision Specialist"
         self.skill = manager_weekly_rollup
 
-    def handle_request(self, query: str, period_start: Optional[str] = None, period_end: Optional[str] = None, trainee: Optional[str] = None, trace_id: Optional[str] = None) -> str:
+    def handle_request(self, query: str, period_start: Optional[str] = None, period_end: Optional[str] = None, trainee: Optional[str] = None, strategy: Optional[str] = None, trace_id: Optional[str] = None) -> str:
         req = ManagerRollupRequest(
             query=query,
             period_start=period_start,
             period_end=period_end,
             trainee=trainee if trainee else None,
+            strategy=strategy,
             trace_id=trace_id
         )
         return self.skill.execute(req)

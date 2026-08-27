@@ -51,29 +51,13 @@ class MentorTraineeAssessmentSkill:
         if trainee and trainee.lower() not in ["all", "team"]:
             search_query = f"{trainee} {request.query}"
 
-        # Detect query intent: Curriculum Summary vs Trainee Assessment
-        is_curriculum_query = any(w in request.query.lower() for w in [
-            "teach", "taught", "explain", "explained", "cover", "covered",
-            "introduce", "introduced", "what did siddharth", "what did the mentor",
-            "what was covered", "what topics", "curriculum", "lesson"
-        ])
-
-        # Dynamic Strategy Selection:
-        # - Exhaustive / Cohort-wide queries -> exp4 (Completeness / Full-Corpus scan)
-        # - Specific Trainee / Concept queries -> exp1 (Precision Scroll + Custom Reranker)
-        is_exhaustive = any(w in request.query.lower() for w in [
-            "exhaustive", "full corpus", "entire cohort", "all sessions", "all trainees"
-        ])
-        if is_exhaustive:
-            retrieval_strategy = "exp4"
-            use_reranker = False
-        else:
-            retrieval_strategy = "exp1"
-            use_reranker = True
+        # Retrieval Strategy & Reranker are derived dynamically by the LLM Router
+        retrieval_strategy = request.strategy or "exp1"
+        use_reranker = (retrieval_strategy == "exp1")
 
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=search_query,
-            speaker="Siddharth Saminathan" if is_curriculum_query else speaker_filter,
+            speaker=speaker_filter,
             date=request.period or None,
             strategy=retrieval_strategy,
             use_reranker=use_reranker,

@@ -64,6 +64,9 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
         "Given a user query, output a JSON object with exactly these keys:\n"
         "  agent:      one of 'manager', 'mentor', 'team'\n"
+        "  strategy:   retrieval strategy from Dakshinya's service ('exp1' or 'exp4'):\n"
+        "              • 'exp4' when query asks for exhaustive reviews, broad multi-session rollups, full cohort breakdowns, or executive weekly status (completeness-first).\n"
+        "              • 'exp1' when query asks about a single trainee, specific technical concept, or single session catch-up (precision-first).\n"
         f"  trainee:    canonical trainee name ({canonical_names_str}) or null\n"
         "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
         "  period:     concrete calendar date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null. Do NOT extract relative terms like 'this week', 'last week', 'current week', 'recently' — return null for these.\n"
@@ -73,8 +76,6 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "- agent=manager ONLY when the user asks for executive project status, milestone rollup, completed task lists, blocker/risk lists, or action items across the project.\n"
         "- agent=team    ONLY when query is about catching up on a single missed session (e.g. 'I was absent on July 24', 'I missed the meeting, what happened?').\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
-
-
     )
 
     hint_clause = f"\nTrainee hint (authenticated user): {trainee_hint}" if trainee_hint else ""
@@ -95,8 +96,14 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         agent = result.get("agent", "manager").lower()
         if agent not in ("manager", "mentor", "team"):
             agent = "manager"
+        
+        strat = result.get("strategy", "").lower()
+        if strat not in ("exp1", "exp2", "exp3", "exp4"):
+            strat = "exp4" if agent == "manager" else "exp1"
+
         return {
             "agent":      agent,
+            "strategy":   strat,
             "trainee":    result.get("trainee") or trainee_hint or None,
             "date":       result.get("date") or None,
             "period":     result.get("period") or None,

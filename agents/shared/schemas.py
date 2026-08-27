@@ -51,6 +51,7 @@ class ManagerRollupRequest(BaseModel):
     period_end: Optional[str] = None
     trainee: Optional[str] = None
     query: str = "Give me the training status for this week."
+    strategy: Optional[str] = None
     trace_id: Optional[str] = None
 
 
@@ -104,6 +105,7 @@ class MentorAssessmentRequest(BaseModel):
     period: Optional[str] = None
     focus_area: Optional[str] = None
     query: str = "Assess trainee technical progress."
+    strategy: Optional[str] = None
     trace_id: Optional[str] = None
 
 
@@ -141,6 +143,7 @@ class TeamCatchupRequest(BaseModel):
     date: Optional[str] = None
     trainee: Optional[str] = None
     query: str = "What did I miss in today's training session?"
+    strategy: Optional[str] = None
     trace_id: Optional[str] = None
 
 

@@ -1,0 +1,23 @@
+{
+  "trace_id": "trc-7ee92ffede",
+  "timestamp": "2026-08-27T05:56:15Z",
+  "agent": "manager",
+  "skill": "manager_weekly_rollup",
+  "input_query": "What decisions and action items were agreed upon in the July 21 meeting?",
+  "input_params": {
+    "period_start": "July 21",
+    "period_end": null,
+    "trainee": null,
+    "query": "What decisions and action items were agreed upon in the July 21 meeting?",
+    "trace_id": "trc-7ee92ffede"
+  },
+  "retrieval_requests": 1,
+  "retrieved_chunk_ids": [],
+  "llm_calls": 0,
+  "llm_model": "gemini-2.5-flash",
+  "latency_seconds": 5.877,
+  "token_usage": {},
+  "failure": "INSUFFICIENT_EVIDENCE: No transcript evidence available for the requested review period.",
+  "final_status": "INSUFFICIENT_EVIDENCE",
+  "output": "INSUFFICIENT_EVIDENCE: No transcript evidence available for the requested review period."
+}
