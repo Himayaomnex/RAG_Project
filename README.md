@@ -1,133 +1,112 @@
-# Multi-Agent Teams Transcript RAG System
+# Multi-Agent Teams Transcript RAG System (Enterprise Specification)
 
-An enterprise-grade, privacy-first Retrieval-Augmented Generation (RAG) multi-agent system designed to parse, index, search, and synthesize Microsoft Teams meeting transcripts (`.docx`) with verbatim grounding and source citations.
+An enterprise-grade, privacy-first Retrieval-Augmented Generation (RAG) multi-agent system designed to parse, index, search, and synthesize Microsoft Teams meeting transcripts (`.docx`) with verbatim grounding, exact citations, and zero hardcoding.
 
 ---
 
 ## 🏗️ System Architecture
 
+The system operates across a clean, decoupled **Two-Tier Microservice Architecture**:
+
 ```mermaid
 flowchart TD
-    User["👤 User Query + Role"] --> PipelineBox
+    UserQuery["👤 User Query"] --> Router["🔀 Semantic Intent Router (router.py)\n[Dynamic Entity & Intent Resolution]"]
 
-    subgraph SharedKB ["📦 SHARED KNOWLEDGE BASE"]
-        style SharedKB fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
-        Transcripts["📄 MS Teams Transcripts (.docx)"] --> NormChunk["⚙️ Normalization + Chunking"]
-        NormChunk --> DenseEmbed["🧠 Dense Embeddings (all-MiniLM-L6-v2)"]
-        DenseEmbed --> QdrantDB[("🗄️ Qdrant Vector Database")]
+    subgraph System3 ["🤖 SYSTEM 3: THREE-AGENT LAYER (Consumer-Specific)"]
+        direction TB
+        style System3 fill:#fff7ed,stroke:#ea580c,stroke-width:2px
+        
+        ManagerAgent["💼 Manager Agent (agents/manager)\nSkill: weekly_rollup.py\nConsumer: Iyappan (Executive Status)"]
+        MentorAgent["🎓 Mentor Agent (agents/mentor)\nSkill: trainee_assessment.py\nConsumer: Siddharth (Pedagogical Evaluation)"]
+        TeamAgent["👥 Team Intelligence Agent (agents/team)\nSkill: session_catchup.py\nConsumer: Trainees (Catchup & Tasks)"]
     end
 
-    subgraph PipelineBox ["⚡ SHARED RAG PIPELINE"]
-        style PipelineBox fill:#eff6ff,stroke:#2563eb,stroke-width:2px
-        Routing["🔀 Query Routing (router.py)"]
-        Retrieval["🔍 Dense Retrieval (Sub-4ms Vector Search)"]
-        Reranking["📊 Meeting-Aware Reranking"]
-        Evidence["📑 Retrieved Evidence + Metadata"]
+    Router -->|"manager_weekly_rollup"| ManagerAgent
+    Router -->|"mentor_trainee_assessment"| MentorAgent
+    Router -->|"team_session_catchup"| TeamAgent
 
-        Routing --> Retrieval
-        Retrieval --> Reranking
-        Reranking --> Evidence
+    subgraph System2 ["⚡ SYSTEM 2: RETRIEVAL & EVALUATION MICROSERVICE (Port 8000)"]
+        direction TB
+        style System2 fill:#eff6ff,stroke:#2563eb,stroke-width:2px
+
+        FastAPIServer["🚀 FastAPI REST Backend (retrieval_service.py)\nPOST /query/retrieve-only\nGET /filters/metadata\nPOST /query/evaluate"]
+        
+        DenseRetrieval["🔍 Dense Retrieval (Sentence-Transformers all-MiniLM-L6-v2)"]
+        RerankerModule["📊 Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2)"]
+        QdrantCloud[("🗄️ Qdrant Vector Cloud\n[teams_dense_collection · 770 Chunks]")]
+        
+        FastAPIServer --> DenseRetrieval
+        DenseRetrieval --> QdrantCloud
+        FastAPIServer --> RerankerModule
     end
 
-    QdrantDB -.->|"Vectors & Payload"| Retrieval
+    ManagerAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp4)"| FastAPIServer
+    MentorAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp1, rerank=True)"| FastAPIServer
+    TeamAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp2, speaker/date filtered)"| FastAPIServer
 
-    Evidence --> AgentBox
-
-    subgraph AgentBox ["🤖 INTELLIGENT AGENTS"]
-        style AgentBox fill:#fff7ed,stroke:#ea580c,stroke-width:2px
-        MgrAgent["💼 Manager Agent\n(Performance, Progress, Action Items)"]
-        MtrAgent["🎓 Mentor Agent\n(Revision, Guidance, Learning Support)"]
-        TeamAgent["👥 Teammate Intelligence Agent\n(Team Context, Collaboration, Knowledge Sharing)"]
+    subgraph LLMClientLayer ["🧠 PROVIDER LLM CLIENT"]
+        style LLMClientLayer fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
+        GeminiEngine["⚡ Google Gemini 2.5 Flash\n[temp=0.0, seed=42, Thinking Budget=0]"]
+        GroqFailover["🛡️ Groq Failover (Llama-3.3-70B)"]
     end
 
-    MgrAgent --> FinalResp["💬 Role-Specific Intelligent Response\n(Google Gemini Flash + Verbatim Citations)"]
-    MtrAgent --> FinalResp
-    TeamAgent --> FinalResp
+    ManagerAgent --> LLMClientLayer
+    MentorAgent --> LLMClientLayer
+    TeamAgent --> LLMClientLayer
 
-    style FinalResp fill:#faf5ff,stroke:#9333ea,stroke-width:2px
-```
+    subgraph Observability ["📈 OBSERVABILITY & LOGGING"]
+        style Observability fill:#faf5ff,stroke:#9333ea,stroke-width:2px
+        TraceLogger["📝 TraceLogger (logs/traces/trc-*.json)\n[Latency, Token Metrics, Prompt Payloads]"]
+    end
 
-```text
-  ┌───────────────────────┐
-  │   👤 User Query + Role │
-  └───────────┬───────────┘
-              │
-  ┌───────────▼───────────────────────────────────────────────────────────────────┐
-  │ ⚡ SHARED RAG PIPELINE                                                         │
-  │   ├── 🔀 Query Routing (router.py)                                            │
-  │   ├── 🔍 Dense Retrieval (Sub-4ms Qdrant Vector Search) ◀── [🗄️ Qdrant DB]    │
-  │   ├── 📊 Meeting-Aware Cross-Turn Reranking                                  │
-  │   └── 📑 Retrieved Evidence + Metadata                                       │
-  └───────────┬───────────────────────────────────────────────────────────────────┘
-              │
-  ┌───────────▼───────────────────────────────────────────────────────────────────┐
-  │ 🤖 INTELLIGENT AGENTS                                                         │
-  │   ├── 💼 Manager Agent               (Performance, Progress, Action Items)    │
-  │   ├── 🎓 Mentor Agent                (Revision, Guidance, Learning Support)   │
-  │   └── 👥 Teammate Intelligence Agent (Team Context, Knowledge Sharing)        │
-  └───────────┬───────────────────────────────────────────────────────────────────┘
-              │
-  ┌───────────▼───────────────────────────────────────────────────────────────────┐
-  │ 💬 Role-Specific Intelligent Response (Google Gemini Flash + Verbatim Proof)   │
-  └───────────────────────────────────────────────────────────────────────────────┘
+    ManagerAgent -.-> TraceLogger
+    MentorAgent -.-> TraceLogger
+    TeamAgent -.-> TraceLogger
 ```
 
 ---
 
-## 🧩 Architectural Breakdown
+## 🧩 Key Architectural Principles
 
-### 1. 📦 Shared Knowledge Base
-* **MS Teams Transcripts**: Ingests all training meeting transcripts (`.docx`) spanning project kickoff to final deliverables.
-* **Normalization + Chunking**: Pre-chunking speaker normalization, crosstalk resolution, transcription noise removal, and semantic topic-shift boundary chunking.
-* **Dense Embeddings & Caching**: Sentence-Transformers (`all-MiniLM-L6-v2`) generating 384-dimensional dense vectors with local persistent SHA-256 caching (`emb_cache`).
-* **Qdrant Vector Database**: Embedded and file-backed vector database storing dense vectors with rich payload metadata (Date, Speaker, Page Number, Chunk ID).
+### 1. 🌐 Decoupled Microservice Layering
+* **System 2 (Retrieval Microservice)** runs as an independent FastAPI service on `http://127.0.0.1:8000`.
+* **System 3 (Agent Layer)** performs **zero local vector queries**. All vector retrieval and reranking are fetched exclusively over authenticated HTTP endpoints (`/query/retrieve-only`).
 
----
+### 2. 🛡️ Zero Hardcoded Entities or Rules
+* **No Hardcoded Trainee Lists**: Trainees (`Himaya Perumal`, `Ganesh Krishna`, `Dakshinya Nachimuthu`) and valid session dates are dynamically discovered at runtime via `GET /filters/metadata` directly from Qdrant.
+* **No Rigid Keyword Routing**: `router.py` uses semantic intent classification with dynamic entity matching.
 
-### 2. ⚡ Shared RAG Pipeline
-* **Query Routing (`router.py`)**: Directs incoming requests based on user role and natural language intent (Manager vs. Mentor vs. Teammate queries).
-* **Dense Retrieval (`pipeline.py`)**: Executes 4 optimized retrieval pipelines (P1: Baseline, P2: Filtered, P3: Reranked, P4: Full-Corpus Map-Reduce).
-* **Reranking**: Recency- and relevance-weighted reranker prioritizing actionable meeting moments over generic chatter.
-* **Retrieved Evidence + Metadata**: Bundles verified context blocks with exact transcript citations.
-
----
-
-### 3. 🤖 Intelligent Agents
-* **💼 Manager Agent (`agents/manager_agent.py`)**:
-  * Serves Executive Role (**Iyappan Sir**).
-  * Synthesizes deliverable progress tables, active blockers, decision logs, and milestone timelines.
-* **🎓 Mentor Agent (`agents/mentor_agent.py`)**:
-  * Serves Mentor Role (**Siddharth Saminathan**).
-  * Generates mentee technical scorecards, technical quizzes, learning topic assignments, and targeted coaching notes.
-* **👥 Teammate Intelligence Agent (`agents/teammates_agent.py`)**:
-  * Serves Teammates (**Himaya Perumal**, **Ganesh Krishna**, **Dakshinya Nachimuthu**).
-  * Explains system architecture, code implementations, and retrieves verbatim spoken discussion turns.
+### 3. 🎯 Strict Cognitive Guardrails
+* **Taught ≠ Understood**: Trainees are only credited when they have actively written code, built tools, or defended solutions—not simply because the mentor discussed the topic.
+* **Barbara Minto's Pyramid Principle**: Evaluative outputs strictly lead with a `### GOVERNING THOUGHT`, followed by numbered `### KEY ARGUMENTS`, a deterministic `### SCORES TABLE`, and `### PEDAGOGICAL RECOMMENDATIONS`.
+* **Deterministic Scoring (1–10 Rubric)**: Mentor evaluations enforce a strict 1–10 rubric scale at `temperature=0.0` with `seed=42` to guarantee 100% reproducible, frozen scores across repeated runs.
+* **Mandatory Verbatim Citations**: Every single technical claim requires an exact source citation `[Date, Page — Speaker]`.
+* **Loud Failure Boundary**: If evidence is missing, the system outputs `INSUFFICIENT_EVIDENCE` instead of hallucinating.
 
 ---
 
-### 4. 💬 Role-Specific Intelligent Response
-* **LLM Engine**: **Google Gemini Flash (`gemini-2.5-flash`)** as primary generation engine with automated fallback to Groq.
-* **Verbatim Grounding**: Every fact, table entry, and score is verified against source citations (`[Date — Page — Speaker]`).
-* **Clean Formatting**: Enforces single-header Markdown tables and sanitizes pipe characters to ensure perfect table rendering.
+## 👥 Three Specialized Agent Personas
+
+| Agent | Target Consumer | Primary Skill | Output Format |
+| :--- | :--- | :--- | :--- |
+| **Manager Agent** | **Iyappan** (Executive Engineering Manager) | `manager_weekly_rollup` | `Executive conclusion`, `Completed (with quotes & citations)`, `In Progress`, `Blocked or At Risk` |
+| **Mentor Agent** | **Siddharth** (AI Architect & Mentor) | `mentor_trainee_assessment` | Minto Pyramid Principle (`Governing Thought`, `Key Arguments 1..3`, `Scores Table (1-10)`, `Pedagogical Next Steps`) |
+| **Team Intelligence Agent** | **Trainees** (Himaya, Ganesh, Dakshinya) | `team_session_catchup` | Single-Session Recap (`Technical Decisions`, `Assigned Tasks per Trainee`, `Team-Wide Actions`) |
 
 ---
 
-## 🚀 Quick Start & Usage
+## 🚀 Quick Start & Execution
 
-### 1. Environment Setup
+### 1. Prerequisites & Environment Setup
 Create a `.env` file in the root directory:
 ```env
-# Primary LLM Provider
-GEMINI_API_KEY="your_google_gemini_api_key"
-GEMINI_MODEL_NAME=gemini-2.5-flash
-GEMINI_TEMPERATURE=0.2
-GEMINI_TOP_P=0.9
-GEMINI_MAX_TOKENS=4096
-
-# Backup Providers (Optional)
+GEMINI_API_KEY="your_gemini_api_key"
+GEMINI_MODEL_NAME="gemini-2.5-flash"
+GEMINI_TEMPERATURE="0.0"
+GEMINI_MAX_TOKENS="8192"
 GROQ_API_KEY="your_groq_api_key"
-OPENROUTER_API_KEY="your_openrouter_api_key"
-GITHUB_TOKEN="your_github_token"
+QDRANT_URL="your_qdrant_cloud_url"
+QDRANT_API_KEY="your_qdrant_api_key"
 ```
 
 Install dependencies:
@@ -137,38 +116,42 @@ pip install -r requirements.txt
 
 ---
 
-### 2. Launch the Web Application Dashboard
-Start the production FastAPI server:
+### 2. Start the Backend Services
+
+#### Terminal 1: Launch Retrieval Service (System 2)
 ```powershell
-python api_server.py
+python retrieval_service.py
 ```
-Open your browser at **`http://127.0.0.1:8000`** to access the interactive web dashboard with:
-* Real-time Role Switcher (Owner, Manager, Mentor, Teammates)
-* Dark / Light mode toggle
-* Live LLM Provider and Latency status badges
-* Markdown and table rendering with verbatim citation proofs
+*Live on `http://127.0.0.1:8000` with endpoints `/filters/metadata`, `/query/retrieve-only`, and `/query/evaluate`.*
+
+#### Terminal 2: Run Interactive CLI (System 3)
+```powershell
+python cli.py
+```
 
 ---
 
-### 3. FastMCP Server (For IDE & External Agent Integration)
-Run the standard FastMCP server over STDIO:
-```powershell
-python mcp_server.py --server
+## 🧪 Example Test Queries
+
+### 👔 Manager Agent Queries
+```text
+> What are the major deliverables completed across the entire team so far?
+> List all the active technical blockers and open decisions currently at risk.
+> What architectural and tooling changes occurred during the training?
 ```
 
-Exposes 5 MCP tools:
-* `mcp_search_transcripts`: Authenticated Qdrant vector search
-* `manager_agent_tool`: Executive status, blockers, and deliverables
-* `mentor_agent_tool`: Mentee scorecards and coaching guidance
-* `teammates_agent_tool`: Codebase SCQA and discussion retrieval
-* `router_dispatch_tool`: Automated central intent dispatcher
+### 🎓 Mentor Agent Queries
+```text
+> Give me a pyramid principle breakdown of the entire cohort's performance.
+> How did Himaya perform during the training? What are her key strengths and knowledge gaps?
+> What did Siddharth teach regarding caching, embeddings, and context window limits?
+```
 
----
-
-### 4. Automatic Transcript Watcher Daemon
-Monitor your Windows `Downloads` folder for newly downloaded Teams transcripts:
-```powershell
-python auto_folder_watcher.py
+### 👥 Team Intelligence Agent Queries
+```text
+> I missed the session on July 28, catch me up on what happened.
+> What decisions and action items were agreed upon in the July 21 meeting?
+> I was absent on July 24. What specific tasks were assigned to Ganesh?
 ```
 
 ---
@@ -178,23 +161,42 @@ python auto_folder_watcher.py
 ```text
 RAG_COMBINED/
 ├── agents/
-│   ├── manager_agent.py        # Executive Manager Agent
-│   ├── mentor_agent.py         # Mentee Evaluation & Learning Agent
-│   └── teammates_agent.py      # Codebase Assistant & Quote Retrieval
-├── static/
-│   ├── index.html              # Modern Web Dashboard
-│   ├── styles.css              # Glassmorphism design & responsive layout
-│   └── script.js               # Frontend controller & citation renderer
-├── skills/                     # Skill prompt templates & definitions
-├── api_server.py               # Production FastAPI REST Backend
-├── router.py                   # Central Intent & Role-Based Prompt Router
-├── pipeline.py                 # Vector DB, Chunking, Cache, & 4 Retrieval Pipelines
-├── prompt_builder.py           # 8-Module dynamic System Prompt Builder
-├── llm_client.py               # Google Gemini (gemini-2.5-flash) primary LLM Engine
-├── github_mcp_client.py        # GitHub MCP Client (Issues, PRs, Commits, Diffs)
-├── mcp_server.py               # FastMCP Server with Auth Layer
-├── auto_folder_watcher.py      # Automatic incremental transcript download watcher
-├── requirements.txt            # Python dependencies
-├── README.md                   # System architecture & documentation
-└── .env                        # Local environment credentials (git-ignored)
+│   ├── manager/
+│   │   ├── agent.py            # Manager Agent Class
+│   │   └── skills/
+│   │       └── weekly_rollup.py # Executive Rollup & Deliverables Skill
+│   ├── mentor/
+│   │   ├── agent.py            # Mentor Agent Class
+│   │   └── skills/
+│   │       └── trainee_assessment.py # Trainee Evaluation & Pyramid Principle Skill
+│   ├── team/
+│   │   ├── agent.py            # Team Intelligence Agent Class
+│   │   └── skills/
+│   │       └── session_catchup.py # Meeting Catchup & Task Assignment Skill
+│   └── shared/
+│       ├── retrieval_client.py # HTTP Client for S2 API (port 8000)
+│       ├── llm_client.py       # Google Gemini Flash + Groq Failover Client
+│       ├── logger.py           # JSON Trace Logger (logs/traces/)
+│       └── models.py           # Shared Pydantic Models & Schemas
+├── retrieval_service.py        # Dakshinya's FastAPI Microservice (Port 8000)
+├── router.py                   # Central Semantic Intent & Entity Router
+├── cli.py                      # Interactive CLI Interface with Live Tracing
+├── transcript_normalizer.py    # Transcript Cleaner & Chunk Normalizer
+├── transcript_utils.py         # Metadata Extractor & Session Parser
+├── auto_folder_watcher.py      # Background Transcripts Ingestion Watcher
+├── requirements.txt            # Python Dependencies
+├── README.md                   # System Documentation
+└── .env                        # Environment Configuration
 ```
+
+---
+
+## 📊 Observability & Verification
+
+Every agent execution automatically creates a trace log in `logs/traces/trc-<id>.json` recording:
+* **Trace ID & Timestamp**
+* **Agent Persona & Skill Executed**
+* **Retrieval Strategy & Evidence Chunk Count**
+* **LLM Model Name, Prompt Tokens & Completion Tokens**
+* **Total Execution Latency**
+* **Full Prompt & Output Payloads**
