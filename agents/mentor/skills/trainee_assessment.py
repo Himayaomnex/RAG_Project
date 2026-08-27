@@ -91,150 +91,50 @@ class MentorTraineeAssessmentSkill:
         skill_spec = ""
         if os.path.exists(spec_path):
             with open(spec_path, "r", encoding="utf-8") as f:
-                skill_spec = f.read()
+                skill_spec = f.read()        # STAGE 3: Build Unified Cognitive Mentor Prompt (Zero keyword branching)
+        # Dynamically inject active trainee names discovered live from database
+        key_args_template = "\n".join(
+            f"   - ### KEY ARGUMENT — {name}: Verdict, Capabilities with [Date, Page — Speaker], Gaps, Score (1-10)"
+            for name in active_trainees
+        )
 
-        if is_curriculum_query:
-            system_prompt = (
-                "You are summarising what the Lead Technical Mentor (Siddharth Saminathan) taught the trainees.\n"
-                "Based strictly on the transcript evidence provided, answer the user's curriculum question.\n\n"
-                "OUTPUT FORMAT:\n"
-                "### **Topics Taught by Siddharth**\n"
-                "Organise the answer by topic/theme — NOT by date. For each topic:\n"
-                "  - State the core concept taught\n"
-                "  - Include a direct quote or paraphrase with citation [Date, Page — Siddharth Saminathan]\n"
-                "  - Note WHY Siddharth emphasised this concept if stated in the evidence\n\n"
-                "RULES:\n"
-                "1. Only report concepts Siddharth himself explained or directed — not trainee work.\n"
-                "2. CITATION FORMAT: [Date, Page — Siddharth Saminathan] on every point.\n"
-                "3. Do not invent or assume topics not present in the evidence.\n"
-            )
-        else:
-            # Detect if user explicitly asked for Pyramid Principle structure
-            is_pyramid_query = any(w in request.query.lower() for w in [
-                "pyramid principle", "pyramid", "exhaustive", "2000 token", "breakdown"
-            ])
-
-            # Build numbered KEY ARGUMENT sections dynamically from live trainee list
-            key_args_text = ""
-            for i, name in enumerate(active_trainees, start=2):
-                key_args_text += (
-                    f"{i}. ### KEY ARGUMENT {i - 1} — {name}\n"
-                    f"   - One sharp verdict sentence\n"
-                    f"   - Demonstrated capabilities with citations [Date, Page — Speaker]\n"
-                    f"   - Knowledge gaps with citations\n"
-                    f"   - Score: Overall X/10\n\n"
-                )
-
-            if is_pyramid_query:
-                system_prompt = (
-                    "You are the Lead Technical Mentor & AI Architect (Siddharth Saminathan).\n"
-                    "The user has asked for a PYRAMID PRINCIPLE breakdown. Follow this structure EXACTLY:\n\n"
-                    "=== PYRAMID PRINCIPLE STRUCTURE (MANDATORY) ===\n"
-                    "The Pyramid Principle requires: STATE THE CONCLUSION FIRST, then support it with evidence below.\n\n"
-                    "OUTPUT MUST FOLLOW THIS EXACT ORDER:\n"
-                    "1. ### GOVERNING THOUGHT (1 sharp sentence)\n"
-                    "   - The single most important conclusion about the cohort's performance.\n"
-                    "   - Example: 'The cohort builds functional systems but cannot defend design choices from first principles.'\n\n"
-                    f"{key_args_text}"
-                    f"{len(active_trainees) + 2}. ### TRAINEE EVALUATION SCORES TABLE\n"
-                    "   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n\n"
-                    f"{len(active_trainees) + 3}. ### PEDAGOGICAL RECOMMENDATION\n"
-                    "   - What the mentor must teach next, specific per trainee\n\n"
-                    "DETERMINISTIC RUBRIC SCORING SCALE (1-10):\n"
-                    "- 9-10 (Mastery): Flawless architectural defense from first principles + production-grade implementation.\n"
-                    "- 7-8 (Proficient): Working implementation with clear technical grasp; minor gaps in optimization.\n"
-                    "- 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
-                    "- 3-4 (Novice): Frequent misconceptions requiring repeated mentor intervention; unable to articulate system mechanics.\n"
-                    "- 1-2 (Incomplete): No working code or evidence of understanding.\n\n"
-                    "STRICT RULES:\n"
-                    "- Lead with the CONCLUSION — never start with background context.\n"
-                    "- Taught ≠ Understood: Only claim demonstrated capability when the mentee coded or defended it.\n"
-                    "- EVERY claim must have [Date, Page — Speaker] citation.\n"
-                    "- Do not invent facts not present in the evidence.\n"
-                )
-            else:
-                system_prompt = (
-                    "You are the Lead Technical Mentor & AI Architect (Siddharth Saminathan).\n"
-                    "Your task is to provide a sharp, evidence-backed evaluation of the trainee based strictly on transcript records.\n\n"
-                    "CRITICAL COGNITIVE & FORMATTING RULES:\n"
-                    "0. QUERY ALIGNMENT (HIGHEST PRIORITY):\n"
-                    "   - Directly and specifically address what the user asked. Do NOT dump unnecessary boilerplate sections.\n"
-                    "   - Organize the evaluation cleanly:\n"
-                    "     ### **[Trainee Name] · Performance Assessment**\n"
-                    "     * **Overall Verdict**: 1-2 sharp sentences on practical execution vs conceptual grasp.\n"
-                    "     * **Key Strengths & Demonstrated Capabilities**: Bullet points with concrete evidence.\n"
-                    "     * **Knowledge Gaps & Misconceptions**: Bullet points with concrete evidence.\n"
-                    "     * **Mentorship Guidance / Next Steps**: Specific focus areas for improvement.\n"
-                    "   - If evaluating all trainees, repeat the structure cleanly for each active trainee: {trainees_str}.\n"
-                    "1. TAUGHT ≠ UNDERSTOOD:\n"
-                    "   - Never claim demonstrated capability unless the mentee explained, coded, or defended the solution.\n"
-                    "   - If unproven, state 'Not demonstrated from available evidence'.\n"
-                    "2. DETERMINISTIC RUBRIC SCORING SCALE (1-10):\n"
-                    "   - 9-10 (Mastery): Flawless architectural defense from first principles + production-grade implementation.\n"
-                    "   - 7-8 (Proficient): Working implementation with clear technical grasp; minor gaps in optimization.\n"
-                    "   - 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
-                    "   - 3-4 (Novice): Frequent misconceptions requiring repeated mentor intervention; unable to articulate system mechanics.\n"
-                    "   - 1-2 (Incomplete): No working code or evidence of understanding.\n"
-                    "3. EXACT CITATION FORMAT: Every single claim and evaluation must be backed by '[Date, Page — Speaker]' (e.g. '[28 July 2026, Page 18 — Siddharth Saminathan]').\n"
-                    "4. QUOTE QUALITY: Select clear, technically meaningful statements without conversational filler.\n"
-                    "5. SCORES TABLE (Include at the end):\n"
-                    "   | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n"
-                )
-
-
-
-        # STAGE 8: Incorporate GitHub MCP Live Repo Context
-        github_context = ""
-        try:
-            from github_mcp_client import github_mcp
-            github_context = github_mcp.format_github_context_for_llm()
-        except Exception as e:
-            print(f"  - [GitHub MCP Injection Fail]: {e}")
-
-        trainee_display = trainee if trainee else "Teammates"
-
-        # Detect if the user has requested a custom output format
-        # If yes, honour their format instead of enforcing the rigid schema headers
-        raw_query_lower = request.query.lower()
-        custom_format_signals = [
-            "pyramid principle", "pyramid", "2000 token", "1000 token", "exhaustive",
-            "detailed breakdown", "long report", "long form", "in depth", "in-depth",
-            "comprehensive", "bullet point", "table format", "brief summary",
-            "short summary", "one liner", "one line", "tldr", "tl;dr"
-        ]
-        has_custom_format = any(sig in raw_query_lower for sig in custom_format_signals)
-
-        if has_custom_format:
-            schema_instruction = (
-                f"Generate the Mentor Trainee Assessment for: {trainee_display}.\n"
-                "IMPORTANT FORMAT DIRECTIVE: The user has requested a specific output format in their query. "
-                "You MUST honour this format request exactly — adapt the structure, length, depth, and layout "
-                "to match what the user asked for (e.g., Pyramid Principle, exhaustive 2000-token breakdown, "
-                "bullet points, brief summary). Ground every claim strictly in the transcript evidence provided. "
-                "Always cite as '[Date, Page — Speaker]'. Do NOT default to the standard assessment schema."
-            )
-        else:
-            schema_instruction = (
-                "Generate the Mentor Trainee Assessment following the exact output schema:\n"
-                f"### **{trainee_display} · Overall assessment**\n"
-                "### **Current work**\n"
-                "### **Demonstrated capabilities**\n"
-                "### **Learning progress**\n"
-                "### **Knowledge gaps**\n"
-                "### **Recurring misconceptions**\n"
-                "### **Feedback signals**\n"
-                "### **Change from previous period**\n"
-                "### **Evidence-backed conclusion**"
-            )
+        system_prompt = (
+            "You are the Lead Technical Mentor & AI Architect (Siddharth Saminathan).\n"
+            "Analyze the retrieved transcript evidence and provide a sharp, evidence-backed response.\n\n"
+            "CRITICAL COGNITIVE RULES:\n"
+            "1. TAUGHT ≠ UNDERSTOOD: Never claim demonstrated capability unless the mentee coded, explained, or defended the solution.\n"
+            "2. STRICT CITATIONS: Every claim, strength, gap, or topic MUST cite '[Date, Page — Speaker]' (e.g. '[2026-07-28, Page 18 — Siddharth Saminathan]').\n"
+            "3. DETERMINISTIC RUBRIC (1-10):\n"
+            "   - 9-10 (Mastery): Flawless architectural defense from first principles + production code.\n"
+            "   - 7-8 (Proficient): Working implementation with clear technical grasp; minor optimization gaps.\n"
+            "   - 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
+            "   - 3-4 (Novice): Frequent misconceptions requiring repeated mentor correction.\n"
+            "   - 1-2 (Incomplete): No working code or evidence of understanding.\n\n"
+            "FORMATTING ADAPTATION (Follow what the user query asks):\n"
+            "• If user asks for Pyramid Principle / Cohort Breakdown:\n"
+            "  1. ### GOVERNING THOUGHT (1 sharp overarching verdict)\n"
+            f"{key_args_template}\n"
+            "  3. ### TRAINEE EVALUATION SCORES TABLE\n"
+            "     | Trainee | Preparation (1-10) | Conceptual Depth (1-10) | Code Quality (1-10) | Engagement (1-10) | Overall (1-10) | One-Line Verdict |\n"
+            "  4. ### PEDAGOGICAL RECOMMENDATION (Targeted plan per trainee)\n\n"
+            "• If user asks about a specific trainee:\n"
+            "  ### **[Trainee Name] · Performance Assessment**\n"
+            "  * **Overall Verdict**: 1-2 sharp sentences.\n"
+            "  * **Key Strengths & Demonstrated Capabilities**: Bullet points with citations.\n"
+            "  * **Knowledge Gaps & Misconceptions**: Bullet points with citations.\n"
+            "  * **Mentorship Guidance / Next Steps**: Specific focus areas.\n"
+            "  * **Scores Table** (1-10 Rubric row for that trainee).\n\n"
+            "• If user asks what Siddharth taught / curriculum:\n"
+            "  ### **Topics Taught by Siddharth** (Organized by theme, core concept, direct quote with citation, and why emphasized).\n"
+        )
 
         user_prompt = (
             f"Target Trainee: {trainee or 'All Teammates'}\n"
             f"Period: {request.period or 'All Sessions'}\n"
             f"Focus Area: {request.focus_area or 'General AI/ML Architecture'}\n"
             f"Query: {request.query}\n\n"
-            f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
-            f"{schema_instruction}"
+            "Generate the assessment strictly adhering to the cognitive rules and formatting directives above."
         )
 
         try:
