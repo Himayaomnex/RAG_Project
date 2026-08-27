@@ -52,13 +52,15 @@ def _dim(text: str) -> str:
     return text
 
 
-def _wrap(text: str, width: int = 80, indent: int = 2) -> str:
+def _wrap(text: str, width: int = 100, indent: int = 2) -> str:
     lines = text.split("\n")
     wrapped = []
     prefix = " " * indent
     for line in lines:
-        if len(line) <= width:
-            wrapped.append(prefix + line if line.strip() else line)
+        stripped = line.strip()
+        # Do not wrap markdown tables or horizontal rules
+        if stripped.startswith("|") or stripped.startswith("---") or len(line) <= width:
+            wrapped.append(prefix + line if stripped else line)
         else:
             for sub in textwrap.wrap(line, width=width - indent):
                 wrapped.append(prefix + sub)
