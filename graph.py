@@ -34,29 +34,63 @@ from agents.team.agent import team_agent
 from router import classify_intent
 
 
-# ── Conversation memory store ─────────────────────────────────────────────────
-# Keyed by session_id → list of { role, content } dicts (last N turns kept)
+# ── Conversation memory store (Summary-Buffer Architecture) ───────────────────
+# _SESSION_HISTORY: Keyed by session_id -> list of recent { role, content } dicts
+# _SESSION_SUMMARIES: Keyed by session_id -> running compact summary of older turns
 _SESSION_HISTORY: Dict[str, List[Dict[str, str]]] = {}
-MAX_HISTORY_TURNS = 6   # inject last 6 exchanges into LLM context
+_SESSION_SUMMARIES: Dict[str, str] = {}
+BUFFER_WINDOW_TURNS = 4   # keep exact verbatim dialogue for the last 4 exchanges (8 entries)
 
 
 def reset_session(session_id: str = "default") -> None:
-    """Clear conversation history for a session."""
+    """Clear conversation history and summary for a session."""
     _SESSION_HISTORY[session_id] = []
+    _SESSION_SUMMARIES[session_id] = ""
 
 
 def get_history(session_id: str) -> List[Dict[str, str]]:
     return _SESSION_HISTORY.get(session_id, [])
 
 
+def get_summary(session_id: str) -> str:
+    return _SESSION_SUMMARIES.get(session_id, "")
+
+
+def _summarize_dropped_turns(dropped_entries: List[Dict[str, str]], current_summary: str) -> str:
+    """
+    Creates a compact summary update of older turns so context is never lost.
+    """
+    turn_snippets = []
+    for entry in dropped_entries:
+        role = entry.get("role", "user").capitalize()
+        content = entry.get("content", "").replace("\n", " ").strip()
+        # Truncate to avoid bloat
+        snippet = content[:150] + "..." if len(content) > 150 else content
+        turn_snippets.append(f"{role}: {snippet}")
+
+    new_context = " | ".join(turn_snippets)
+    if current_summary:
+        return f"{current_summary}; [Earlier context]: {new_context}"
+    return f"[Earlier context]: {new_context}"
+
+
 def _append_history(session_id: str, role: str, content: str) -> None:
     if session_id not in _SESSION_HISTORY:
         _SESSION_HISTORY[session_id] = []
-    _SESSION_HISTORY[session_id].append({"role": role, "content": content})
-    # Keep only the last MAX_HISTORY_TURNS exchanges (each exchange = 2 entries)
-    max_entries = MAX_HISTORY_TURNS * 2
+    if session_id not in _SESSION_SUMMARIES:
+        _SESSION_SUMMARIES[session_id] = ""
+
+    # For assistant responses, store a compact summary (first 250 chars) to avoid expensive token waste
+    stored_content = content[:250].strip() if role == "assistant" else content.strip()
+    _SESSION_HISTORY[session_id].append({"role": role, "content": stored_content})
+
+    # When history exceeds the buffer window, roll the oldest exchange into the running summary
+    max_entries = BUFFER_WINDOW_TURNS * 2
     if len(_SESSION_HISTORY[session_id]) > max_entries:
-        _SESSION_HISTORY[session_id] = _SESSION_HISTORY[session_id][-max_entries:]
+        # Extract the oldest exchange (2 entries: user + assistant)
+        dropped = _SESSION_HISTORY[session_id][:2]
+        _SESSION_HISTORY[session_id] = _SESSION_HISTORY[session_id][2:]
+        _SESSION_SUMMARIES[session_id] = _summarize_dropped_turns(dropped, _SESSION_SUMMARIES[session_id])
 
 
 # ── Shared state schema ───────────────────────────────────────────────────────
@@ -112,20 +146,28 @@ def intent_classifier_node(state: AgentState) -> AgentState:
 
 def _build_query_with_history(state: AgentState) -> str:
     """
-    Prepend recent conversation turns to the raw query so the agent LLM
-    has multi-turn context without modifying the agent code.
+    Prepend earlier summary + recent conversation turns to the raw query so the agent LLM
+    has full multi-turn context with minimal token overhead.
     """
+    session_id = state.get("session_id", "default")
+    summary = get_summary(session_id)
     history = state.get("conversation_history") or []
-    if not history:
+
+    parts = []
+    if summary:
+        parts.append(f"<earlier_conversation_summary>\n{summary}\n</earlier_conversation_summary>")
+
+    if history:
+        history_block = "\n".join(
+            f"[{turn['role'].upper()}]: {turn['content']}" for turn in history
+        )
+        parts.append(f"<recent_conversation_turns>\n{history_block}\n</recent_conversation_turns>")
+
+    if not parts:
         return state["query"]
 
-    history_block = "\n".join(
-        f"[{turn['role'].upper()}]: {turn['content']}" for turn in history
-    )
-    return (
-        f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
-        f"<current_query>\n{state['query']}\n</current_query>"
-    )
+    parts.append(f"<current_query>\n{state['query']}\n</current_query>")
+    return "\n\n".join(parts)
 
 
 # ── Node: Manager Executor ────────────────────────────────────────────────────
