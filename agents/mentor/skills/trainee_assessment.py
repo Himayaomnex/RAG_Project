@@ -65,17 +65,18 @@ class MentorTraineeAssessmentSkill:
         ])
         # Mentor uses precision-first retrieval even for cohort queries.
         # exp4 sends 689 chunks (~345k tokens) and causes Gemini 503 timeouts.
-        # Instead: exp1 with limit=45 gives broad semantic coverage with reranking,
-        # across all 3 trainees without hitting LLM context limits.
-        retrieval_strategy = "p2" if is_curriculum_query else "p1"
-        retrieval_limit   = 35 if is_curriculum_query else (45 if is_cohort_query else 15)
+        retrieval_strategy = "exp1"
+        use_reranker = True
 
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=search_query,
-            speaker_filter="Siddharth Saminathan" if is_curriculum_query else speaker_filter,
-            date_filter=request.period or None,
-            limit=retrieval_limit,
-            strategy=retrieval_strategy
+            speaker="Siddharth Saminathan" if is_curriculum_query else speaker_filter,
+            date=request.period or None,
+            strategy=retrieval_strategy,
+            use_reranker=use_reranker,
+            agent_name="mentor",
+            skill_name="trainee_assessment",
+            trace_id=request.trace_id
         )
 
         chunk_ids = [c.chunk_id for c in chunks]
@@ -253,7 +254,8 @@ class MentorTraineeAssessmentSkill:
             assessment_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.0
+                temperature=0.0,
+                trace_id=request.trace_id
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 

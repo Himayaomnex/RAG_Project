@@ -266,58 +266,8 @@ def run_graph(
     """
     import numpy as np
 
-    # ── 1. Semantic Cache Check (Raw Query Level) ───────────────────────────
-    try:
-        model = get_graph_dense_model()
-        q_emb = model.encode(query)
-        q_emb_norm = q_emb / np.linalg.norm(q_emb) if np.linalg.norm(q_emb) > 0 else q_emb
-
-        for cached_emb, cached_trainee, cached_state, cached_query in _GRAPH_CACHE:
-            # Match trainee scope (e.g. if we specifically scoped one trainee, must match)
-            if cached_trainee == trainee:
-                # SAFEGUARD: If the query mentions one trainee name, but the cached query mentions another, skip hit
-                q_low = query.lower()
-                cq_low = cached_query.lower()
-                try:
-                    from router import get_dynamic_trainees
-                    trainee_names = [t.lower() for t in get_dynamic_trainees()]
-                except Exception:
-                    trainee_names = []
-                name_mismatch = False
-                for name in trainee_names:
-                    if (name in q_low) != (name in cq_low):
-                        name_mismatch = True
-                        break
-                if name_mismatch:
-                    continue
-
-                # MONTH SAFEGUARD: If months are different (e.g. July vs June), skip hit
-                months = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
-                month_mismatch = False
-                for m in months:
-                    if (m in q_low) != (m in cq_low):
-                        month_mismatch = True
-                        break
-                if month_mismatch:
-                    continue
-
-                # DAY-NUMBER SAFEGUARD: If date numbers are different (e.g. 18 vs 31), skip hit
-                import re
-                q_nums = set(re.findall(r'\b\d{1,2}\b', q_low))
-                cq_nums = set(re.findall(r'\b\d{1,2}\b', cq_low))
-                if q_nums != cq_nums:
-                    continue
-
-                sim = np.dot(q_emb_norm, cached_emb)
-                if sim > 0.72:  # 72% similarity threshold (captures broad rollup variations)
-                    print(f"  - [Semantic Graph Cache Hit]: similarity={sim:.3f} | Bypassing Graph Invoke!")
-                    # Make sure to return a copy with fresh latency showing 0.0s cache retrieval
-                    hit_res = cached_state.copy()
-                    hit_res["latency_seconds"] = 0.0
-                    hit_res["trace_id"] = f"hit-{hit_res['trace_id'].replace('trc-', '')}"
-                    return hit_res
-    except Exception as e:
-        print(f"  - [Graph Cache Lookup Error]: {e}")
+    # ── 1. Semantic Cache (DISABLED per Siddharth's Handoff: 100% Live Calls) ──
+    # Cache disabled so every demo query performs live retrieval over HTTP
 
     # Inject current conversation history into state
     history = get_history(session_id)[-MAX_HISTORY_TURNS * 2:]
@@ -351,12 +301,6 @@ def run_graph(
         "trace_id":         final_state["trace_id"],
         "session_id":       session_id,
     }
-
-    # ── 2. Cache the Result ──────────────────────────────────────────────────
-    try:
-        _GRAPH_CACHE.append((q_emb_norm, trainee, result_dict, query))
-    except Exception as cache_err:
-        pass
 
     return result_dict
 

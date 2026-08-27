@@ -37,18 +37,21 @@ class LLMClient:
         user_prompt: str,
         temperature: float = 0.1,
         max_tokens: Optional[int] = None,
-        json_mode: bool = False
+        json_mode: bool = False,
+        trace_id: Optional[str] = None
     ) -> Tuple[str, str, int, int]:
         """
         Executes generation with automatic failover.
         Returns: (response_text, model_name, prompt_tokens, completion_tokens)
         """
         effective_tokens = max_tokens or self.default_max_tokens
+        tid = trace_id or "trc-live"
 
         # Primary Tier: Google Gemini
         if self.gemini_key:
             try:
                 res, pt, ct = self._call_gemini(system_instruction, user_prompt, temperature, effective_tokens, json_mode)
+                print(f"[{tid}] LLM call model={self.gemini_model} prompt_tokens={pt} completion_tokens={ct}")
                 return res, self.gemini_model, pt, ct
             except Exception as e:
                 print(f"  - [LLM Warning] Gemini failed: {e}. Attempting Groq failover...")
@@ -57,6 +60,7 @@ class LLMClient:
         if self.groq_key:
             try:
                 res, pt, ct = self._call_groq(system_instruction, user_prompt, temperature, effective_tokens, json_mode)
+                print(f"[{tid}] LLM call model=llama-3.3-70b-versatile prompt_tokens={pt} completion_tokens={ct}")
                 return res, "groq/llama-3.3-70b-versatile", pt, ct
             except Exception as e:
                 print(f"  - [LLM Warning] Groq failed: {e}")

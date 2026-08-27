@@ -1,17 +1,18 @@
 """
 ================================================================================
-Pure API Retrieval Service Client (agents/shared/retrieval_client.py)
+Thin HTTP Retrieval Service Client (agents/shared/retrieval_client.py)
 ================================================================================
-Dedicated HTTP Client for Dakshinya's S2 Retrieval & S3 Evaluation Service.
-Communicates directly with the FastAPI endpoints on http://127.0.0.1:8000:
-  • POST /query/retrieve-only  — Primary retrieval & reranking endpoint (P1-P4)
-  • GET  /filters/metadata     — Live speaker, date, and source file discovery
-  • GET  /health               — System and Qdrant Cloud cluster health check
-  • POST /evaluate/query       — System 3 automated LLM Judge evaluation
-  • POST /ingest/upload        — Single-document transcript parser & indexer
+Dedicated HTTP Client calling Dakshinya's System 2 Retrieval Service.
+Points strictly to: {RETRIEVAL_API_URL}/retrieve
+Target Collection : teams_dense_collection_normalized
+
+Zero local retrieval algorithms. Zero local database code.
+If Dakshinya's server is offline, this client raises RETRIEVAL_UNAVAILABLE.
+================================================================================
 """
 
 import os
+import time
 import requests
 from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
@@ -20,120 +21,93 @@ from .schemas import EvidenceChunk
 load_dotenv()
 
 
+def _normalize_date(raw_date: Optional[str]) -> Optional[str]:
+    """Normalizes natural date strings like 'July 21' or '21 July 2026' into ISO '2026-07-21'."""
+    if not raw_date:
+        return None
+    raw = raw_date.strip().lower()
+    import re
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', raw):
+        return raw
+    months = {
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
+        "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
+    }
+    day_match = re.search(r'\b(\d{1,2})\b', raw)
+    month_match = next((num for k, num in months.items() if k in raw), None)
+    if day_match and month_match:
+        return f"2026-{month_match}-{int(day_match.group(1)):02d}"
+    return raw_date
+
+
 class RetrievalClient:
     """
-    Dedicated API Client for Dakshinya's S2 Retrieval Service.
-    All agent retrieval requests are delegated directly over HTTP to the backend server.
+    Thin HTTP client communicating with Dakshinya's System 2 FastAPI Retrieval Microservice.
     """
     def __init__(self, endpoint_url: Optional[str] = None):
         self.endpoint_url = endpoint_url or os.getenv("RETRIEVAL_API_URL", "http://127.0.0.1:8000")
-
-    # ── Strategy Mapping (Section 11 Skill Parameter Spec -> S2 API) ──────────
-
-    def _resolve_strategy(
-        self,
-        strategy: str,
-        query: str,
-        date_filter: Optional[str] = None,
-        period_start: Optional[str] = None,
-        period_end: Optional[str] = None,
-    ) -> tuple[str, bool]:
-        """
-        Maps skill-specific retrieval character to Dakshinya's S2 API strategies:
-          • "p1" / "mentor"  → "exp1": Precision-first (Scroll + Custom Meeting Reranker, Top 15)
-          • "p2" / "team"    → "exp2": Date-scoped scan (Document-Balanced Scroll, Top 35)
-          • "p4" / "manager" → "exp4": Completeness-first (Single-Pass Full Corpus Ingestion)
-
-        Returns: (strategy_name: str, use_reranker: bool)
-        """
-        strat_norm = strategy.lower().strip()
-
-        if strat_norm in ["exp1", "p1", "mentor", "precision"]:
-            return "exp1", True
-        if strat_norm in ["exp2", "p2", "team", "date_range"]:
-            return "exp2", False
-        if strat_norm in ["exp4", "p4", "manager", "completeness"]:
-            return "exp4", False
-        if strat_norm in ["exp3", "p3", "fast"]:
-            return "exp3", False
-
-        # Default fallback
-        if date_filter or period_start or period_end:
-            return "exp2", False
-        return "exp1", True
-
-
-
-    # ── Primary Retrieval Method ──────────────────────────────────────────────
+        self.target_collection = "teams_dense_collection_normalized"
 
     def query_evidence(
         self,
         query: str,
-        speaker_filter: Optional[str] = None,
-        date_filter: Optional[str] = None,
-        period_start: Optional[str] = None,
-        period_end: Optional[str] = None,
-        limit: int = 40,
-        strategy: str = "auto",
+        speaker: Optional[str] = None,
+        date: Optional[str] = None,
+        strategy: str = "exp1",
+        use_reranker: bool = True,
+        agent_name: str = "mentor",
+        skill_name: str = "trainee_assessment",
+        trace_id: Optional[str] = None,
     ) -> List[EvidenceChunk]:
         """
-        Calls Dakshinya's POST /query/retrieve-only endpoint over HTTP.
-        Returns parsed, validated EvidenceChunk models.
+        Calls Dakshinya's POST /retrieve endpoint over HTTP.
+        Logs routing decisions BEFORE execution and raises RETRIEVAL_UNAVAILABLE on failure.
         """
-        api_strategy, use_reranker = self._resolve_strategy(
-            strategy=strategy,
-            query=query,
-            date_filter=date_filter,
-            period_start=period_start,
-            period_end=period_end,
-        )
+        tid = trace_id or "trc-live"
+        norm_date = _normalize_date(date)
+        spk_str = f'"{speaker}"' if speaker else "None"
+        dt_str = f'"{norm_date}"' if norm_date else "None"
 
-        # Merge period date range into date string if needed
-        effective_date = date_filter
-        if not effective_date and (period_start or period_end):
-            effective_date = f"{period_start or ''} to {period_end or ''}".strip(" to ")
+        # ── Non-Negotiable Log Line 1: Pre-execution Route Decision ───────────
+        print(f"[{tid}] ROUTE agent={agent_name} skill={skill_name} strategy={strategy} collection={self.target_collection} speaker={spk_str} date={dt_str}")
 
-        # Sanitize date filter: Only pass to API if it contains actual calendar markers (months or digits)
-        # Relative terms like "this week", "last week", "today", "recent" should NOT filter out all Qdrant documents
-        if effective_date:
-            cal_months = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-            has_calendar_token = any(m in effective_date.lower() for m in cal_months) or any(char.isdigit() for char in effective_date)
-            if not has_calendar_token or effective_date.lower() in ["this week", "last week", "current week", "today", "yesterday", "recent", "all"]:
-                effective_date = None
-
-        # Sanitize speaker filter
-        effective_speaker = speaker_filter
-        if effective_speaker and effective_speaker.lower() in ["all", "team", "everyone"]:
-            effective_speaker = None
-
-        url = f"{self.endpoint_url.rstrip('/')}/query/retrieve-only"
+        url = f"{self.endpoint_url.rstrip('/')}/retrieve"
         payload = {
             "query": query,
-            "strategy": api_strategy,
+            "collection": self.target_collection,
+            "strategy": strategy,
             "use_reranker": use_reranker,
-            "speaker": effective_speaker,
-            "date": effective_date,
-            "source_file": None,
-            "top_k": limit or (15 if api_strategy in ["exp1", "exp3"] else 35)
+            "top_k": None,
+            "speaker": speaker,
+            "date": norm_date,
         }
 
-        print(f"  [RetrievalClient -> S2 API] POST {url} | strategy={api_strategy} (rerank={use_reranker}) speaker={effective_speaker} date={effective_date}")
-
+        t0 = time.time()
         try:
-            response = requests.post(url, json=payload, timeout=15)
-            response.raise_for_status()
-            data = response.json()
-        except requests.exceptions.ConnectionError:
-            raise ConnectionError(
-                f"[RetrievalClient Error] Could not connect to Dakshinya's Retrieval Service at {self.endpoint_url}.\n"
-                f"Please ensure her FastAPI server is started: uvicorn main:app --port 8000 (or python api_server.py)"
-            )
+            resp = requests.post(url, json=payload, timeout=20)
+            latency_ms = round((time.time() - t0) * 1000, 1)
+        except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as e:
+            print(f"[{tid}] HTTP POST /retrieve -> ERROR: Server unreachable at {self.endpoint_url}")
+            raise RuntimeError(
+                f"RETRIEVAL_UNAVAILABLE: Dakshinya's Retrieval Service is offline at {self.endpoint_url}.\n"
+                f"Please start her service in C:\\dev\\dakshinya-service:\n"
+                f"python -m uvicorn rag_platform.api.app:app --host 127.0.0.1 --port 8000"
+            ) from e
         except Exception as e:
-            raise RuntimeError(f"[RetrievalClient Error] S2 API request failed: {e}")
+            raise RuntimeError(f"RETRIEVAL_UNAVAILABLE: S2 API call failed: {e}") from e
 
-        raw_chunks = data.get("evidence_chunks", [])
+        if resp.status_code != 200:
+            print(f"[{tid}] HTTP POST /retrieve -> {resp.status_code} Error: {resp.text}")
+            raise RuntimeError(f"RETRIEVAL_UNAVAILABLE: Server returned status {resp.status_code}: {resp.text}")
+
+        data = resp.json()
+        raw_chunks = data.get("chunks", []) or data.get("evidence_chunks", [])
+        server_latency = data.get("latency_ms", latency_ms)
+
+        # ── Non-Negotiable Log Line 2: HTTP Retrieval Success ─────────────────
+        print(f"[{tid}] HTTP POST /retrieve -> 200 chunks={len(raw_chunks)} latency_ms={server_latency}")
+
         chunks: List[EvidenceChunk] = []
-
         for idx, c in enumerate(raw_chunks):
             chunks.append(EvidenceChunk(
                 chunk_id=str(c.get("point_id") or f"chk-remote-{idx+1}"),
@@ -145,44 +119,27 @@ class RetrievalClient:
                 score=float(c.get("score", 1.0))
             ))
 
-        print(f"  [RetrievalClient <- S2 API] Received {len(chunks)} evidence chunks successfully.")
         return chunks
-
-    # ── System 2 Discovery & Metadata Endpoints ───────────────────────────────
-
-    def check_health(self) -> Dict[str, Any]:
-        """Calls GET /health to verify API server and Qdrant Cloud cluster connectivity."""
-        url = f"{self.endpoint_url.rstrip('/')}/health"
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
-        return resp.json()
-
-    def fetch_collections(self) -> Dict[str, Any]:
-        """Calls GET /collections to list all available vector collections in Qdrant Cloud."""
-        url = f"{self.endpoint_url.rstrip('/')}/collections"
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
-        return resp.json()
 
     def fetch_metadata(self) -> Dict[str, Any]:
         """Calls GET /filters/metadata to retrieve available speakers, dates, and source files."""
         url = f"{self.endpoint_url.rstrip('/')}/filters/metadata"
-        resp = requests.get(url, timeout=5)
-        resp.raise_for_status()
-        return resp.json().get("metadata", {})
+        try:
+            resp = requests.get(url, timeout=5)
+            resp.raise_for_status()
+            return resp.json().get("metadata", {})
+        except Exception as e:
+            print(f"  - [Metadata Fetch Error]: {e}")
+            return {}
 
     def get_active_trainees(self, exclude_mentor: bool = True) -> List[str]:
         """
-        Returns the list of active trainee full names discovered live from the API metadata.
-        Excludes the mentor speaker by default (anyone whose first name is 'Siddharth').
-        Also removes noise entries like 'Unknown' or names ending with '...'.
-        Falls back to an empty list — never falls back to hardcoded names.
+        Returns active trainee full names discovered live from the API metadata.
         """
         try:
             meta = self.fetch_metadata()
             speakers: List[str] = meta.get("available_speakers", [])
-            # Filter noise: remove Unknown, trailing ellipsis variants, and mentor
-            speakers = [
+            trainees = [
                 s for s in speakers
                 if s
                 and not s.lower().startswith("unknown")
@@ -190,47 +147,23 @@ class RetrievalClient:
                 and not s.endswith("...")
                 and (not exclude_mentor or not s.lower().startswith("siddharth"))
             ]
-            # Deduplicate and sort
-            return sorted(set(speakers))
+            return sorted(set(trainees))
         except Exception:
             return []
 
-
-    # ── System 3 Unified Evaluation Endpoint ──────────────────────────────────
-
-    def evaluate_query(
-        self,
-        question: str,
-        answer: str,
-        context: str,
-        expected_facts: Optional[List[str]] = None
-    ) -> Dict[str, Any]:
-        """
-        Calls POST /evaluate/query to evaluate answer quality with DeepSeek LLM Judge:
-        Returns Faithfulness (1-10), Relevancy (1-10), Context Recall (1-10), and Composite Overall Score %.
-        """
-        url = f"{self.endpoint_url.rstrip('/')}/evaluate/query"
-        payload = {
-            "question": question,
-            "answer": answer,
-            "context": context,
-            "expected_facts": expected_facts or []
-        }
-        resp = requests.post(url, json=payload, timeout=25)
+    def check_health(self) -> Dict[str, Any]:
+        """Calls GET /health to verify API server connectivity."""
+        url = f"{self.endpoint_url.rstrip('/')}/health"
+        resp = requests.get(url, timeout=5)
         resp.raise_for_status()
         return resp.json()
 
-    # ── System 1 Ingestion Endpoint ───────────────────────────────────────────
-
-    def ingest_file(self, file_path: str, collection: str = "teams_dense_collection") -> Dict[str, Any]:
-        """Calls POST /ingest/upload (or POST /upload) to chunk and index a single transcript file."""
-        url = f"{self.endpoint_url.rstrip('/')}/ingest/upload"
-        with open(file_path, "rb") as f:
-            files = {"file": (os.path.basename(file_path), f)}
-            data = {"collection": collection, "skip_if_exists": "true"}
-            resp = requests.post(url, files=files, data=data, timeout=60)
-            resp.raise_for_status()
-            return resp.json()
+    def fetch_collections(self) -> Dict[str, Any]:
+        """Calls GET /collections to list available vector collections."""
+        url = f"{self.endpoint_url.rstrip('/')}/collections"
+        resp = requests.get(url, timeout=5)
+        resp.raise_for_status()
+        return resp.json()
 
 
 # Global Singleton Instance for downstream Agent Skills

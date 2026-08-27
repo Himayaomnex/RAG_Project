@@ -44,11 +44,13 @@ class ManagerWeeklyRollupSkill:
         # STAGE 2: Retrieve Relevant Evidence (Completeness-First via Retrieval Client)
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
-            speaker_filter=target_trainee,
-            period_start=request.period_start,
-            period_end=request.period_end,
-            limit=100,
-            strategy="p4"
+            speaker=target_trainee,
+            date=period_str or None,
+            strategy="exp4",
+            use_reranker=False,
+            agent_name="manager",
+            skill_name="weekly_rollup",
+            trace_id=request.trace_id
         )
         
         chunk_ids = [c.chunk_id for c in chunks]
@@ -167,7 +169,8 @@ class ManagerWeeklyRollupSkill:
             report_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1
+                temperature=0.1,
+                trace_id=request.trace_id
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 

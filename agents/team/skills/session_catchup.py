@@ -55,9 +55,13 @@ class TeamSessionCatchupSkill:
         # STAGE 2: Retrieve the session's evidence (Date-Scoped Scan via Retrieval Client)
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
-            date_filter=date_val,
-            limit=35,
-            strategy="p2"
+            date=date_val,
+            speaker=None,
+            strategy="exp1",
+            use_reranker=True,
+            agent_name="team",
+            skill_name="session_catchup",
+            trace_id=request.trace_id
         )
 
         chunk_ids = [c.chunk_id for c in chunks]
@@ -133,7 +137,8 @@ class TeamSessionCatchupSkill:
             catchup_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.1
+                temperature=0.1,
+                trace_id=request.trace_id
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
 
