@@ -348,6 +348,18 @@ class EvaluateQueryRequest(BaseModel):
 
 # ── Core Endpoints ────────────────────────────────────────────────────────────
 
+@app.get("/")
+def root():
+    return {
+        "service": "System 2: Retrieval & Generation API Microservice",
+        "status": "online",
+        "documentation": "http://127.0.0.1:8000/docs",
+        "health_check": "http://127.0.0.1:8000/health",
+        "metadata": "http://127.0.0.1:8000/filters/metadata",
+        "collections": "http://127.0.0.1:8000/collections"
+    }
+
+
 @app.get("/health")
 def health_check():
     db = get_vector_db()
