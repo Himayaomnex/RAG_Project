@@ -51,13 +51,13 @@ class RetrievalClient:
     def query_evidence(
         self,
         query: str,
+        strategy: str,
+        agent_name: str,
+        skill_name: str,
         speaker: Optional[str] = None,
         date: Optional[str] = None,
-        strategy: str = "exp1",
         use_reranker: bool = True,
         top_k: Optional[int] = None,
-        agent_name: str = "mentor",
-        skill_name: str = "trainee_assessment",
         trace_id: Optional[str] = None,
     ) -> List[EvidenceChunk]:
         """
