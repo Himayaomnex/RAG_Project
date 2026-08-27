@@ -134,20 +134,26 @@ class RetrievalClient:
 
     def get_active_trainees(self, exclude_mentor: bool = True) -> List[str]:
         """
-        Returns active trainee full names discovered live from the API metadata.
+        Returns active individual trainee full names discovered live from the API metadata.
+        Splits any comma-separated composite speaker strings.
         """
         try:
             meta = self.fetch_metadata()
-            speakers: List[str] = meta.get("available_speakers", [])
-            trainees = [
-                s for s in speakers
-                if s
-                and not s.lower().startswith("unknown")
-                and s.lower() not in ["speaker", "none", "n/a", "general", "all", "system", "teammates", "trainees"]
-                and not s.endswith("...")
-                and (not exclude_mentor or not s.lower().startswith("siddharth"))
-            ]
-            return sorted(set(trainees))
+            raw_speakers: List[str] = meta.get("available_speakers", [])
+            trainees = set()
+            for s in raw_speakers:
+                for sub in s.split(","):
+                    c = sub.strip()
+                    if (
+                        c
+                        and not c.lower().startswith("unknown")
+                        and not c.lower().startswith("speaker")
+                        and c.lower() not in ["none", "n/a", "general", "all", "system", "teammates", "trainees"]
+                        and not c.endswith("...")
+                        and (not exclude_mentor or not c.lower().startswith("siddharth"))
+                    ):
+                        trainees.add(c)
+            return sorted(list(trainees))
         except Exception:
             return []
 
