@@ -35,7 +35,7 @@ class LLMClient:
         self,
         system_instruction: str,
         user_prompt: str,
-        temperature: float = 0.1,
+        temperature: float = 0.8,
         max_tokens: Optional[int] = None,
         json_mode: bool = False,
         trace_id: Optional[str] = None

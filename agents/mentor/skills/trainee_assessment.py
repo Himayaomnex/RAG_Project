@@ -254,7 +254,7 @@ class MentorTraineeAssessmentSkill:
             assessment_text, model_name, pt, ct = llm_client.generate(
                 system_instruction=system_prompt,
                 user_prompt=user_prompt,
-                temperature=0.0,
+                temperature=0.8,
                 trace_id=request.trace_id
             )
             logger.record_llm_call(model=model_name, prompt_tokens=pt, completion_tokens=ct)
