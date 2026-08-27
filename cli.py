@@ -227,8 +227,8 @@ def run_cli(
                 f"  |  Latency: {result['latency_seconds']}s"
                 f"  |  Trace: {result['trace_id']}"
             ))
-            print(_wrap(result["final_response"]))
-            print(SEP)
+            print(_wrap(result["final_response"]), flush=True)
+            print(SEP, flush=True)
 
         except Exception as e:
             print(f"\n  [ERROR]: {e}")
