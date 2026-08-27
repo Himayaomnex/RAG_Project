@@ -345,6 +345,7 @@ def run_graph(
         "final_response":   final_state["final_response"],
         "dispatched_agent": final_state["dispatched_agent"],
         "agent_intent":     final_state["agent_intent"],
+        "strategy":         final_state.get("strategy", "exp1"),
         "latency_seconds":  final_state["latency_seconds"],
         "trace_id":         final_state["trace_id"],
         "session_id":       session_id,

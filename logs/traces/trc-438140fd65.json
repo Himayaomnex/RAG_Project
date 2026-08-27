@@ -1,0 +1,24 @@
+{
+  "trace_id": "trc-438140fd65",
+  "timestamp": "2026-08-27T09:00:38Z",
+  "agent": "mentor",
+  "skill": "mentor_trainee_assessment",
+  "input_query": "How did Ganesh perform on July 21?",
+  "input_params": {
+    "trainee": "Ganesh Krishna",
+    "period": "July 21",
+    "focus_area": null,
+    "query": "How did Ganesh perform on July 21?",
+    "strategy": "exp1",
+    "trace_id": "trc-438140fd65"
+  },
+  "retrieval_requests": 1,
+  "retrieved_chunk_ids": [],
+  "llm_calls": 0,
+  "llm_model": "gemini-2.5-flash",
+  "latency_seconds": 5.991,
+  "token_usage": {},
+  "failure": "INSUFFICIENT_EVIDENCE: No transcript evidence found for query 'How did Ganesh perform on July 21?'.",
+  "final_status": "INSUFFICIENT_EVIDENCE",
+  "output": "INSUFFICIENT_EVIDENCE: No transcript evidence found for query 'How did Ganesh perform on July 21?'."
+}

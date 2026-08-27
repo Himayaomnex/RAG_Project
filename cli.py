@@ -220,7 +220,16 @@ def run_cli(
             )
 
             # ── Print response ─────────────────────────────────────────────────
-            strat = "exp4 (Full-Corpus Completeness Scan)" if result['dispatched_agent'].lower() == "manager" else "exp1 (Precision Scroll + Custom Reranker)"
+            res_strat = result.get('strategy', 'exp1')
+            if res_strat == "exp4":
+                strat = "exp4 (Full-Corpus Completeness Scan)"
+            elif res_strat == "exp2":
+                strat = "exp2 (Expanded Context Window)"
+            elif res_strat == "exp3":
+                strat = "exp3 (Doc-Balanced Diversification)"
+            else:
+                strat = "exp1 (Precision Scroll + Custom Reranker)"
+
             print(_header(
                 f"Agent: {result['dispatched_agent'].upper()}"
                 f"  |  Pipeline: {strat}"
