@@ -28,7 +28,14 @@ from typing import List, Optional, Dict, Any
 from dotenv import load_dotenv
 
 
-load_dotenv()
+import docx
+import shelve
+import hashlib
+import uuid
+from qdrant_client import QdrantClient
+from qdrant_client.http.models import Distance, VectorParams, PointStruct, ScoredPoint
+import torch
+from sentence_transformers import SentenceTransformer, util
 
 try:
     from fastapi import FastAPI, UploadFile, File, Form, HTTPException
@@ -39,14 +46,274 @@ except ImportError:
     print("[Error] FastAPI and uvicorn are required. Run: pip install fastapi uvicorn")
     sys.exit(1)
 
-from pipeline import get_vector_db, CustomMeetingReranker, SemanticTranscriptParser
-from qdrant_client.http.models import ScoredPoint, PointStruct
-import torch
-from sentence_transformers import util
+
+# ── Embedding Model with Local Disk Cache ──────────────────────────────────────
+
+class CachedEmbeddingModel:
+    """Wraps SentenceTransformer with a local disk cache to prevent slow re-embedding."""
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        self.model = SentenceTransformer(model_name)
+        self.cache_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "emb_cache")
+        
+    def encode(self, texts, convert_to_tensor: bool = False):
+        is_single = isinstance(texts, str)
+        text_list = [texts] if is_single else texts
+        
+        embeddings = []
+        needs_encoding = []
+        needs_encoding_idx = []
+        
+        try:
+            with shelve.open(self.cache_file) as cache:
+                for i, t in enumerate(text_list):
+                    h = hashlib.md5(t.encode('utf-8')).hexdigest()
+                    if h in cache:
+                        embeddings.append(cache[h])
+                    else:
+                        embeddings.append(None)
+                        needs_encoding.append(t)
+                        needs_encoding_idx.append(i)
+                        
+                if needs_encoding:
+                    fresh_embs = self.model.encode(needs_encoding).tolist()
+                    for idx, emb in zip(needs_encoding_idx, fresh_embs):
+                        embeddings[idx] = emb
+                        cache[hashlib.md5(text_list[idx].encode('utf-8')).hexdigest()] = emb
+        except Exception:
+            embeddings = self.model.encode(text_list).tolist()
+                    
+        if convert_to_tensor:
+            return torch.tensor(embeddings)
+        return embeddings[0] if is_single else embeddings
+
+
+# ── Transcript Parser & Semantic Chunking ─────────────────────────────────────
+
+class Sentence:
+    def __init__(self, text: str, speaker: str, page: int, file_path: str):
+        self.text = text
+        self.speaker = speaker
+        self.page = page
+        self.file_path = file_path
+
+
+class SemanticTranscriptParser:
+    """Parses .docx transcripts into sentences and uses Semantic Chunking (Topic Shifts)."""
+    def __init__(self, directory: str = ".", dense_model: Optional[CachedEmbeddingModel] = None):
+        self.directory = directory
+        self.model = dense_model or CachedEmbeddingModel("all-MiniLM-L6-v2")
+
+    def _build_chunk(self, sentence_objs: List[Sentence], chunk_id: int, date: str, file_path: str, reason: str = "Document End") -> Dict[str, Any]:
+        full_text = ""
+        speakers = set()
+        pages = set()
+        last_speaker = None
+        for s in sentence_objs:
+            speakers.add(s.speaker)
+            pages.add(s.page)
+            if s.speaker != last_speaker:
+                full_text += f"\n{s.speaker}: {s.text} "
+                last_speaker = s.speaker
+            else:
+                full_text += f"{s.text} "
+                
+        page_list = sorted(list(pages))
+        page_str = f"{page_list[0]}-{page_list[-1]}" if len(page_list) > 1 else (str(page_list[0]) if page_list else "1")
+            
+        return {
+            "text": full_text.strip(),
+            "speaker": ", ".join(list(speakers)[:3]) + ("..." if len(speakers) > 3 else ""),
+            "date": date,
+            "chunk_id": chunk_id,
+            "page": page_str,
+            "source_file": os.path.basename(file_path),
+            "cut_reason": reason
+        }
+
+    def parse_document(self, path: str) -> List[Dict[str, Any]]:
+        doc = docx.Document(path)
+        date = self.extract_date(doc, os.path.basename(path))
+        
+        all_sentences = []
+        current_speaker = "Unknown"
+        current_page = 1
+        page_char_count = 0
+        
+        for p in doc.paragraphs:
+            lines = p.text.strip().split('\n')
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                header_match = re.match(r"^([a-zA-Z\s\.]+)\s+\d{1,2}:\d{2}", line)
+                if header_match and len(line.split()) < 15: 
+                    current_speaker = header_match.group(1).strip()
+                    continue
+                
+                sentences = re.split(r'(?<=[.!?])\s+', line)
+                for s in sentences:
+                    s = s.strip()
+                    if s:
+                        noise_phrases = ["stopped transcription", "started transcription", "joined the meeting", "left the meeting"]
+                        if any(phrase in s.lower() for phrase in noise_phrases):
+                            continue
+                        all_sentences.append(Sentence(s, current_speaker, current_page, path))
+                        page_char_count += len(s)
+                
+                if page_char_count > 2500:
+                    current_page += 1
+                    page_char_count = 0
+                    
+        chunks = []
+        i = 0
+        chunk_id = 0
+        target_char_limit = 1200
+        
+        while i < len(all_sentences):
+            current_chars = 0
+            candidate_idx = i
+            while candidate_idx < len(all_sentences) and current_chars < target_char_limit:
+                current_chars += len(all_sentences[candidate_idx].text)
+                candidate_idx += 1
+                
+            if candidate_idx == len(all_sentences):
+                chunks.append(self._build_chunk(all_sentences[i:candidate_idx], chunk_id, date, path, "Document End"))
+                break
+                
+            start_window = max(i + 1, candidate_idx - 30)
+            end_window = min(len(all_sentences) - 1, candidate_idx + 30)
+            
+            if start_window >= end_window:
+                best_cut = candidate_idx
+                reason = "Target Size Fallback"
+            else:
+                window_sentences = all_sentences[start_window:end_window+1]
+                texts = [s.text for s in window_sentences]
+                embeddings = self.model.encode(texts, convert_to_tensor=True)
+                min_sim = 1.0
+                best_cut = candidate_idx
+                for j in range(len(embeddings) - 1):
+                    sim = util.cos_sim(embeddings[j], embeddings[j+1]).item()
+                    if sim < min_sim:
+                        min_sim = sim
+                        best_cut = start_window + j + 1
+                reason = f"Topic Shift Detected (Similarity: {min_sim:.3f})"
+                
+            chunks.append(self._build_chunk(all_sentences[i:best_cut], chunk_id, date, path, reason))
+            i = best_cut
+            chunk_id += 1
+            
+        return chunks
+
+    def extract_date(self, doc, filename: str) -> str:
+        date_pattern = r"\b(\d{1,4}[-/]\d{1,2}[-/]\d{1,4}|\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4})\b"
+        for p in doc.paragraphs:
+            match = re.search(date_pattern, p.text, re.IGNORECASE)
+            if match:
+                return match.group(1)
+        match = re.search(date_pattern, filename, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        return "Unknown Date"
+
+
+# ── Qdrant Cloud Vector Database Connector ────────────────────────────────────
+
+class VectorDatabase:
+    """Shared Qdrant Vector Database Connector."""
+    def __init__(self, collection_name: str = "teams_dense_collection"):
+        self.qdrant_url = os.getenv("QDRANT_URL")
+        self.qdrant_api_key = os.getenv("QDRANT_API_KEY")
+        self.collection_name = collection_name
+        
+        storage_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qdrant_storage")
+        os.makedirs(storage_path, exist_ok=True)
+        
+        connected = False
+        if self.qdrant_url:
+            try:
+                self.client = QdrantClient(url=self.qdrant_url, api_key=self.qdrant_api_key, timeout=5)
+                self.client.get_collections()
+                connected = True
+            except Exception:
+                connected = False
+                
+        if not connected:
+            self.client = QdrantClient(path=storage_path)
+            
+        self.dense_model = CachedEmbeddingModel("all-MiniLM-L6-v2")
+        self.setup_collection()
+        
+    def setup_collection(self):
+        try:
+            if not self.client.collection_exists(self.collection_name):
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config={
+                        "dense": VectorParams(size=384, distance=Distance.COSINE)
+                    }
+                )
+        except Exception:
+            pass
+            
+    def insert_chunks(self, chunks: List[Dict[str, Any]]):
+        points = []
+        for c in chunks:
+            dense_vec = self.dense_model.encode(c["text"])
+            if hasattr(dense_vec, 'tolist'):
+                dense_vec = dense_vec.tolist()
+            
+            points.append(PointStruct(
+                id=str(uuid.uuid4()),
+                payload=c,
+                vector={"dense": dense_vec}
+            ))
+            
+        if points:
+            self.client.upsert(collection_name=self.collection_name, points=points)
+
+
+_SHARED_DB = None
+def get_vector_db() -> VectorDatabase:
+    global _SHARED_DB
+    if _SHARED_DB is None:
+        _SHARED_DB = VectorDatabase()
+    return _SHARED_DB
+
+
+# ── Custom Meeting Reranker ───────────────────────────────────────────────────
+
+class CustomMeetingReranker:
+    """Heuristic scoring reranker: Speaker match (+0.5), Date match (+0.5), Topic density (+0.05/keyword)."""
+    def rerank(self, query: str, results: List[Any]) -> List[Any]:
+        query_lower = query.lower()
+        stop_words = {"what", "is", "the", "difference", "between", "an", "and", "according", "to", "did", "say", "about", "how", "are", "you"}
+        keywords = [w for w in re.findall(r'\b\w+\b', query_lower) if w not in stop_words and len(w) > 3]
+        
+        for res in results:
+            score = res.score if hasattr(res, 'score') else 1.0
+            chunk_speaker = (res.payload or {}).get("speaker", "").lower()
+            if any(s in query_lower and s in chunk_speaker for s in ["siddharth", "dakshinya", "himaya", "ganesh"]):
+                score += 0.5
+                
+            chunk_date = (res.payload or {}).get("date", "").lower()
+            if chunk_date and chunk_date != "unknown date" and chunk_date in query_lower:
+                score += 0.5
+                
+            chunk_text = (res.payload or {}).get("text", "").lower()
+            keyword_matches = sum(1 for k in keywords if k in chunk_text)
+            score += (keyword_matches * 0.05)
+            
+            res.score = score
+            
+        return sorted(results, key=lambda x: x.score, reverse=True)
+
+
+# ── FastAPI App Instance ──────────────────────────────────────────────────────
 
 app = FastAPI(
     title="System 2 & 3: Retrieval & Evaluation API Service",
-    description="Dedicated Backend Microservice serving Dakshinya's Retrieval & Evaluation pipelines.",
+    description="Dedicated Backend Microservice serving Retrieval & Evaluation pipelines.",
     version="1.0.0"
 )
 
