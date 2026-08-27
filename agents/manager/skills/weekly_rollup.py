@@ -43,12 +43,14 @@ class ManagerWeeklyRollupSkill:
 
         # STAGE 2: Retrieve Relevant Evidence (Driven by Router Strategy)
         strat = request.strategy or "exp4"
+        k_val = 40 if strat == "exp4" else None
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             speaker=target_trainee,
             date=period_str or None,
             strategy=strat,
             use_reranker=(strat == "exp1"),
+            top_k=k_val,
             agent_name="manager",
             skill_name="weekly_rollup",
             trace_id=request.trace_id
@@ -97,7 +99,9 @@ class ManagerWeeklyRollupSkill:
             "CRITICAL FORMATTING & EVIDENCE RULES:\n"
             "0. QUERY ALIGNMENT & STRUCTURE ADAPTATION (HIGHEST PRIORITY):\n"
             "   - If the user explicitly asks for a DAY-WISE SUMMARY, DAILY BREAKDOWN, or CHRONOLOGICAL TIMELINE (e.g., 'give me a day wise summary', 'break down by day', 'chronological timeline'):\n"
-            "     Organize your response DAY BY DAY in chronological order with headers: '### [Date, Year]' (e.g. '### 02 July 2026', '### 28 July 2026', '### 18 August 2026'). Under each day header, provide concise bullet points covering: (1) Completed/Progress items, (2) Key decisions made, (3) Blockers/risks identified, with citations [Date, Page — Speaker]. Conclude with an '### **Executive Conclusion**'.\n"
+            "     Organize your response strictly DAY BY DAY in chronological order with headers: '### [Date, Year]' (e.g. '### 02 July 2026', '### 28 July 2026', '### 18 August 2026').\n"
+            "     Under EACH day header, detail what EACH active trainee and the mentor worked on, discussed, or were assigned on that date with exact citations [Date, Page — Speaker]. Be comprehensive, clear, and specific for every person present.\n"
+            "     Conclude with '### **Executive Conclusion**'.\n"
             "   - If the query asks a SPECIFIC question (e.g., 'what did a specific trainee complete?', 'list the blockers for a trainee', 'what decisions were made on a specific date?'):\n"
             "     Give a focused direct answer targeting exactly that without extraneous sections.\n"
             "   - If the query asks for a GENERAL STATUS ROLLUP (e.g., 'give me the weekly rollup', 'state of work report'):\n"

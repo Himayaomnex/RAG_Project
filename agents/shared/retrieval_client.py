@@ -55,6 +55,7 @@ class RetrievalClient:
         date: Optional[str] = None,
         strategy: str = "exp1",
         use_reranker: bool = True,
+        top_k: Optional[int] = None,
         agent_name: str = "mentor",
         skill_name: str = "trainee_assessment",
         trace_id: Optional[str] = None,
@@ -77,7 +78,7 @@ class RetrievalClient:
             "collection": self.target_collection,
             "strategy": strategy,
             "use_reranker": use_reranker,
-            "top_k": None,
+            "top_k": top_k,
             "speaker": speaker,
             "date": norm_date,
         }
