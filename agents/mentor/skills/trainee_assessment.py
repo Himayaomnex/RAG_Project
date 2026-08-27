@@ -58,15 +58,18 @@ class MentorTraineeAssessmentSkill:
             "what was covered", "what topics", "curriculum", "lesson"
         ])
 
-        # Cohort-wide or exhaustive queries need full corpus (p4), single-trainee needs precision (p1)
-        is_cohort_query = not speaker_filter or any(w in request.query.lower() for w in [
-            "all", "trainees", "team", "everyone", "cohort", "entire",
-            "breakdown", "performance", "exhaustive", "pyramid", "2000 token"
+        # Dynamic Strategy Selection:
+        # - Exhaustive / Cohort-wide queries -> exp4 (Completeness / Full-Corpus scan)
+        # - Specific Trainee / Concept queries -> exp1 (Precision Scroll + Custom Reranker)
+        is_exhaustive = any(w in request.query.lower() for w in [
+            "exhaustive", "full corpus", "entire cohort", "all sessions", "all trainees"
         ])
-        # Mentor uses precision-first retrieval even for cohort queries.
-        # exp4 sends 689 chunks (~345k tokens) and causes Gemini 503 timeouts.
-        retrieval_strategy = "exp1"
-        use_reranker = True
+        if is_exhaustive:
+            retrieval_strategy = "exp4"
+            use_reranker = False
+        else:
+            retrieval_strategy = "exp1"
+            use_reranker = True
 
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=search_query,
