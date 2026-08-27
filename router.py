@@ -64,9 +64,11 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
         "Given a user query, output a JSON object with exactly these keys:\n"
         "  agent:      one of 'manager', 'mentor', 'team'\n"
-        "  strategy:   retrieval strategy from Dakshinya's service ('exp1' or 'exp4'):\n"
-        "              • 'exp4' when query asks for exhaustive reviews, broad multi-session rollups, full cohort breakdowns, or executive weekly status (completeness-first).\n"
-        "              • 'exp1' when query asks about a single trainee, specific technical concept, or single session catch-up (precision-first).\n"
+        "  strategy:   one of 'exp1', 'exp2', 'exp3', 'exp4' chosen purely by the query's information needs:\n"
+        "              • 'exp1' (Precision Scroll + Reranker): for targeted questions about a single trainee, specific technical concept, or single session date.\n"
+        "              • 'exp2' (Expanded Context): for inquiries tracing multi-turn dialogue, back-and-forth mentor coaching, or step-by-step misconceptions.\n"
+        "              • 'exp3' (Doc-Balanced): for cross-meeting comparisons or topic evolution balanced evenly across multiple weeks.\n"
+        "              • 'exp4' (Full-Corpus Completeness): for exhaustive cohort reviews, comprehensive curriculum summaries, or broad weekly status rollups across all sessions.\n"
         f"  trainee:    canonical trainee name ({canonical_names_str}) or null\n"
         "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
         "  period:     concrete calendar date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null. Do NOT extract relative terms like 'this week', 'last week', 'current week', 'recently' — return null for these.\n"
@@ -99,7 +101,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         
         strat = result.get("strategy", "").lower()
         if strat not in ("exp1", "exp2", "exp3", "exp4"):
-            strat = "exp4" if agent == "manager" else "exp1"
+            strat = "exp1"
 
         return {
             "agent":      agent,
