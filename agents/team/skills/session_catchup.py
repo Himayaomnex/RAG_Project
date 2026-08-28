@@ -38,13 +38,19 @@ class TeamSessionCatchupSkill:
             trace_id=request.trace_id
         )
 
+        clean_q = request.query
+        if "<current_query>" in request.query:
+            clean_match = re.search(r'<current_query>\s*(.*?)\s*</current_query>', request.query, re.DOTALL | re.IGNORECASE)
+            if clean_match:
+                clean_q = clean_match.group(1).strip()
+
         date_val = request.date
         if not date_val:
             # Match formats like "December 25 2099", "24 July 2026", "July 24", "24th July"
             months = "January|February|March|April|May|June|July|August|September|October|November|December"
             match = re.search(
                 rf'(\d{{1,2}}(?:st|nd|rd|th)?\s+(?:{months})(?:\s+\d{{2,4}})?|(?:{months})\s+\d{{1,2}}(?:st|nd|rd|th)?(?:\s*,?\s*\d{{2,4}})?)',
-                request.query,
+                clean_q,
                 re.IGNORECASE
             )
             if match:

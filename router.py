@@ -71,7 +71,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "              • 'exp4' (Full-Corpus Completeness): for exhaustive cohort reviews, comprehensive curriculum summaries, or broad weekly status rollups across all sessions.\n"
         f"  trainee:    canonical trainee name ({canonical_names_str}) or null\n"
         "  date:       session date string if agent=team and a concrete date is mentioned (e.g. 'July 31', 'August 18') or null. Do NOT extract relative terms like 'yesterday', 'today', 'last session', 'previous meeting' — return null for these.\n"
-        "  period:     concrete calendar date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July', 'August') or null. Do NOT extract relative terms like 'this week', 'last week', 'current week', 'recently' — return null for these.\n"
+        "  period:     concrete calendar date range string or month name if agent=manager or agent=mentor (e.g. 'July 21 to July 28', 'July 2026') or null. Do NOT extract relative terms like 'this week', 'last week', 'current week', 'this month', 'last month', 'recently' — return null for these so the whole training period is retrieved.\n"
         "  focus_area: specific technical topic mentioned in the query if user is asking about a particular subject (e.g., 'RAG', 'Qdrant', 'LangGraph', 'BM25', 'API design') or null.\n\n"
         "RULES:\n"
         "- agent=mentor  when query asks what Siddharth/mentor taught/explained, concepts introduced in a period/month, trainee evaluations, scores, understanding, knowledge gaps, learning curve, strengths, weaknesses, or mentor coaching/assessment.\n"

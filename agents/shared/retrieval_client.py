@@ -21,22 +21,60 @@ from .schemas import EvidenceChunk
 load_dotenv()
 
 
+def _clean_search_query(raw_query: str) -> str:
+    """Extracts only the current query from multi-turn XML wrapped prompts to avoid vector search pollution."""
+    if not raw_query:
+        return ""
+    import re
+    # If wrapped with <current_query>...</current_query>, extract it
+    match = re.search(r'<current_query>\s*(.*?)\s*</current_query>', raw_query, re.DOTALL | re.IGNORECASE)
+    if match:
+        raw_query = match.group(1).strip()
+    # Strip any multi-turn blocks if present
+    cleaned = re.sub(r'<recent_conversation_turns>.*?</recent_conversation_turns>', '', raw_query, flags=re.DOTALL | re.IGNORECASE)
+    cleaned = re.sub(r'<earlier_conversation_summary>.*?</earlier_conversation_summary>', '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+    # Strip leading prompt symbols like '>' or '$' or extra whitespace
+    cleaned = re.sub(r'^[>\s$]+', '', cleaned)
+    return cleaned.strip() or raw_query.strip()
+
+
 def _normalize_date(raw_date: Optional[str]) -> Optional[str]:
-    """Normalizes natural date strings like 'July 21' or '21 July 2026' into ISO '2026-07-21'."""
+    """
+    Normalizes natural date strings into formats supported by the backend:
+    - 'July 21' / '21 July 2026' -> '2026-07-21'
+    - 'July 2026' / 'July'       -> '2026-07'
+    - 'July 21 to July 28'       -> '2026-07' (month prefix for range)
+    """
     if not raw_date:
         return None
     raw = raw_date.strip().lower()
     import re
-    if re.match(r'^\d{4}-\d{2}-\d{2}$', raw):
+    if re.match(r'^\d{4}-\d{2}-\d{2}$', raw) or re.match(r'^\d{4}-\d{2}$', raw):
         return raw
     months = {
         "jan": "01", "feb": "02", "mar": "03", "apr": "04", "may": "05", "jun": "06",
         "jul": "07", "aug": "08", "sep": "09", "oct": "10", "nov": "11", "dec": "12"
     }
-    day_match = re.search(r'\b(\d{1,2})\b', raw)
+
+    # If it's a date range (e.g. 'July 21 to July 28'), extract month prefix for search
+    if " to " in raw or " - " in raw:
+        month_match = next((num for k, num in months.items() if k in raw), None)
+        year_match = re.search(r'\b(20\d{2})\b', raw)
+        year = year_match.group(1) if year_match else "2026"
+        return f"{year}-{month_match}" if month_match else None
+
+    year_match = re.search(r'\b(20\d{2})\b', raw)
+    year = year_match.group(1) if year_match else "2026"
+
     month_match = next((num for k, num in months.items() if k in raw), None)
+
+    raw_no_year = re.sub(r'\b20\d{2}\b', '', raw)
+    day_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?', raw_no_year)
+
     if day_match and month_match:
-        return f"2026-{month_match}-{int(day_match.group(1)):02d}"
+        return f"{year}-{month_match}-{int(day_match.group(1)):02d}"
+    elif month_match:
+        return f"{year}-{month_match}"
     return raw_date
 
 
@@ -65,6 +103,7 @@ class RetrievalClient:
         Logs routing decisions BEFORE execution and raises RETRIEVAL_UNAVAILABLE on failure.
         """
         tid = trace_id or "trc-live"
+        clean_q = _clean_search_query(query)
         norm_date = _normalize_date(date)
         spk_str = f'"{speaker}"' if speaker else "None"
         dt_str = f'"{norm_date}"' if norm_date else "None"
@@ -74,7 +113,7 @@ class RetrievalClient:
 
         url = f"{self.endpoint_url.rstrip('/')}/retrieve"
         payload = {
-            "query": query,
+            "query": clean_q,
             "collection": self.target_collection,
             "strategy": strategy,
             "use_reranker": use_reranker,

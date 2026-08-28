@@ -186,8 +186,9 @@ def manager_node(state: AgentState) -> AgentState:
     )
 
     latency = round(time.time() - t0, 3)
-    _append_history(state["session_id"], "user", state["query"])
-    _append_history(state["session_id"], "assistant", result[:500])  # summary for context
+    if not result.startswith("INSUFFICIENT_EVIDENCE") and not result.startswith("RETRIEVAL_UNAVAILABLE"):
+        _append_history(state["session_id"], "user", state["query"])
+        _append_history(state["session_id"], "assistant", result[:500])  # summary for context
 
     return {**state, "final_response": result, "dispatched_agent": "manager", "latency_seconds": latency}
 
@@ -208,8 +209,9 @@ def mentor_node(state: AgentState) -> AgentState:
     )
 
     latency = round(time.time() - t0, 3)
-    _append_history(state["session_id"], "user", state["query"])
-    _append_history(state["session_id"], "assistant", result[:500])
+    if not result.startswith("INSUFFICIENT_EVIDENCE") and not result.startswith("RETRIEVAL_UNAVAILABLE"):
+        _append_history(state["session_id"], "user", state["query"])
+        _append_history(state["session_id"], "assistant", result[:500])
 
     return {**state, "final_response": result, "dispatched_agent": "mentor", "latency_seconds": latency}
 
@@ -229,8 +231,9 @@ def team_node(state: AgentState) -> AgentState:
     )
 
     latency = round(time.time() - t0, 3)
-    _append_history(state["session_id"], "user", state["query"])
-    _append_history(state["session_id"], "assistant", result[:500])
+    if not result.startswith("INSUFFICIENT_EVIDENCE") and not result.startswith("RETRIEVAL_UNAVAILABLE"):
+        _append_history(state["session_id"], "user", state["query"])
+        _append_history(state["session_id"], "assistant", result[:500])
 
     return {**state, "final_response": result, "dispatched_agent": "team", "latency_seconds": latency}
 

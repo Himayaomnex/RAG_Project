@@ -71,7 +71,12 @@ class MentorTraineeAssessmentSkill:
 
         # FAILURE CHECK: Missing Evidence
         if not chunks:
-            failure_msg = f"INSUFFICIENT_EVIDENCE: No transcript evidence found for query '{request.query}'."
+            clean_q = search_query
+            if "<current_query>" in request.query:
+                clean_match = re.search(r'<current_query>\s*(.*?)\s*</current_query>', request.query, re.DOTALL | re.IGNORECASE)
+                if clean_match:
+                    clean_q = clean_match.group(1).strip()
+            failure_msg = f"INSUFFICIENT_EVIDENCE: No transcript evidence found for query '{clean_q}'."
             logger.set_failure(failure_msg, status="INSUFFICIENT_EVIDENCE")
             return logger.complete(failure_msg, status="INSUFFICIENT_EVIDENCE").output
 
