@@ -54,6 +54,9 @@ class MentorTraineeAssessmentSkill:
         # Retrieval Strategy & Reranker are derived dynamically by the LLM Router
         retrieval_strategy = request.strategy or "exp1"
         use_reranker = (retrieval_strategy == "exp1")
+        
+        # Calculate dynamic top_k context window size
+        k_val = 40 if retrieval_strategy == "exp4" else (30 if retrieval_strategy in ("exp2", "exp3") else 20)
 
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=search_query,
@@ -61,6 +64,7 @@ class MentorTraineeAssessmentSkill:
             date=request.period or None,
             strategy=retrieval_strategy,
             use_reranker=use_reranker,
+            top_k=k_val,
             agent_name="mentor",
             skill_name="trainee_assessment",
             trace_id=request.trace_id
@@ -115,7 +119,8 @@ class MentorTraineeAssessmentSkill:
             "   - 5-6 (Developing): Basic component implementation, but struggles with architectural rationale, debugging, or token limits.\n"
             "   - 3-4 (Novice): Frequent misconceptions requiring repeated mentor correction.\n"
             "   - 1-2 (Incomplete): No working code or evidence of understanding.\n"
-            "   - SCORE RULE: In the Scores Table, every score column MUST be a single integer number (1-10) evaluated from their technical discussions and coding deliverables. NEVER output 'N/A' or explanatory text inside numerical score cells.\n\n"
+            "   - SCORE RULE: In the Scores Table, every score column MUST be a single integer number (1-10) evaluated from their technical discussions and coding deliverables. NEVER output 'N/A' or explanatory text inside numerical score cells.\n"
+            "4. NO UNRELATED ASSESSMENT SECTIONS: If the query is a specific request about what Siddharth taught, an analogy, or a curriculum topic (and NOT a request for trainee performance evaluation/breakdown), you MUST NOT output a scores table, pedagogical recommendations, or trainee-specific capability/gap/verdict sections. Output ONLY the direct focused answer to the query.\n\n"
             "FORMATTING ADAPTATION (Follow what the user query asks):\n"
             "• If user asks for Pyramid Principle / Cohort Breakdown:\n"
             "  1. ### GOVERNING THOUGHT (1 sharp overarching verdict)\n"
@@ -130,8 +135,10 @@ class MentorTraineeAssessmentSkill:
             "  * **Knowledge Gaps & Misconceptions**: Bullet points with citations.\n"
             "  * **Mentorship Guidance / Next Steps**: Specific focus areas.\n"
             "  * **Scores Table** (1-10 Rubric row for that trainee: | Trainee | Preparation | Conceptual Depth | Technical Implementation | Engagement | Overall | Verdict |).\n\n"
-            "• If user asks what Siddharth taught / curriculum:\n"
+            "• If user asks what Siddharth taught / curriculum (broad query):\n"
             "  ### **Topics Taught by Siddharth** (Organized by theme, core concept, direct quote with citation, and why emphasized).\n"
+            "• If user asks a SPECIFIC question about a single concept, analogy, or story taught/mentioned by Siddharth:\n"
+            "  Provide a focused direct response targeting ONLY that specific topic, analogy, or story, with exact quotes and citations, without listing other unrelated topics.\n"
         )
 
         user_prompt = (

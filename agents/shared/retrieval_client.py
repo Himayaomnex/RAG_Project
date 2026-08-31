@@ -161,11 +161,12 @@ class RetrievalClient:
 
         return chunks
 
-    def fetch_metadata(self) -> Dict[str, Any]:
+    def fetch_metadata(self, collection_name: Optional[str] = None) -> Dict[str, Any]:
         """Calls GET /filters/metadata to retrieve available speakers, dates, and source files."""
+        col = collection_name or self.target_collection
         url = f"{self.endpoint_url.rstrip('/')}/filters/metadata"
         try:
-            resp = requests.get(url, timeout=5)
+            resp = requests.get(url, params={"collection": col}, timeout=5)
             resp.raise_for_status()
             return resp.json().get("metadata", {})
         except Exception as e:
@@ -178,7 +179,7 @@ class RetrievalClient:
         Splits any comma-separated composite speaker strings.
         """
         try:
-            meta = self.fetch_metadata()
+            meta = self.fetch_metadata(self.target_collection)
             raw_speakers: List[str] = meta.get("available_speakers", [])
             trainees = set()
             for s in raw_speakers:

@@ -60,12 +60,17 @@ class TeamSessionCatchupSkill:
 
         # STAGE 2: Retrieve the session's evidence (Driven by Router Strategy)
         strat = request.strategy or "exp1"
+        
+        # Calculate dynamic top_k context window size
+        k_val = 40 if strat == "exp4" else (30 if strat in ("exp2", "exp3") else 20)
+
         chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
             query=request.query,
             date=date_val,
             speaker=None,
             strategy=strat,
             use_reranker=(strat == "exp1"),
+            top_k=k_val,
             agent_name="team",
             skill_name="session_catchup",
             trace_id=request.trace_id
