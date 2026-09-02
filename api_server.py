@@ -115,18 +115,19 @@ if FASTAPI_AVAILABLE:
     def dispatch_query(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Auto-Router: LangGraph StateGraph classifies intent and dispatches to the correct agent."""
         t0 = time.time()
-        print(f"\n[API /query] prompt={req.prompt!r} session={req.session_id} trainee={req.target_member}")
+        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
+        print(f"\n[API /query] prompt={req.prompt!r} session={effective_session} trainee={req.target_member}")
         try:
             result = run_graph(
                 query=req.prompt,
                 trainee=req.target_member or None,
-                session_id=req.session_id or "default",
+                session_id=effective_session,
             )
             status = "success"
         except Exception as e:
             print(f"[API /query Error]: {e}")
             result = {"final_response": f"Server error: {str(e)}", "dispatched_agent": "unknown",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": req.session_id or "default"}
+                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
             status = "error"
 
         return QueryResponse(
@@ -135,7 +136,7 @@ if FASTAPI_AVAILABLE:
             latency_seconds=result["latency_seconds"],
             status=status,
             trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", "default"),
+            session_id=result.get("session_id", effective_session),
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -143,19 +144,20 @@ if FASTAPI_AVAILABLE:
     def manager_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Manager Agent: pinned — always runs manager_weekly_rollup."""
         t0 = time.time()
-        print(f"\n[Manager Endpoint] {req.prompt!r}")
+        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
+        print(f"\n[Manager Endpoint] prompt={req.prompt!r} session={effective_session}")
         try:
             result = run_graph(
                 query=req.prompt,
                 trainee=req.target_member or None,
-                session_id=req.session_id or "default",
+                session_id=effective_session,
                 forced_agent="manager"
             )
             status = "success"
         except Exception as e:
             print(f"[Manager Error]: {e}")
             result = {"final_response": f"Manager Agent Error: {str(e)}", "dispatched_agent": "manager",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": req.session_id or "default"}
+                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
             status = "error"
         return QueryResponse(
             agent_role="manager",
@@ -163,7 +165,7 @@ if FASTAPI_AVAILABLE:
             latency_seconds=result["latency_seconds"],
             status=status,
             trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", "default"),
+            session_id=result.get("session_id", effective_session),
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -171,19 +173,20 @@ if FASTAPI_AVAILABLE:
     def mentor_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Mentor Agent: pinned — always runs mentor_trainee_assessment."""
         t0 = time.time()
-        print(f"\n[Mentor Endpoint] {req.prompt!r}")
+        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
+        print(f"\n[Mentor Endpoint] prompt={req.prompt!r} session={effective_session}")
         try:
             result = run_graph(
                 query=req.prompt,
                 trainee=req.target_member or None,
-                session_id=req.session_id or "default",
+                session_id=effective_session,
                 forced_agent="mentor"
             )
             status = "success"
         except Exception as e:
             print(f"[Mentor Error]: {e}")
             result = {"final_response": f"Mentor Agent Error: {str(e)}", "dispatched_agent": "mentor",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": req.session_id or "default"}
+                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
             status = "error"
         return QueryResponse(
             agent_role="mentor",
@@ -191,7 +194,7 @@ if FASTAPI_AVAILABLE:
             latency_seconds=result["latency_seconds"],
             status=status,
             trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", "default"),
+            session_id=result.get("session_id", effective_session),
             llm_provider=get_active_llm_provider_name()
         )
 
@@ -199,19 +202,20 @@ if FASTAPI_AVAILABLE:
     def teammate_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
         """Team Agent: pinned — always runs team_session_catchup."""
         t0 = time.time()
-        print(f"\n[Teammate Endpoint] {req.prompt!r}")
+        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
+        print(f"\n[Teammate Endpoint] prompt={req.prompt!r} session={effective_session}")
         try:
             result = run_graph(
                 query=req.prompt,
                 trainee=req.target_member or None,
-                session_id=req.session_id or "default",
+                session_id=effective_session,
                 forced_agent="team"
             )
             status = "success"
         except Exception as e:
             print(f"[Teammate Error]: {e}")
             result = {"final_response": f"Team Agent Error: {str(e)}", "dispatched_agent": "team",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": req.session_id or "default"}
+                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
             status = "error"
         return QueryResponse(
             agent_role="team",

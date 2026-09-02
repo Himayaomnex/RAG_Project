@@ -88,8 +88,8 @@ def _append_history(session_id: str, role: str, content: str) -> None:
     if session_id not in _SESSION_SUMMARIES:
         _SESSION_SUMMARIES[session_id] = ""
 
-    # For assistant responses, store a compact summary (first 250 chars) to avoid expensive token waste
-    stored_content = content[:250].strip() if role == "assistant" else content.strip()
+    # For assistant responses, store a compact summary (up to 600 chars) to balance context depth & tokens
+    stored_content = content[:600].strip() if role == "assistant" else content.strip()
     _SESSION_HISTORY[session_id].append({"role": role, "content": stored_content})
 
     # When history exceeds the buffer window, roll the oldest exchange into the running summary
@@ -106,6 +106,10 @@ def _append_history(session_id: str, role: str, content: str) -> None:
 class AgentState(TypedDict):
     # Input & entity slot fields
     query: str
+    explicit_trainee: Optional[str]
+    explicit_date: Optional[str]
+    explicit_period: Optional[str]
+    explicit_focus: Optional[str]
     trainee: Optional[str]
     date: Optional[str]
     period: Optional[str]
@@ -134,30 +138,34 @@ def intent_classifier_node(state: AgentState) -> AgentState:
     Uses LLM-based semantic classifier (router.classify_intent) to determine
     which agent should handle the query and to extract entity slots.
 
-    Respects values already set by the caller (e.g. explicit trainee= flag)
-    and uses conversation history for pronoun resolution and slot carryover.
+    Resolution Priority:
+    1. Explicit caller arguments (e.g. CLI/API flags)
+    2. Fresh query entity extraction (result)
+    3. Inherited prior turn slots (state) for follow-up queries
     """
     history = state.get("conversation_history") or get_history(state.get("session_id", "default"))
     active_slots = {
-        "trainee": state.get("trainee"),
-        "date": state.get("date"),
-        "period": state.get("period"),
-        "focus_area": state.get("focus_area")
+        "trainee": state.get("explicit_trainee") or state.get("trainee"),
+        "date": state.get("explicit_date") or state.get("date"),
+        "period": state.get("explicit_period") or state.get("period"),
+        "focus_area": state.get("explicit_focus") or state.get("focus_area")
     }
 
     result = classify_intent(
         query=state["query"],
-        trainee_hint=state.get("trainee"),
+        trainee_hint=state.get("explicit_trainee") or state.get("trainee"),
         conversation_history=history,
         active_context=active_slots
     )
 
     resolved_agent = state.get("agent_intent") or result.get("agent") or "manager"
     resolved_strategy = state.get("strategy") or result.get("strategy") or "exp1"
-    resolved_trainee = state.get("trainee") or result.get("trainee")
-    resolved_date = state.get("date") or result.get("date")
-    resolved_period = state.get("period") or result.get("period")
-    resolved_focus = state.get("focus_area") or result.get("focus_area")
+    
+    # Priority: Explicit argument -> Fresh query extraction -> Inherited prior slot
+    resolved_trainee = state.get("explicit_trainee") or result.get("trainee") or state.get("trainee")
+    resolved_date = state.get("explicit_date") or result.get("date") or state.get("date")
+    resolved_period = state.get("explicit_period") or result.get("period") or state.get("period")
+    resolved_focus = state.get("explicit_focus") or result.get("focus_area") or state.get("focus_area")
 
     return {
         **state,
@@ -378,10 +386,14 @@ def run_graph(
 
     initial_state: AgentState = {
         "query":                query,
-        "trainee":              trainee or prior_state_values.get("trainee"),
-        "date":                 date or prior_state_values.get("date"),
-        "period":               period or prior_state_values.get("period"),
-        "focus_area":           focus_area or prior_state_values.get("focus_area"),
+        "explicit_trainee":     trainee,
+        "explicit_date":        date,
+        "explicit_period":      period,
+        "explicit_focus":       focus_area,
+        "trainee":              prior_state_values.get("trainee"),
+        "date":                 prior_state_values.get("date"),
+        "period":               prior_state_values.get("period"),
+        "focus_area":           prior_state_values.get("focus_area"),
         "session_id":           session_id,
         "strategy":             None,
         "agent_intent":         forced_agent or "",   # "" triggers classifier

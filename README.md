@@ -10,9 +10,11 @@ The system operates across a clean, decoupled **Two-Tier Microservice Architectu
 
 ```mermaid
 flowchart TD
-    UserQuery["👤 User Query"] --> Router["🔀 Semantic Intent Router (router.py)\n[Dynamic Entity & Intent Resolution]"]
-
-    subgraph System3 ["🤖 SYSTEM 3: THREE-AGENT LAYER (Consumer-Specific)"]
+    UserQuery["👤 User Query"] --> LangGraph["⚡ LangGraph StateGraph (graph.py)\n[MemorySaver Checkpointing & Conversation Buffer]"]
+    
+    LangGraph --> Classifier["🧭 intent_classifier_node\n(router.classify_intent)"]
+    
+    subgraph System3 ["🤖 SYSTEM 3: THREE PRODUCTION AGENTS"]
         direction TB
         style System3 fill:#fff7ed,stroke:#ea580c,stroke-width:2px
         
@@ -21,33 +23,32 @@ flowchart TD
         TeamAgent["👥 Team Intelligence Agent (agents/team)\nSkill: session_catchup.py\nConsumer: Trainees (Catchup & Tasks)"]
     end
 
-    Router -->|"manager_weekly_rollup"| ManagerAgent
-    Router -->|"mentor_trainee_assessment"| MentorAgent
-    Router -->|"team_session_catchup"| TeamAgent
+    Classifier -->|"agent_intent=manager"| ManagerAgent
+    Classifier -->|"agent_intent=mentor"| MentorAgent
+    Classifier -->|"agent_intent=team"| TeamAgent
 
-    subgraph System2 ["⚡ SYSTEM 2: RETRIEVAL & EVALUATION MICROSERVICE (Port 8000)"]
+    subgraph System2 ["⚡ SYSTEM 2: RETRIEVAL MICROSERVICE (Port 8000)"]
         direction TB
         style System2 fill:#eff6ff,stroke:#2563eb,stroke-width:2px
 
-        FastAPIServer["🚀 FastAPI REST Backend (retrieval_service.py)\nPOST /query/retrieve-only\nGET /filters/metadata\nPOST /query/evaluate"]
+        FastAPIServer["🚀 FastAPI REST Backend\nPOST /retrieve\nGET /filters/metadata"]
         
         DenseRetrieval["🔍 Dense Retrieval (Sentence-Transformers all-MiniLM-L6-v2)"]
         RerankerModule["📊 Cross-Encoder Reranker (ms-marco-MiniLM-L-6-v2)"]
-        QdrantCloud[("🗄️ Qdrant Vector Cloud\n[teams_dense_collection · 770 Chunks]")]
+        QdrantCloud[("🗄️ Qdrant Vector Cloud\n[teams_dense_collection_normalized · 567 Chunks]")]
         
         FastAPIServer --> DenseRetrieval
         DenseRetrieval --> QdrantCloud
         FastAPIServer --> RerankerModule
     end
 
-    ManagerAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp4)"| FastAPIServer
-    MentorAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp1, rerank=True)"| FastAPIServer
-    TeamAgent -->|"HTTP POST /query/retrieve-only\n(Strategy: exp2, speaker/date filtered)"| FastAPIServer
+    ManagerAgent -->|"HTTP POST /retrieve\n(Strategy: exp4, top_k=40)"| FastAPIServer
+    MentorAgent -->|"HTTP POST /retrieve\n(Strategy: exp1/exp2/exp3, top_k=20/30)"| FastAPIServer
+    TeamAgent -->|"HTTP POST /retrieve\n(Strategy: exp1/exp2, speaker/date filtered)"| FastAPIServer
 
     subgraph LLMClientLayer ["🧠 PROVIDER LLM CLIENT"]
         style LLMClientLayer fill:#f0fdf4,stroke:#16a34a,stroke-width:2px
-        GeminiEngine["⚡ Google Gemini 2.5 Flash\n[temp=0.0, seed=42, Thinking Budget=0]"]
-        GroqFailover["🛡️ Groq Failover (Llama-3.3-70B)"]
+        GeminiEngine["⚡ Google Gemini 2.5 Flash\n[temperature=0.8, JSON Mode]"]
     end
 
     ManagerAgent --> LLMClientLayer
@@ -116,15 +117,21 @@ pip install -r requirements.txt
 
 ---
 
-### 2. Start the Backend Services
+### 2. Start the Backend Services & Interactive CLI
 
-#### Terminal 1: Launch Retrieval Service (System 2)
+#### Terminal 1: Launch Retrieval Backend Microservice (System 2 on port 8000)
 ```powershell
-python retrieval_service.py
+python -m uvicorn rag_platform.api.app:app --host 127.0.0.1 --port 8000
 ```
-*Live on `http://127.0.0.1:8000` with endpoints `/filters/metadata`, `/query/retrieve-only`, and `/query/evaluate`.*
+*Live on `http://127.0.0.1:8000` with endpoints `/filters/metadata` and `/retrieve`.*
 
-#### Terminal 2: Run Interactive CLI (System 3)
+#### Terminal 2: Run Production REST API Server (Port 8001)
+```powershell
+python api_server.py
+```
+*Provides `/api/v1/query`, `/api/v1/manager`, `/api/v1/mentor`, `/api/v1/teammate`.*
+
+#### Terminal 3: Run Interactive CLI (System 3)
 ```powershell
 python cli.py
 ```
@@ -143,7 +150,7 @@ python cli.py
 ### 🎓 Mentor Agent Queries
 ```text
 > Give me a pyramid principle breakdown of the entire cohort's performance.
-> How did Himaya perform during the training? What are her key strengths and knowledge gaps?
+> Assess Ganesh Krishna's conceptual depth on openpyxl.
 > What did Siddharth teach regarding caching, embeddings, and context window limits?
 ```
 
@@ -151,7 +158,7 @@ python cli.py
 ```text
 > I missed the session on July 28, catch me up on what happened.
 > What decisions and action items were agreed upon in the July 21 meeting?
-> I was absent on July 24. What specific tasks were assigned to Ganesh?
+> What tasks were assigned to Ganesh on July 31?
 ```
 
 ---
@@ -168,22 +175,21 @@ RAG_COMBINED/
 │   ├── mentor/
 │   │   ├── agent.py            # Mentor Agent Class
 │   │   └── skills/
-│   │       └── trainee_assessment.py # Trainee Evaluation & Pyramid Principle Skill
+│   │       └── trainee_assessment.py # Trainee Evaluation & Assessment Skill
 │   ├── team/
 │   │   ├── agent.py            # Team Intelligence Agent Class
 │   │   └── skills/
 │   │       └── session_catchup.py # Meeting Catchup & Task Assignment Skill
 │   └── shared/
 │       ├── retrieval_client.py # HTTP Client for S2 API (port 8000)
-│       ├── llm_client.py       # Google Gemini Flash + Groq Failover Client
-│       ├── logger.py           # JSON Trace Logger (logs/traces/)
-│       └── models.py           # Shared Pydantic Models & Schemas
-├── retrieval_service.py        # Dakshinya's FastAPI Microservice (Port 8000)
-├── router.py                   # Central Semantic Intent & Entity Router
+│       ├── llm_client.py       # Google Gemini Flash Client
+│       ├── logging.py          # JSON Trace Logger (logs/traces/)
+│       └── schemas.py          # Shared Pydantic Models & Schemas
+├── graph.py                    # LangGraph StateGraph & Checkpointing Memory
+├── router.py                   # Central Semantic Intent & Multi-Turn Entity Router
 ├── cli.py                      # Interactive CLI Interface with Live Tracing
+├── api_server.py               # Production FastAPI REST Server
 ├── transcript_normalizer.py    # Transcript Cleaner & Chunk Normalizer
-├── transcript_utils.py         # Metadata Extractor & Session Parser
-├── auto_folder_watcher.py      # Background Transcripts Ingestion Watcher
 ├── requirements.txt            # Python Dependencies
 ├── README.md                   # System Documentation
 └── .env                        # Environment Configuration
