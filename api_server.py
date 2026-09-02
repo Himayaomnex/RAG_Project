@@ -83,13 +83,13 @@ if FASTAPI_AVAILABLE:
     @app.on_event("startup")
     def startup_warmup():
         print("\n" + "=" * 70)
-        print("[API Server Warmup]: Pre-loading Qdrant & Embedding Model...")
+        print("[API Server Warmup]: Checking Retrieval Microservice (Port 8000)...")
         try:
             from agents.shared.retrieval_client import retrieval_client
-            retrieval_client.query_evidence("warmup", limit=1)
-            print("[API Server Warmup]: Ready.")
+            retrieval_client.query_evidence(query="warmup", strategy="exp1", agent_name="system", skill_name="warmup", top_k=1)
+            print("[API Server Warmup]: Retrieval Microservice Connected.")
         except Exception as e:
-            print(f"[API Server Warmup Notice]: {e}")
+            print(f"[API Server Warmup Notice]: Retrieval Microservice not reachable yet ({e}). Will connect on-demand.")
         print("=" * 70 + "\n")
 
     @app.get("/health")
