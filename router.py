@@ -46,15 +46,20 @@ def match_trainee_role(raw_role: str) -> Optional[str]:
     return None
 
 
-def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
+def classify_intent(
+    query: str,
+    trainee_hint: Optional[str] = None,
+    conversation_history: Optional[List[Dict[str, str]]] = None,
+    active_context: Optional[Dict[str, Any]] = None,
+) -> dict:
     """
     LLM-based semantic intent classifier.
     100% dynamic — derives all intents, entity slots, dates, and focus areas from query semantics.
+    Supports multi-turn pronoun resolution and context continuity using conversation_history.
     """
     # Fetch available trainee entities dynamically from the database/API
     canonical_names = get_dynamic_trainees()
     canonical_names_str = ", ".join(f"'{n}'" for n in canonical_names)
-
 
     system_prompt = (
         "You are a routing classifier for a multi-agent training RAG system.\n"
@@ -62,7 +67,7 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "  • manager  — Executive status, deliverables, blockers, decisions, weekly rollup\n"
         "  • mentor   — Trainee evaluation, knowledge gaps, misconceptions, progress, assessment, quiz, pyramid principle cohort breakdown\n"
         "  • team     — Session catch-up for a trainee who missed a session; assignments, what happened\n\n"
-        "Given a user query, output a JSON object with exactly these keys:\n"
+        "Given a user query (and optional conversation history), output a JSON object with exactly these keys:\n"
         "  agent:      one of 'manager', 'mentor', 'team'\n"
         "  strategy:   one of 'exp1', 'exp2', 'exp3', 'exp4' chosen purely by the query's information needs:\n"
         "              • 'exp1' (Precision Scroll + Reranker): for targeted questions about a single trainee, specific technical concept, or single session date.\n"
@@ -77,11 +82,26 @@ def classify_intent(query: str, trainee_hint: Optional[str] = None) -> dict:
         "- agent=mentor  when query asks what Siddharth/mentor taught/explained, concepts introduced in a period/month, trainee evaluations, scores, understanding, knowledge gaps, learning curve, strengths, weaknesses, cohort performance breakdowns, pyramid principle evaluations, or mentor coaching/assessment.\n"
         "- agent=manager ONLY when the user asks for executive project status, milestone rollup, completed task lists, blocker/risk lists, or action items across the project.\n"
         "- agent=team    ONLY when query is about catching up on a single missed session (e.g. 'I was absent on July 24', 'I missed the meeting, what happened?').\n"
+        "- MULTI-TURN RESOLUTION: If conversation history is provided, use it to resolve pronouns (e.g., 'he', 'she', 'they', 'her', 'his', 'their', 'that day', 'that session', 'the same topic'). If the current query is a follow-up referring to the ongoing trainee, date, or topic from recent turns, extract that resolved trainee/date/topic.\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
     )
 
+    history_str = ""
+    if conversation_history:
+        history_lines = [
+            f"[{turn.get('role', 'user').upper()}]: {turn.get('content', '')[:160]}"
+            for turn in conversation_history[-4:]
+        ]
+        history_str = "Recent Conversation History:\n" + "\n".join(history_lines) + "\n\n"
+
+    active_str = ""
+    if active_context:
+        active_items = [f"{k}={v}" for k, v in active_context.items() if v]
+        if active_items:
+            active_str = "Active Context Slots: " + ", ".join(active_items) + "\n\n"
+
     hint_clause = f"\nTrainee hint (authenticated user): {trainee_hint}" if trainee_hint else ""
-    user_prompt = f"Query: {query}{hint_clause}"
+    user_prompt = f"{history_str}{active_str}Query: {query}{hint_clause}"
 
     try:
         raw, _, _, _ = llm_client.generate(

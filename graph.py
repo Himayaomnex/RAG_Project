@@ -25,9 +25,9 @@ Usage:
 import os
 import time
 import uuid
-from typing import TypedDict, Optional, List, Dict, Any
-
+from typing import TypedDict, Optional, List, Dict, Any, Tuple
 from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
 from agents.manager.agent import manager_agent
 from agents.mentor.agent import mentor_agent
 from agents.team.agent import team_agent
@@ -41,11 +41,19 @@ _SESSION_HISTORY: Dict[str, List[Dict[str, str]]] = {}
 _SESSION_SUMMARIES: Dict[str, str] = {}
 BUFFER_WINDOW_TURNS = 4   # keep exact verbatim dialogue for the last 4 exchanges (8 entries)
 
+# LangGraph In-Memory Checkpointer for Thread State Persistence
+_checkpointer = MemorySaver()
+
 
 def reset_session(session_id: str = "default") -> None:
-    """Clear conversation history and summary for a session."""
+    """Clear conversation history, summary, and checkpointer state for a session."""
     _SESSION_HISTORY[session_id] = []
     _SESSION_SUMMARIES[session_id] = ""
+    try:
+        if hasattr(_checkpointer, "storage"):
+            _checkpointer.storage.pop(session_id, None)
+    except Exception:
+        pass
 
 
 def get_history(session_id: str) -> List[Dict[str, str]]:
@@ -96,7 +104,7 @@ def _append_history(session_id: str, role: str, content: str) -> None:
 # ── Shared state schema ───────────────────────────────────────────────────────
 
 class AgentState(TypedDict):
-    # Input fields
+    # Input & entity slot fields
     query: str
     trainee: Optional[str]
     date: Optional[str]
@@ -114,8 +122,9 @@ class AgentState(TypedDict):
     latency_seconds: float
     trace_id: str
 
-    # Conversation memory (injected from _SESSION_HISTORY before execution)
+    # Conversation memory
     conversation_history: List[Dict[str, str]]
+    conversation_summary: str
 
 
 # ── Node: Intent Classifier ───────────────────────────────────────────────────
@@ -125,19 +134,39 @@ def intent_classifier_node(state: AgentState) -> AgentState:
     Uses LLM-based semantic classifier (router.classify_intent) to determine
     which agent should handle the query and to extract entity slots.
 
-    Respects values already set by the caller (e.g. explicit trainee= flag).
+    Respects values already set by the caller (e.g. explicit trainee= flag)
+    and uses conversation history for pronoun resolution and slot carryover.
     """
-    result = classify_intent(state["query"], trainee_hint=state.get("trainee"))
+    history = state.get("conversation_history") or get_history(state.get("session_id", "default"))
+    active_slots = {
+        "trainee": state.get("trainee"),
+        "date": state.get("date"),
+        "period": state.get("period"),
+        "focus_area": state.get("focus_area")
+    }
 
-    # Only override empty slots — caller-provided values take precedence
+    result = classify_intent(
+        query=state["query"],
+        trainee_hint=state.get("trainee"),
+        conversation_history=history,
+        active_context=active_slots
+    )
+
+    resolved_agent = state.get("agent_intent") or result.get("agent") or "manager"
+    resolved_strategy = state.get("strategy") or result.get("strategy") or "exp1"
+    resolved_trainee = state.get("trainee") or result.get("trainee")
+    resolved_date = state.get("date") or result.get("date")
+    resolved_period = state.get("period") or result.get("period")
+    resolved_focus = state.get("focus_area") or result.get("focus_area")
+
     return {
         **state,
-        "agent_intent": result["agent"],
-        "strategy":   state.get("strategy") or result.get("strategy") or "exp1",
-        "trainee":    state.get("trainee") or result.get("trainee"),
-        "date":       state.get("date")    or result.get("date"),
-        "period":     state.get("period")  or result.get("period"),
-        "focus_area": state.get("focus_area") or result.get("focus_area"),
+        "agent_intent": resolved_agent,
+        "strategy":   resolved_strategy,
+        "trainee":    resolved_trainee,
+        "date":       resolved_date,
+        "period":     resolved_period,
+        "focus_area": resolved_focus,
         "trace_id":   f"trc-{uuid.uuid4().hex[:10]}",
     }
 
@@ -150,8 +179,8 @@ def _build_query_with_history(state: AgentState) -> str:
     has full multi-turn context with minimal token overhead.
     """
     session_id = state.get("session_id", "default")
-    summary = get_summary(session_id)
-    history = state.get("conversation_history") or []
+    summary = state.get("conversation_summary") or get_summary(session_id)
+    history = state.get("conversation_history") or get_history(session_id)
 
     parts = []
     if summary:
@@ -188,9 +217,19 @@ def manager_node(state: AgentState) -> AgentState:
     latency = round(time.time() - t0, 3)
     if not result.startswith("INSUFFICIENT_EVIDENCE") and not result.startswith("RETRIEVAL_UNAVAILABLE"):
         _append_history(state["session_id"], "user", state["query"])
-        _append_history(state["session_id"], "assistant", result[:500])  # summary for context
+        _append_history(state["session_id"], "assistant", result[:500])
 
-    return {**state, "final_response": result, "dispatched_agent": "manager", "latency_seconds": latency}
+    updated_hist = get_history(state["session_id"])
+    updated_summ = get_summary(state["session_id"])
+
+    return {
+        **state,
+        "final_response": result,
+        "dispatched_agent": "manager",
+        "latency_seconds": latency,
+        "conversation_history": updated_hist,
+        "conversation_summary": updated_summ,
+    }
 
 
 # ── Node: Mentor Executor ─────────────────────────────────────────────────────
@@ -213,7 +252,17 @@ def mentor_node(state: AgentState) -> AgentState:
         _append_history(state["session_id"], "user", state["query"])
         _append_history(state["session_id"], "assistant", result[:500])
 
-    return {**state, "final_response": result, "dispatched_agent": "mentor", "latency_seconds": latency}
+    updated_hist = get_history(state["session_id"])
+    updated_summ = get_summary(state["session_id"])
+
+    return {
+        **state,
+        "final_response": result,
+        "dispatched_agent": "mentor",
+        "latency_seconds": latency,
+        "conversation_history": updated_hist,
+        "conversation_summary": updated_summ,
+    }
 
 
 # ── Node: Team Executor ───────────────────────────────────────────────────────
@@ -235,7 +284,17 @@ def team_node(state: AgentState) -> AgentState:
         _append_history(state["session_id"], "user", state["query"])
         _append_history(state["session_id"], "assistant", result[:500])
 
-    return {**state, "final_response": result, "dispatched_agent": "team", "latency_seconds": latency}
+    updated_hist = get_history(state["session_id"])
+    updated_summ = get_summary(state["session_id"])
+
+    return {
+        **state,
+        "final_response": result,
+        "dispatched_agent": "team",
+        "latency_seconds": latency,
+        "conversation_history": updated_hist,
+        "conversation_summary": updated_summ,
+    }
 
 
 # ── Conditional router ────────────────────────────────────────────────────────
@@ -280,27 +339,14 @@ def _build_graph():
     builder.add_edge("mentor_node",  END)
     builder.add_edge("team_node",    END)
 
-    return builder.compile()
+    return builder.compile(checkpointer=_checkpointer)
 
 
-# Compiled graph singleton
+# Compiled graph singleton with Checkpointer
 _graph = _build_graph()
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
-
-# ── Semantic Graph Cache Store ────────────────────────────────────────────────
-# Stores tuples of (normalized_query_emb, trainee_scope, final_state_dict, raw_query)
-_GRAPH_CACHE: List[Tuple[Any, Optional[str], Dict[str, Any], str]] = []
-_GRAPH_DENSE_MODEL = None
-
-def get_graph_dense_model():
-    global _GRAPH_DENSE_MODEL
-    if _GRAPH_DENSE_MODEL is None:
-        from sentence_transformers import SentenceTransformer
-        _GRAPH_DENSE_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
-    return _GRAPH_DENSE_MODEL
-
 
 def run_graph(
     query: str,
@@ -313,21 +359,29 @@ def run_graph(
 ) -> Dict[str, Any]:
     """
     Primary entry point for the multi-agent system.
+    Orchestrated by LangGraph StateGraph with MemorySaver thread checkpointing.
     """
-    import numpy as np
+    config = {"configurable": {"thread_id": session_id}}
 
-    # ── 1. Semantic Cache (DISABLED per Siddharth's Handoff: 100% Live Calls) ──
-    # Cache disabled so every demo query performs live retrieval over HTTP
+    # Retrieve existing state values from checkpointer if available
+    prior_state_values = {}
+    try:
+        prior = _graph.get_state(config)
+        if prior and prior.values:
+            prior_state_values = prior.values
+    except Exception:
+        pass
 
-    # Inject current conversation history into state
+    # Inject conversation history into initial state
     history = get_history(session_id)[-BUFFER_WINDOW_TURNS * 2:]
+    summary = get_summary(session_id)
 
     initial_state: AgentState = {
         "query":                query,
-        "trainee":              trainee,
-        "date":                 date,
-        "period":               period,
-        "focus_area":           focus_area,
+        "trainee":              trainee or prior_state_values.get("trainee"),
+        "date":                 date or prior_state_values.get("date"),
+        "period":               period or prior_state_values.get("period"),
+        "focus_area":           focus_area or prior_state_values.get("focus_area"),
         "session_id":           session_id,
         "strategy":             None,
         "agent_intent":         forced_agent or "",   # "" triggers classifier
@@ -336,13 +390,14 @@ def run_graph(
         "latency_seconds":      0.0,
         "trace_id":             "",
         "conversation_history": history,
+        "conversation_summary": summary,
     }
 
     # If forced_agent is set, skip the classifier node by pre-filling intent
     if forced_agent:
         initial_state["agent_intent"] = forced_agent
 
-    final_state = _graph.invoke(initial_state)
+    final_state = _graph.invoke(initial_state, config=config)
 
     result_dict = {
         "final_response":   final_state["final_response"],
