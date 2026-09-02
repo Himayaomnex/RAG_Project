@@ -1,11 +1,7 @@
-qdrant-client
-sentence-transformers
-torch
 python-docx
 python-dotenv
 requests
 langgraph>=0.2
 langchain-core>=0.2
-rank-bm25
 fastapi
 uvicorn

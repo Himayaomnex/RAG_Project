@@ -58,17 +58,23 @@ class MentorTraineeAssessmentSkill:
         # Calculate dynamic top_k context window size
         k_val = 40 if retrieval_strategy == "exp4" else (30 if retrieval_strategy in ("exp2", "exp3") else 20)
 
-        chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
-            query=search_query,
-            speaker=speaker_filter,
-            date=request.period or None,
-            strategy=retrieval_strategy,
-            use_reranker=use_reranker,
-            top_k=k_val,
-            agent_name="mentor",
-            skill_name="trainee_assessment",
-            trace_id=request.trace_id
-        )
+        try:
+            chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
+                query=search_query,
+                speaker=speaker_filter,
+                date=request.period or None,
+                strategy=retrieval_strategy,
+                use_reranker=use_reranker,
+                top_k=k_val,
+                agent_name="mentor",
+                skill_name="trainee_assessment",
+                trace_id=request.trace_id
+            )
+        except Exception as e:
+            err_msg = str(e)
+            logger.set_failure(err_msg, status="RETRIEVAL_UNAVAILABLE")
+            logger.complete(err_msg, status="RETRIEVAL_UNAVAILABLE")
+            raise e
 
         chunk_ids = [c.chunk_id for c in chunks]
         logger.record_retrieval(chunk_ids)

@@ -5,3 +5,5 @@ __pycache__/
 emb_cache
 qdrant_storage/
 scratch/
+logs/traces/
+Downloads/

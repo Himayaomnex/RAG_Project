@@ -44,17 +44,23 @@ class ManagerWeeklyRollupSkill:
         # STAGE 2: Retrieve Relevant Evidence (Driven by Router Strategy)
         strat = request.strategy or "exp4"
         k_val = 40 if strat == "exp4" else None
-        chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
-            query=request.query,
-            speaker=target_trainee,
-            date=period_str or None,
-            strategy=strat,
-            use_reranker=(strat == "exp1"),
-            top_k=k_val,
-            agent_name="manager",
-            skill_name="weekly_rollup",
-            trace_id=request.trace_id
-        )
+        try:
+            chunks: List[EvidenceChunk] = retrieval_client.query_evidence(
+                query=request.query,
+                speaker=target_trainee,
+                date=period_str or None,
+                strategy=strat,
+                use_reranker=(strat == "exp1"),
+                top_k=k_val,
+                agent_name="manager",
+                skill_name="weekly_rollup",
+                trace_id=request.trace_id
+            )
+        except Exception as e:
+            err_msg = str(e)
+            logger.set_failure(err_msg, status="RETRIEVAL_UNAVAILABLE")
+            logger.complete(err_msg, status="RETRIEVAL_UNAVAILABLE")
+            raise e
         
         chunk_ids = [c.chunk_id for c in chunks]
         logger.record_retrieval(chunk_ids)

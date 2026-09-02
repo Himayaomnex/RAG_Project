@@ -42,10 +42,12 @@ def mcp_search_transcripts(auth_token: str, speaker: str = "", topic: str = "", 
     query_text = f"{speaker} {topic} {date}".strip() or "project status"
     chunks = retrieval_client.query_evidence(
         query=query_text,
-        speaker_filter=speaker or None,
-        date_filter=date or None,
-        limit=5,
-        strategy="precision"
+        speaker=speaker or None,
+        date=date or None,
+        strategy="exp1",
+        agent_name="team",
+        skill_name="session_catchup",
+        top_k=5
     )
 
     if not chunks:
