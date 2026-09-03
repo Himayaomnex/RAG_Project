@@ -83,6 +83,8 @@ def classify_intent(
         "- agent=manager ONLY when the user asks for executive project status, milestone rollup, completed task lists, blocker/risk lists, or action items across the project.\n"
         "- agent=team    ONLY when query is about catching up on a single missed session (e.g. 'I was absent on July 24', 'I missed the meeting, what happened?').\n"
         "- MULTI-TURN RESOLUTION: If conversation history is provided, use it to resolve pronouns (e.g., 'he', 'she', 'they', 'her', 'his', 'their', 'that day', 'that session', 'the same topic'). If the current query is a follow-up referring to the ongoing trainee, date, or topic from recent turns, extract that resolved trainee/date/topic.\n"
+        "- COLLECTIVE QUERIES: If the query refers to multiple or all trainees (e.g. 'the trainees', 'all trainees', 'team', 'everyone', 'cohort', 'who'), trainee MUST be null (do not inherit a single trainee from previous turns).\n"
+        "- DATE EXTRACTION: If a specific date is mentioned (e.g. 'August 11', 'July 31'), always extract it into 'date' (for team) or 'period' (for manager/mentor) so the exact meeting date is searched.\n"
         "- Output ONLY valid compact JSON. No explanation, no markdown, no extra text."
     )
 

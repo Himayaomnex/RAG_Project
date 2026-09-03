@@ -125,7 +125,35 @@ class ManagerWeeklyRollupSkill:
             "11. If evidence for a mentee or period is missing, state '- [Trainee Name]: INSUFFICIENT_EVIDENCE'."
         )
 
-        # STAGE 8: Incorporate GitHub MCP Live Repo Context
+        # STAGE 8: Incorporate Live Knowledge Base Facts & GitHub MCP Live Repo Context
+        kb_context = ""
+        try:
+            from ...shared.kb_client import kb_client
+            person_states = kb_client.get_person_state(target_trainee)
+            assignments = kb_client.get_current_assignments(target_trainee)
+            decisions = kb_client.get_decisions()
+            
+            kb_lines = ["<knowledge_base_ground_truth>"]
+            if person_states:
+                kb_lines.append("  <trainee_states>")
+                for ps in person_states:
+                    kb_lines.append(f"    <state person=\"{ps.get('person')}\" open_tasks=\"{ps.get('assignments_open')}\" delivered=\"{ps.get('assignments_delivered')}\" late=\"{ps.get('assignments_late')}\" concepts_demonstrated=\"{ps.get('concepts_demonstrated')}\" concepts_confused=\"{ps.get('concepts_confused')}\" feedback_count=\"{ps.get('feedback_received')}\"/>")
+                kb_lines.append("  </trainee_states>")
+            if assignments:
+                kb_lines.append("  <verified_assignments>")
+                for a in assignments[:25]:
+                    kb_lines.append(f"    <assignment person=\"{a.get('person')}\" status=\"{a.get('status')}\" due_date=\"{a.get('due_date')}\" delivered_date=\"{a.get('delivered_date')}\" late=\"{a.get('was_late')}\">{a.get('task_description')}</assignment>")
+                kb_lines.append("  </verified_assignments>")
+            if decisions:
+                kb_lines.append("  <architectural_decisions>")
+                for d in decisions[:15]:
+                    kb_lines.append(f"    <decision date=\"{d.get('session_date')}\" owner=\"{d.get('owner')}\">{d.get('decision_text')} (Rationale: {d.get('rationale')})</decision>")
+                kb_lines.append("  </architectural_decisions>")
+            kb_lines.append("</knowledge_base_ground_truth>")
+            kb_context = "\n".join(kb_lines)
+        except Exception as e:
+            print(f"  - [KB Injection Fail]: {e}")
+
         github_context = ""
         try:
             from github_mcp_client import github_mcp
@@ -137,9 +165,10 @@ class ManagerWeeklyRollupSkill:
             f"Review Period: {period_str or 'All Available Dates'}\n"
             f"Target Trainee: {target_trainee or 'All Trainees'}\n"
             f"Query: {request.query}\n\n"
+            f"{kb_context}\n\n"
             f"{github_context}\n\n"
             f"{xml_evidence}\n\n"
-            "Carefully analyze the user's query and generate the response adhering to Rule 0 (if day-wise/chronological is requested, group by date; if general rollup is requested, use the 5 executive sections; if focused, answer directly)."
+            "Carefully analyze the user's query and generate the response adhering to Rule 0 (if day-wise/chronological is requested, group by date; if general rollup is requested, use the 5 executive sections; if focused, answer directly). Base task numbers and verified statuses directly on <knowledge_base_ground_truth> and cite verbatim dialogue from <transcript_evidence>."
         )
 
         try:

@@ -137,10 +137,34 @@ class TeamSessionCatchupSkill:
 
         header_date_suffix = f" ({date_val})" if date_val else ""
 
+        # STAGE 8: Incorporate Live Knowledge Base Digests & Decisions
+        kb_context = ""
+        try:
+            from ...shared.kb_client import kb_client
+            digests = kb_client.get_session_digest(date_val)
+            decisions = kb_client.get_decisions(date_val, date_val)
+            
+            kb_lines = ["<knowledge_base_ground_truth>"]
+            if digests:
+                kb_lines.append("  <session_digests>")
+                for d in digests[:10]:
+                    kb_lines.append(f"    <digest date=\"{d.get('session_date')}\" topics=\"{d.get('key_topics')}\" unresolved=\"{d.get('unresolved_items')}\">{d.get('summary')}</digest>")
+                kb_lines.append("  </session_digests>")
+            if decisions:
+                kb_lines.append("  <architectural_decisions>")
+                for dc in decisions[:10]:
+                    kb_lines.append(f"    <decision date=\"{dc.get('session_date')}\" owner=\"{dc.get('owner')}\">{dc.get('decision_text')} (Rationale: {dc.get('rationale')})</decision>")
+                kb_lines.append("  </architectural_decisions>")
+            kb_lines.append("</knowledge_base_ground_truth>")
+            kb_context = "\n".join(kb_lines)
+        except Exception as e:
+            print(f"  - [Team KB Injection Fail]: {e}")
+
         user_prompt = (
             f"Session Date: {date_val or 'All Sessions'}\n"
             f"Requesting Trainee: {request.trainee or 'All Team Members'}\n"
             f"Query: {request.query}\n\n"
+            f"{kb_context}\n\n"
             f"{xml_evidence}\n\n"
             "Generate the Team Session Catch-Up following the exact output schema:\n"
             f"### **Session · What happened{header_date_suffix}**\n"

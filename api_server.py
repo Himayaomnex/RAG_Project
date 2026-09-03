@@ -235,6 +235,28 @@ if FASTAPI_AVAILABLE:
             raise HTTPException(status_code=404, detail=f"Trace '{trace_id}' not found.")
         return trace_data
 
+    @app.get("/api/v1/kb/summary")
+    def get_kb_summary_endpoint():
+        """Returns structured cohort summary from Ganesh's Supabase Knowledge Base."""
+        try:
+            from agents.shared.kb_client import kb_client
+            person_states = kb_client.get_person_state()
+            active = [p for p in person_states if p.get("person") != "Siddharth Saminathan"]
+            return {"status": "success", "cohort_state": active}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/api/v1/rollup/export")
+    def export_rollup_endpoint():
+        """Generates a multi-tab Daily Rollup Excel workbook and saves to Google Drive/local directory."""
+        try:
+            from daily_excel_generator import generate_daily_rollup_excel
+            file_path = generate_daily_rollup_excel()
+            return {"status": "success", "file_path": file_path}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+
 
 if __name__ == "__main__":
     if FASTAPI_AVAILABLE:
@@ -243,8 +265,8 @@ if __name__ == "__main__":
         print("[API Server] Starting RAG_COMBINED Multi-Agent API (LangGraph v2)")
         print("[API Server] Endpoints: /api/v1/query  /api/v1/manager  /api/v1/mentor  /api/v1/teammate")
         print("[API Server] Use cli.py for interactive terminal sessions.")
-        print("=" * 70)
-        uvicorn.run(app, host="127.0.0.1", port=8000, log_level="info")
+        port = int(os.getenv("API_PORT", os.getenv("PORT", "8001")))
+        uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
     else:
         print("FastAPI not installed. Run: pip install fastapi uvicorn")
 

@@ -147,13 +147,43 @@ class MentorTraineeAssessmentSkill:
             "  Provide a focused direct response targeting ONLY that specific topic, analogy, or story, with exact quotes and citations, without listing other unrelated topics.\n"
         )
 
+        # STAGE 8: Incorporate Live Knowledge Base Concept Gaps & Mentor Feedback
+        kb_context = ""
+        try:
+            from ...shared.kb_client import kb_client
+            concept_gaps = kb_client.get_concept_gaps(speaker_filter)
+            qa_records = kb_client.get_qa_history(speaker_filter)
+            feedback_records = kb_client.get_feedback_history(speaker_filter)
+            
+            kb_lines = ["<knowledge_base_ground_truth>"]
+            if concept_gaps:
+                kb_lines.append("  <verified_concept_gaps>")
+                for cg in concept_gaps[:25]:
+                    kb_lines.append(f"    <gap person=\"{cg.get('person')}\" concept=\"{cg.get('concept')}\" state=\"{cg.get('understanding_state')}\" date=\"{cg.get('session_date')}\">{cg.get('observation')}</gap>")
+                kb_lines.append("  </verified_concept_gaps>")
+            if qa_records:
+                kb_lines.append("  <qa_benchmark_evaluations>")
+                for q in qa_records[:20]:
+                    kb_lines.append(f"    <qa answered_by=\"{q.get('answered_by')}\" topic=\"{q.get('topic')}\" quality=\"{q.get('answer_quality')}\" date=\"{q.get('session_date')}\">Q: {q.get('question_text')} | Answer: {q.get('answer_summary')}</qa>")
+                kb_lines.append("  </qa_benchmark_evaluations>")
+            if feedback_records:
+                kb_lines.append("  <mentor_coaching_history>")
+                for fb in feedback_records[:15]:
+                    kb_lines.append(f"    <feedback to=\"{fb.get('to_person')}\" sentiment=\"{fb.get('sentiment')}\" topic=\"{fb.get('topic')}\" date=\"{fb.get('session_date')}\">{fb.get('verbatim_feedback')}</feedback>")
+                kb_lines.append("  </mentor_coaching_history>")
+            kb_lines.append("</knowledge_base_ground_truth>")
+            kb_context = "\n".join(kb_lines)
+        except Exception as e:
+            print(f"  - [Mentor KB Injection Fail]: {e}")
+
         user_prompt = (
             f"Target Trainee: {trainee or 'All Teammates'}\n"
             f"Period: {request.period or 'All Sessions'}\n"
             f"Focus Area: {request.focus_area or 'General AI/ML Architecture'}\n"
             f"Query: {request.query}\n\n"
+            f"{kb_context}\n\n"
             f"{xml_evidence}\n\n"
-            "Generate the assessment strictly adhering to the cognitive rules and formatting directives above."
+            "Generate the assessment strictly adhering to the cognitive rules and formatting directives above. Use verified concept gaps and QA ratings from <knowledge_base_ground_truth> to ground your assessment, and support every claim with verbatim citations from <transcript_evidence>."
         )
 
         try:

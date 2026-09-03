@@ -145,11 +145,35 @@ def handle_command(
             session_id = parts[1].strip()
             print(f"  [Switched to session: {session_id}]")
 
+    elif command == "/kb":
+        try:
+            from agents.shared.kb_client import kb_client
+            print(_header("Ganesh's Knowledge Base Status (Supabase PostgreSQL)"))
+            states = kb_client.get_person_state()
+            for s in states:
+                if s.get("person") != "Siddharth Saminathan":
+                    gaps = (s.get("concepts_confused") or 0) + (s.get("concepts_partial") or 0)
+                    print(f"  • {s.get('person'):<22} Open Tasks: {s.get('assignments_open'):<3} Delivered: {s.get('assignments_delivered'):<3} Gaps: {gaps:<3} Feedback: {s.get('feedback_received')}")
+            print(SEP)
+        except Exception as e:
+            print(f"  [KB Error]: {e}")
+
+    elif command in ("/export-rollup", "/rollup", "/excel"):
+        try:
+            from daily_excel_generator import generate_daily_rollup_excel
+            print("  [Generating formatted Excel daily rollup from Knowledge Base...]")
+            path = generate_daily_rollup_excel()
+            print(f"  [SUCCESS] Workbook saved to: {path}")
+        except Exception as e:
+            print(f"  [Export Error]: {e}")
+
     elif command == "/help":
         print(_header("Available Commands"))
         cmds = [
             ("/reset",           "Clear conversation history for this session"),
             ("/history",         "Show conversation history"),
+            ("/kb",              "View live state from Ganesh's Knowledge Base"),
+            ("/export-rollup",   "Export multi-tab Daily Rollup Excel to Google Drive"),
             ("/agent <name>",    "Set agent: manager | mentor | team | auto"),
             ("/trainee <name>",  "Set trainee scope: Himaya | Ganesh | Dakshinya | none"),
             ("/session <id>",    "Switch to a named session (creates new memory)"),
