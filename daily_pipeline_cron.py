@@ -160,7 +160,7 @@ def start_agentic_daemon(
     print("=" * 70)
     print(f"  [Folder Watcher] Monitoring: '{watch_dir}'")
     print(f"  [Daily Schedule] Automated trigger at: {sched_time} daily")
-    print(f"  [Google Drive]   Sync destination: {gdrive_dir or os.getenv('GOOGLE_DRIVE_FOLDER', 'deliverables/daily_rollups/')}")
+    print(f"  [Google Drive]   Sync destination: {gdrive_dir or os.getenv('GOOGLE_DRIVE_FOLDER', 'deliverables/')}")
     print(f"  [Status]         Active & Listening. Press Ctrl+C to stop.")
     print("=" * 70 + "\n")
 
