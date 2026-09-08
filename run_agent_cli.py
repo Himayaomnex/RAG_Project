@@ -39,18 +39,16 @@ def main():
                 if not task:
                     continue
 
-                cap = args.capability or "ad_hoc"
-                print(f"\n[*] Executing LangGraph Dual-Loop Agent (Capability: {cap})...")
-                result = run_agent(task=task, capability=cap)
+                print(f"\n[*] Executing LangGraph Dual-Loop Agent...")
+                result = run_agent(task=task, capability=args.capability)
                 print_result(result)
             except KeyboardInterrupt:
                 print("\nExiting.")
                 break
     else:
         task = " ".join(args.query)
-        cap = args.capability or "ad_hoc"
-        print(f"Running task: {task} (Capability: {cap})")
-        result = run_agent(task=task, capability=cap)
+        print(f"Running task: {task}")
+        result = run_agent(task=task, capability=args.capability)
         print_result(result)
 
 

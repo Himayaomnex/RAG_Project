@@ -25,7 +25,7 @@ def run_agent(
 
     initial_state: AgentState = {
         "task": task,
-        "capability": cap.name if capability else None,
+        "capability": cap.name,
         "session_id": sid,
         "trace_id": tid,
         "plan_history": [],
