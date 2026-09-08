@@ -10,7 +10,14 @@ from agents.shared.retrieval_client import RetrievalClient
 _client = RetrievalClient()
 
 
-@register_tool("search_transcripts", "Search verbatim meeting transcripts with query, speaker, or date filters.")
+@register_tool(
+    "search_transcripts",
+    "Search verbatim meeting dialogue for what was actually said. Use for exact language, quotations, and detail the KB does not hold. "
+    "Strategies: 'exp1' (precision-first + reranker: for a specific claim, named person, or known date), "
+    "'exp2' (completeness-first expanded scroll: 'everything about X', broad sweeps), "
+    "'exp3' (document-balanced coverage: 'across the whole programme', coverage over depth), "
+    "'exp4' (single-pass full corpus: whole-corpus questions; expensive, use last). Default='exp1'."
+)
 def search_transcripts(
     query: str,
     speaker: Optional[str] = None,
