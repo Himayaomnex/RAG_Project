@@ -168,3 +168,4 @@ class Capability:
     tool_hints: List[str] = field(default_factory=list)
     default_budget: int = 35000
     max_tool_calls: int = 6
+    raw_content: str = ""  # Full markdown text — read-only, never modified

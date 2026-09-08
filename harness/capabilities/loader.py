@@ -113,29 +113,103 @@ class CapabilityRegistry:
                 output_schema=schema,
                 verification_rules=rules,
                 default_budget=budget,
-                max_tool_calls=max_calls
+                max_tool_calls=max_calls,
+                raw_content=content,  # store full markdown, never modified
             )
 
+    # ── Intent classification cache (avoids repeated LLM calls for same query) ──
+    _infer_cache: Dict[str, str] = {}
+
+    @staticmethod
+    def _extract_section(content: str, *headings: str) -> str:
+        """Extract the first paragraph under any of the given markdown headings.
+        Returns empty string if none found. Never modifies the source file.
+        """
+        for heading in headings:
+            pattern = rf"##\s+{re.escape(heading)}\s*\n+([^#]+)"
+            m = re.search(pattern, content)
+            if m:
+                return m.group(1).strip()
+        return ""
+
     def infer_capability(self, task: str) -> str:
-        """Automatically infer the best matching capability contract from task semantics."""
+        """Use the LLM to classify the task into the best-matching capability.
+
+        Reads Consumer, Purpose, and any existing 'When the agent should choose it'
+        section directly from the mentor's original markdown files.
+        Zero hardcoded keywords. Zero modifications to any .md file.
+        Falls back to 'ad_hoc' on any LLM failure.
+        """
         if not task:
             return "ad_hoc"
-        
-        t = task.lower()
-        
-        # Mentor assessment cues
-        if any(k in t for k in ["assess", "evaluation", "evaluate", "trainee", "mentor", "conceptual understanding", "knowledge gap", "score", "misconception", "teaching action"]):
-            return "mentor_assessment"
-            
-        # Manager rollup cues
-        if any(k in t for k in ["rollup", "roll up", "roll-up", "weekly", "executive", "management", "blocker", "blockers", "deliverable", "deliverables", "intervention"]):
-            return "manager_rollup"
-            
-        # Team catchup cues
-        if any(k in t for k in ["catchup", "catch up", "catch-up", "missed", "session digest", "assigned to me", "mine to do", "assignments for you"]):
-            return "team_catchup"
-            
-        return "ad_hoc"
+
+        cache_key = task.strip().lower()
+        if cache_key in self._infer_cache:
+            return self._infer_cache[cache_key]
+
+        # Build a rich menu from each capability's existing markdown content
+        capability_blocks: list[str] = []
+        for cap_name, cap in self._capabilities.items():
+            content = cap.raw_content
+
+            # Pull existing sections — never added by us
+            when_to_choose = self._extract_section(
+                content,
+                "When the agent should choose it",  # ad_hoc.md uses this heading
+                "When to use",                       # future-proofing
+            )
+
+            block_lines = [
+                f"### {cap_name}",
+                f"Consumer: {cap.consumer}",
+                f"Purpose: {cap.purpose}",
+            ]
+            if when_to_choose:
+                block_lines.append(f"When to choose: {when_to_choose}")
+            capability_blocks.append("\n".join(block_lines))
+
+        cap_menu = "\n\n".join(capability_blocks)
+        valid_names = list(self._capabilities.keys())
+        valid_names_str = ", ".join(f'"{n}"' for n in valid_names)
+
+        system_prompt = (
+            "You are a routing classifier for an enterprise RAG agent system. "
+            "Your ONLY job is to pick the single best-matching capability name for a user query. "
+            "Tiebreaker rules when intent is ambiguous:\n"
+            "- team_catchup: ONLY when someone explicitly missed a session and needs a full digest. "
+            "NOT for questions about what someone said in a session.\n"
+            "- mentor_assessment: ONLY for a formal scored evaluation or teaching plan (1-10 rubric). "
+            "NOT for simple assignment or task status questions about a person.\n"
+            "- manager_rollup: ONLY for cross-team or multi-trainee aggregate reports. "
+            "NOT for single-person lookups.\n"
+            "- ad_hoc: Use for specific factual questions about what a person said, a person's current "
+            "assignment status, or anything that does not clearly match the above three.\n"
+            "Return ONLY a valid JSON object with one field: 'capability'. "
+            "Do not explain. Do not add any other fields."
+        )
+        user_prompt = (
+            f"Available capabilities:\n\n{cap_menu}\n\n"
+            f"User query: \"{task}\"\n\n"
+            f"Which capability best handles this query? "
+            f"Respond with exactly: {{\"capability\": <one of {valid_names_str}>}}"
+        )
+
+        try:
+            from harness.llm import generate_json_object
+            result, _, _, _ = generate_json_object(
+                system_instruction=system_prompt,
+                user_prompt=user_prompt,
+                temperature=0.0,
+            )
+            chosen = str(result.get("capability", "ad_hoc")).strip()
+            if chosen not in self._capabilities:
+                chosen = "ad_hoc"
+        except Exception:
+            chosen = "ad_hoc"
+
+        self._infer_cache[cache_key] = chosen
+        return chosen
+
 
     def get(self, name: str) -> Optional[Capability]:
         return self._capabilities.get(name)
