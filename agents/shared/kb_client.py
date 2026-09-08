@@ -14,7 +14,7 @@ Views exposed:
 - kb.v_feedback             -> Verbatim feedback history from mentor with sentiment
 - kb.v_decisions            -> Architectural decisions with owner, rationale, and date
 - kb.v_digests              -> Session summaries and per-person delta JSONB
-- kb.v_patterns             -> Longitudinal behavioral/technical capability patterns
+- kb.v_patterns             -> Longitudinal behavioral/technical capability patternsl
 ================================================================================
 """
 
@@ -32,6 +32,11 @@ except ImportError:
     PSYCOPG_AVAILABLE = False
 
 
+class KBUnavailableError(RuntimeError):
+    """Raised when Ganesh's PostgreSQL Knowledge Base is unreachable or queries fail."""
+    pass
+
+
 class KnowledgeBaseClient:
     """
     Client for querying Ganesh's structured Knowledge Base in Supabase PostgreSQL.
@@ -46,9 +51,9 @@ class KnowledgeBaseClient:
     def _query(self, sql: str, params: Optional[tuple] = None) -> List[Dict[str, Any]]:
         """Executes a parameterized read-only query and returns a list of dictionaries."""
         if not PSYCOPG_AVAILABLE:
-            raise RuntimeError("psycopg is not installed. Run: pip install 'psycopg[binary]'")
+            raise KBUnavailableError("psycopg is not installed. Run: pip install 'psycopg[binary]'")
         if not self.dsn:
-            raise RuntimeError("KB_DSN is not configured in .env or environment.")
+            raise KBUnavailableError("KB_DSN is not configured in .env or environment.")
 
         try:
             print(f"  [KB Client] Live query to Supabase: {sql[:70]}...")
@@ -63,7 +68,7 @@ class KnowledgeBaseClient:
                     return [dict(zip(cols, row)) for row in rows]
         except Exception as e:
             print(f"[KBClient Error] Query failed: {e}", file=sys.stderr)
-            return []
+            raise KBUnavailableError(f"KB query failed: {e}") from e
 
     # ── Canonical Person List ──────────────────────────────────────────────────
 
@@ -246,7 +251,7 @@ class KnowledgeBaseClient:
         """
         if session_date:
             return self._query(
-                "SELECT session_date, summary, per_person_delta, key_topics, unresolved_items, evidence_lines FROM kb.v_digests WHERE session_date = %s;",
+                "SELECT session_date, summary, per_person_delta, key_topics, unresolved_items FROM kb.v_digests WHERE session_date = %s;",
                 (session_date,)
             )
         return self._query(

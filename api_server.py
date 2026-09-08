@@ -1,61 +1,185 @@
 """
 ================================================================================
-Production Multi-Agent REST API Server (RAG_COMBINED)
+Production Multi-Agent REST API & Web Server (RAG_COMBINED)
 ================================================================================
-Clean REST API - NO UI, NO static files.
-All requests are routed through the LangGraph StateGraph (graph.py).
-Conversation history is maintained per session_id across turns.
-
-Endpoints:
-  POST /api/v1/query      - Auto-routes via LLM intent classifier
-  POST /api/v1/manager    - Pinned to Manager agent
-  POST /api/v1/mentor     - Pinned to Mentor agent
-  POST /api/v1/teammate   - Pinned to Team Intelligence agent
-  GET  /api/v1/trace/{id} - Execution trace inspector
-  GET  /api/v1/history    - Conversation history for a session
-  GET  /health            - Health check
+Turnkey Web Server & REST API:
+- Serves the Interactive Browser Dashboard at http://127.0.0.1:8080
+- Automatically routes queries through the Agent Harness (harness.runner.run_agent)
+- Supports capability endpoints: /api/v1/query, /api/v1/manager, /api/v1/mentor, /api/v1/teammate
+- Provides live Excel generation & Google Drive deliverable downloads
+================================================================================
 """
 
 import os
 import sys
+import json
 import time
 from typing import Dict, Any, Optional
+from pathlib import Path
 
 parent_dir = os.path.dirname(os.path.abspath(__file__))
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
 
 if hasattr(sys.stdout, 'reconfigure'):
-    sys.stdout.reconfigure(encoding='utf-8')
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except Exception:
+        pass
 
-
-from graph import run_graph, get_history, reset_session
+from harness.runner import run_agent
+from harness.capabilities.loader import capability_registry
 from agents.shared.logging import get_trace
 
 try:
-    from fastapi import FastAPI, Header, HTTPException, Depends
+    from fastapi import FastAPI, Header, HTTPException
     from fastapi.middleware.cors import CORSMiddleware
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse, JSONResponse
     from pydantic import BaseModel
     FASTAPI_AVAILABLE = True
 except ImportError:
     FASTAPI_AVAILABLE = False
 
-def get_active_llm_provider_name() -> str:
-    if os.getenv("GEMINI_API_KEY", "").strip():
-        model = os.getenv("GEMINI_MODEL_NAME", "gemini-2.5-flash").strip()
-        return f"Google Gemini ({model}) & Qdrant"
-    elif os.getenv("GROQ_API_KEY", "").strip():
-        return "Groq & Qdrant"
-    return "OpenRouter Free Models & Qdrant"
+
+def format_output_to_markdown(output_data: Any, capability: str) -> str:
+    """Formats verified JSON output into rich, readable GitHub-flavored Markdown for the UI."""
+    if not output_data:
+        return "*(No output generated)*"
+    
+    if isinstance(output_data, str):
+        return output_data
+        
+    if not isinstance(output_data, dict):
+        return f"```json\n{json.dumps(output_data, indent=2)}\n```"
+
+    md = []
+    
+    # 1. Mentor Assessment formatting
+    if capability == "mentor_assessment":
+        person = output_data.get("person", "Trainee")
+        overall = output_data.get("overall", "")
+        md.append(f"## 🎓 Mentor Assessment: **{person}**\n")
+        if overall:
+            md.append(f"**Overall Evaluation:** {overall}\n")
+            
+        dims = output_data.get("dimensions", [])
+        if dims:
+            md.append("### 📊 Dimension Scores (1–10)")
+            md.append("| Dimension | Score | Reason | Citations |")
+            md.append("| :--- | :---: | :--- | :--- |")
+            for d in dims:
+                cites = ", ".join(f"`{cid}`" for cid in d.get("evidence_ids", [])) or "—"
+                md.append(f"| **{d.get('name')}** | **{d.get('score')}** | {d.get('reason')} | {cites} |")
+            md.append("")
+            
+        caps = output_data.get("demonstrated_capabilities", [])
+        if caps:
+            md.append("### ✅ Demonstrated Capabilities (*Taught != Understood Verified*)")
+            for c in caps:
+                cites = ", ".join(f"`{cid}`" for cid in c.get("evidence_ids", []))
+                md.append(f"- **{c.get('concept')}**: {c.get('how_shown')} *(Citations: {cites})*")
+            md.append("")
+
+        gaps = output_data.get("knowledge_gaps", [])
+        if gaps:
+            md.append("### ⚠️ Knowledge Gaps")
+            for g in gaps:
+                md.append(f"- {g.get('gap')}")
+            md.append("")
+
+        action = output_data.get("next_teaching_action", "")
+        if action:
+            md.append(f"### 🎯 Recommended Teaching Action\n> {action}\n")
+
+    # 2. Manager Rollup formatting
+    elif capability == "manager_rollup":
+        headline = output_data.get("headline", "Weekly Executive Rollup")
+        md.append(f"## 👔 Executive Summary: **{headline}**\n")
+        
+        comp = output_data.get("completed", [])
+        if comp:
+            md.append("### ✅ Verified Completed Deliverables")
+            for item in comp:
+                cites = ", ".join(f"`{cid}`" for cid in item.get("evidence_ids", []))
+                md.append(f"- **[{item.get('owner')}]** {item.get('item')} *(Proof: {cites})*")
+            md.append("")
+
+        inp = output_data.get("in_progress", [])
+        if inp:
+            md.append("### 🔄 In-Progress Work")
+            for item in inp:
+                md.append(f"- **[{item.get('owner')}]** {item.get('item')}")
+            md.append("")
+
+        blk = output_data.get("blocked", [])
+        if blk:
+            md.append("### 🛑 Active Blockers & Risks")
+            for item in blk:
+                md.append(f"- **[{item.get('owner')}]** {item.get('item')} — *Impact:* {item.get('impact')} | *Resolution:* `{item.get('agreed_resolution')}`")
+            md.append("")
+
+        decs = output_data.get("decisions", [])
+        if decs:
+            md.append("### ⚖️ Architecture & Team Decisions")
+            for d in decs:
+                md.append(f"- {d.get('decision')} *(Owner: {d.get('owner') or 'Team'})*")
+            md.append("")
+
+    # 3. Team Catchup formatting
+    elif capability == "team_catchup":
+        sdate = output_data.get("session_date", "Recent Session")
+        md.append(f"## 👥 Session Catch-Up: **{sdate}**\n")
+        md.append(f"**What Happened:** {output_data.get('what_happened', '')}\n")
+        
+        topics = output_data.get("technical_topics", [])
+        if topics:
+            md.append("### 💡 Technical Topics Covered")
+            for t in topics:
+                md.append(f"- **{t.get('topic')}**: {t.get('summary')}")
+            md.append("")
+
+        my_tasks = output_data.get("assignments_for_you", [])
+        if my_tasks:
+            md.append("### 📌 Action Items Assigned to YOU")
+            for task in my_tasks:
+                due = f" (Due: {task.get('due')})" if task.get('due') else ""
+                md.append(f"- 🔴 **{task.get('task')}**{due}")
+            md.append("")
+
+        other_tasks = output_data.get("assignments_for_others", [])
+        if other_tasks:
+            md.append("### 📋 Assigned to Others")
+            for task in other_tasks:
+                md.append(f"- **{task.get('owner')}**: {task.get('task')}")
+            md.append("")
+
+        next_step = output_data.get("what_to_do_next", "")
+        if next_step:
+            md.append(f"### 🚀 What To Do Next\n> {next_step}\n")
+
+    # 4. Ad-Hoc / General
+    else:
+        answer = output_data.get("answer", "")
+        md.append(f"## 💡 Verified Agent Response\n\n{answer}\n")
+        claims = output_data.get("claims", [])
+        if claims:
+            md.append("### 📑 Evidence Citations")
+            for c in claims:
+                cites = ", ".join(f"`{cid}`" for cid in c.get("evidence_ids", [])) or "—"
+                md.append(f"- **Claim:** {c.get('assertion')} *(Evidence: {cites})*")
+            md.append("")
+
+    # Raw JSON collapsible section
+    md.append("\n<details><summary>🔍 View Verified Raw JSON Payload</summary>\n\n```json\n" + json.dumps(output_data, indent=2) + "\n```\n</details>")
+    return "\n".join(md)
 
 
 if FASTAPI_AVAILABLE:
     app = FastAPI(
-        title="Enterprise Multi-Agent RAG Service",
-        description="Production API: Manager, Mentor, and Teammates Agents powered by Qdrant & Google Gemini. Orchestrated by LangGraph.",
-        version="2.0.0",
-        docs_url=None,     # Disable Swagger UI to enforce terminal-only use
-        redoc_url=None     # Disable ReDoc UI to enforce terminal-only use
+        title="Omnex Production Agent Harness API",
+        description="Autonomous AI Agent Harness powered by LangGraph, Supabase, Qdrant & Gemini.",
+        version="3.0.0"
     )
 
     app.add_middleware(
@@ -69,7 +193,7 @@ if FASTAPI_AVAILABLE:
     class QueryRequest(BaseModel):
         prompt: str
         target_member: Optional[str] = ""
-        session_id: Optional[str] = "default"   # multi-turn conversation session
+        session_id: Optional[str] = "default"
 
     class QueryResponse(BaseModel):
         agent_role: str
@@ -79,172 +203,81 @@ if FASTAPI_AVAILABLE:
         trace_id: str = ""
         session_id: str = "default"
         llm_provider: str = "Google Gemini (gemini-2.5-flash) & Qdrant"
-
-    @app.on_event("startup")
-    def startup_warmup():
-        print("\n" + "=" * 70)
-        print("[API Server Warmup]: Checking Retrieval Microservice (Port 8000)...")
-        try:
-            from agents.shared.retrieval_client import retrieval_client
-            retrieval_client.query_evidence(query="warmup", strategy="exp1", agent_name="system", skill_name="warmup", top_k=1)
-            print("[API Server Warmup]: Retrieval Microservice Connected.")
-        except Exception as e:
-            print(f"[API Server Warmup Notice]: Retrieval Microservice not reachable yet ({e}). Will connect on-demand.")
-        print("=" * 70 + "\n")
+        excel_download_url: Optional[str] = None
 
     @app.get("/health")
     def health_check():
         return {
             "status": "healthy",
-            "service": "RAG_COMBINED Multi-Agent Service v2.0 (LangGraph)",
-            "agents": ["manager", "mentor", "teammates"]
+            "service": "Omnex Production Agent Harness v3.0 (LangGraph Dual-Loop)",
+            "capabilities": capability_registry.list_names()
         }
 
-    @app.get("/api/v1/history")
-    def get_agent_history(session_id: Optional[str] = "default"):
-        """Returns conversation history for a given session_id."""
-        return {"session_id": session_id, "history": get_history(session_id)}
+    def execute_harness_query(task: str, capability: Optional[str] = None, session_id: str = "default") -> QueryResponse:
+        t0 = time.time()
+        try:
+            result = run_agent(task=task, capability=capability, session_id=session_id)
+            latency = round(time.time() - t0, 3)
+            cap_used = result.get("capability", "ad_hoc")
+            output_obj = result.get("output")
+            formatted_md = format_output_to_markdown(output_obj, cap_used) if output_obj else f"Status: {result.get('status')}\nError: {result.get('error')}"
 
-    @app.post("/api/v1/history/reset")
-    def reset_agent_history(session_id: Optional[str] = "default"):
-        """Clears conversation history for a session."""
-        reset_session(session_id)
-        return {"status": "cleared", "session_id": session_id}
+            # Check if any Excel deliverable was generated today
+            deliverables_dir = Path(parent_dir) / "deliverables"
+            excel_url = None
+            if deliverables_dir.exists():
+                excel_files = sorted(deliverables_dir.glob("*.xlsx"), key=os.path.getmtime, reverse=True)
+                if excel_files:
+                    excel_url = f"/api/v1/deliverables/{excel_files[0].name}"
+
+            return QueryResponse(
+                agent_role=cap_used,
+                response=formatted_md,
+                latency_seconds=latency,
+                status=result.get("status", "SUCCESS"),
+                trace_id=result.get("trace_id", ""),
+                session_id=session_id,
+                llm_provider="Google Gemini (gemini-2.5-flash) & Qdrant",
+                excel_download_url=excel_url
+            )
+        except Exception as e:
+            latency = round(time.time() - t0, 3)
+            return QueryResponse(
+                agent_role="error",
+                response=f"### ❌ Agent Harness Execution Error\n`{str(e)}`",
+                latency_seconds=latency,
+                status="ERROR",
+                trace_id="",
+                session_id=session_id
+            )
 
     @app.post("/api/v1/query", response_model=QueryResponse)
     def dispatch_query(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
-        """Auto-Router: LangGraph StateGraph classifies intent and dispatches to the correct agent."""
-        t0 = time.time()
-        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
-        print(f"\n[API /query] prompt={req.prompt!r} session={effective_session} trainee={req.target_member}")
-        try:
-            result = run_graph(
-                query=req.prompt,
-                trainee=req.target_member or None,
-                session_id=effective_session,
-            )
-            status = "success"
-        except Exception as e:
-            print(f"[API /query Error]: {e}")
-            result = {"final_response": f"Server error: {str(e)}", "dispatched_agent": "unknown",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
-            status = "error"
-
-        return QueryResponse(
-            agent_role=result["dispatched_agent"],
-            response=result["final_response"],
-            latency_seconds=result["latency_seconds"],
-            status=status,
-            trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", effective_session),
-            llm_provider=get_active_llm_provider_name()
-        )
+        """Auto-Intent Capability Router."""
+        task = req.prompt
+        if req.target_member and req.target_member.lower() not in task.lower():
+            task = f"{task} (Focus on {req.target_member})"
+        return execute_harness_query(task=task, capability=None, session_id=req.session_id or x_user_id)
 
     @app.post("/api/v1/manager", response_model=QueryResponse)
-    def manager_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
-        """Manager Agent: pinned — always runs manager_weekly_rollup."""
-        t0 = time.time()
-        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
-        print(f"\n[Manager Endpoint] prompt={req.prompt!r} session={effective_session}")
-        try:
-            result = run_graph(
-                query=req.prompt,
-                trainee=req.target_member or None,
-                session_id=effective_session,
-                forced_agent="manager"
-            )
-            status = "success"
-        except Exception as e:
-            print(f"[Manager Error]: {e}")
-            result = {"final_response": f"Manager Agent Error: {str(e)}", "dispatched_agent": "manager",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
-            status = "error"
-        return QueryResponse(
-            agent_role="manager",
-            response=result["final_response"],
-            latency_seconds=result["latency_seconds"],
-            status=status,
-            trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", effective_session),
-            llm_provider=get_active_llm_provider_name()
-        )
+    def manager_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
+        return execute_harness_query(task=req.prompt, capability="manager_rollup", session_id=req.session_id or x_user_id)
 
     @app.post("/api/v1/mentor", response_model=QueryResponse)
-    def mentor_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
-        """Mentor Agent: pinned — always runs mentor_trainee_assessment."""
-        t0 = time.time()
-        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
-        print(f"\n[Mentor Endpoint] prompt={req.prompt!r} session={effective_session}")
-        try:
-            result = run_graph(
-                query=req.prompt,
-                trainee=req.target_member or None,
-                session_id=effective_session,
-                forced_agent="mentor"
-            )
-            status = "success"
-        except Exception as e:
-            print(f"[Mentor Error]: {e}")
-            result = {"final_response": f"Mentor Agent Error: {str(e)}", "dispatched_agent": "mentor",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
-            status = "error"
-        return QueryResponse(
-            agent_role="mentor",
-            response=result["final_response"],
-            latency_seconds=result["latency_seconds"],
-            status=status,
-            trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", effective_session),
-            llm_provider=get_active_llm_provider_name()
-        )
+    def mentor_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
+        return execute_harness_query(task=req.prompt, capability="mentor_assessment", session_id=req.session_id or x_user_id)
 
     @app.post("/api/v1/teammate", response_model=QueryResponse)
-    def teammate_agent_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
-        """Team Agent: pinned — always runs team_session_catchup."""
-        t0 = time.time()
-        effective_session = req.session_id if (req.session_id and req.session_id != "default") else (x_user_id or "default")
-        print(f"\n[Teammate Endpoint] prompt={req.prompt!r} session={effective_session}")
-        try:
-            result = run_graph(
-                query=req.prompt,
-                trainee=req.target_member or None,
-                session_id=effective_session,
-                forced_agent="team"
-            )
-            status = "success"
-        except Exception as e:
-            print(f"[Teammate Error]: {e}")
-            result = {"final_response": f"Team Agent Error: {str(e)}", "dispatched_agent": "team",
-                      "latency_seconds": 0.0, "trace_id": "", "session_id": effective_session}
-            status = "error"
-        return QueryResponse(
-            agent_role="team",
-            response=result["final_response"],
-            latency_seconds=result["latency_seconds"],
-            status=status,
-            trace_id=result.get("trace_id", ""),
-            session_id=result.get("session_id", "default"),
-            llm_provider=get_active_llm_provider_name()
-        )
+    def teammate_endpoint(req: QueryRequest, x_user_id: Optional[str] = Header("USR-OWNER-01")):
+        return execute_harness_query(task=req.prompt, capability="team_catchup", session_id=req.session_id or x_user_id)
 
-    @app.get("/api/v1/trace/{trace_id}")
-    def get_execution_trace_endpoint(trace_id: str):
-        """Trace Inspector: expand trace by ID to see chunk IDs and token usage."""
-        trace_data = get_trace(trace_id)
-        if not trace_data:
-            raise HTTPException(status_code=404, detail=f"Trace '{trace_id}' not found.")
-        return trace_data
-
-    @app.get("/api/v1/kb/summary")
-    def get_kb_summary_endpoint():
-        """Returns structured cohort summary from Ganesh's Supabase Knowledge Base."""
-        try:
-            from agents.shared.kb_client import kb_client
-            person_states = kb_client.get_person_state()
-            active = [p for p in person_states if p.get("person") != "Siddharth Saminathan"]
-            return {"status": "success", "cohort_state": active}
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e))
+    @app.get("/api/v1/deliverables/{filename}")
+    def download_deliverable(filename: str):
+        """Allows direct download of generated Excel workbooks and reports."""
+        file_path = Path(parent_dir) / "deliverables" / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Deliverable file not found.")
+        return FileResponse(path=str(file_path), filename=filename, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
     @app.post("/api/v1/rollup/export")
     def export_rollup_endpoint():
@@ -252,23 +285,35 @@ if FASTAPI_AVAILABLE:
         try:
             from daily_excel_generator import generate_daily_rollup_excel
             file_path = generate_daily_rollup_excel()
-            return {"status": "success", "file_path": file_path}
+            file_name = Path(file_path).name
+            return {"status": "success", "file_path": file_path, "download_url": f"/api/v1/deliverables/{file_name}"}
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
+    # Mount static assets for the Web Dashboard
+    static_dir = Path(parent_dir) / "static"
+    if static_dir.exists():
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
 
-if __name__ == "__main__":
+def start_server(port: int = 8080):
     if FASTAPI_AVAILABLE:
         import uvicorn
         print("=" * 70)
-        print("[API Server] Starting RAG_COMBINED Multi-Agent API (LangGraph v2)")
-        print("[API Server] Endpoints: /api/v1/query  /api/v1/manager  /api/v1/mentor  /api/v1/teammate")
-        print("[API Server] Use cli.py for interactive terminal sessions.")
-        port = int(os.getenv("API_PORT", os.getenv("PORT", "8001")))
+        print("🚀 OMNEX PRODUCTION AGENT HARNESS SERVER")
+        print("=" * 70)
+        print(f"  • Web Dashboard:  http://127.0.0.1:{port}")
+        print(f"  • REST API:       http://127.0.0.1:{port}/api/v1/query")
+        print("=" * 70 + "\n")
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
     else:
-        print("FastAPI not installed. Run: pip install fastapi uvicorn")
+        print("Error: fastapi / uvicorn not installed.")
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", "8080"))
+    start_server(port=port)
+
 
 
 
