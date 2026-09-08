@@ -89,15 +89,9 @@ class CapabilityRegistry:
             cap_name = md_file.stem
             content = md_file.read_text(encoding="utf-8")
 
-            # Extract Consumer and Purpose
-            consumer = "General"
-            purpose = f"Execute {cap_name} capability."
-            m_cons = re.search(r"## Consumer\s*\n+([^\n#]+)", content)
-            if m_cons:
-                consumer = m_cons.group(1).strip()
-            m_purp = re.search(r"## Purpose\s*\n+([^\n#]+)", content)
-            if m_purp:
-                purpose = m_purp.group(1).strip()
+            # Extract Consumer and Purpose dynamically from markdown
+            consumer = self._extract_section(content, "Consumer") or "General"
+            purpose = self._extract_section(content, "Purpose") or f"Execute {cap_name} capability."
 
             schema = _CAPABILITY_SCHEMAS.get(cap_name, AdHocOutput)
             rules = _CAPABILITY_RULES.get(cap_name, [
@@ -122,7 +116,7 @@ class CapabilityRegistry:
 
     @staticmethod
     def _extract_section(content: str, *headings: str) -> str:
-        """Extract the first paragraph under any of the given markdown headings.
+        """Extract the full section text under any of the given markdown headings.
         Returns empty string if none found. Never modifies the source file.
         """
         for heading in headings:
@@ -135,9 +129,9 @@ class CapabilityRegistry:
     def infer_capability(self, task: str) -> str:
         """Use the LLM to classify the task into the best-matching capability.
 
-        Reads Consumer, Purpose, and any existing 'When the agent should choose it'
-        section directly from the mentor's original markdown files.
-        Zero hardcoded keywords. Zero modifications to any .md file.
+        Reads Consumer, Purpose, Inputs, Tool Hints, and Usage Criteria directly
+        from the mentor's original markdown files.
+        Zero hardcoded keywords, tiebreakers, or personas. Zero modifications to any .md file.
         Falls back to 'ad_hoc' on any LLM failure.
         """
         if not task:
@@ -147,7 +141,7 @@ class CapabilityRegistry:
         if cache_key in self._infer_cache:
             return self._infer_cache[cache_key]
 
-        # Build a rich menu from each capability's existing markdown content
+        # Build dynamic capability menu strictly from each capability's markdown file
         capability_blocks: list[str] = []
         for cap_name, cap in self._capabilities.items():
             content = cap.raw_content
@@ -157,14 +151,20 @@ class CapabilityRegistry:
                 "When the agent should choose it",
                 "When to use",
             )
+            inputs = self._extract_section(content, "Inputs")
+            tool_hints = self._extract_section(content, "Tool hints")
 
             block_lines = [
-                f"### {cap_name}",
-                f"Consumer: {cap.consumer}",
+                f"### Capability: \"{cap_name}\"",
+                f"Target Consumer: {cap.consumer}",
                 f"Purpose: {cap.purpose}",
             ]
+            if inputs:
+                block_lines.append(f"Expected Inputs: {inputs}")
+            if tool_hints:
+                block_lines.append(f"Domain / Focus Areas: {tool_hints}")
             if when_to_choose:
-                block_lines.append(f"When to choose: {when_to_choose}")
+                block_lines.append(f"Usage Criteria: {when_to_choose}")
             capability_blocks.append("\n".join(block_lines))
 
         cap_menu = "\n\n".join(capability_blocks)
@@ -172,22 +172,13 @@ class CapabilityRegistry:
         valid_names_str = ", ".join(f'"{n}"' for n in valid_names)
 
         system_prompt = (
-            "You are a routing classifier for an enterprise RAG agent system. "
-            "Your ONLY job is to pick the single best-matching capability name for a user query. "
-            "Tiebreaker rules when intent is ambiguous:\n"
-            "- team_catchup: ONLY when someone explicitly missed a session and needs a full digest. "
-            "NOT for questions about what someone said in a session.\n"
-            "- mentor_assessment: ONLY for a formal scored evaluation or teaching plan (1-10 rubric). "
-            "NOT for simple assignment or task status questions about a person.\n"
-            "- manager_rollup: ONLY for cross-team or multi-trainee aggregate reports. "
-            "NOT for single-person lookups.\n"
-            "- ad_hoc: Use for specific factual questions about what a person said, a person's current "
-            "assignment status, or anything that does not clearly match the above three.\n"
-            "Return ONLY a valid JSON object with one field: 'capability'. "
-            "Do not explain. Do not add any other fields."
+            "You are a capability classifier for an AI agent system.\n"
+            "Your ONLY role is to select the single best capability that matches the consumer and purpose of the query.\n"
+            "If the query is a general or factual lookup, or does not strictly match the specialized purpose of a capability, select the general fallback capability (ad_hoc).\n"
+            "Respond ONLY with a valid JSON object: {\"capability\": \"<chosen_capability_name>\"}."
         )
         user_prompt = (
-            f"Available capabilities:\n\n{cap_menu}\n\n"
+            f"Available capabilities (defined from specification docs):\n\n{cap_menu}\n\n"
             f"User query: \"{task}\"\n\n"
             f"Which capability best handles this query? "
             f"Respond with exactly: {{\"capability\": <one of {valid_names_str}>}}"
