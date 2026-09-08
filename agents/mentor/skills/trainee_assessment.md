@@ -10,7 +10,7 @@ Shows a trainee's demonstrated progress for the Technical Mentor to decide what 
 
 ## Required Workflow
 1. **Identify the trainee and reporting period**: Resolve the target mentee and window.
-2. **Retrieve relevant work and learning evidence**: Query the retrieval service for dialogue turns where the mentee speaks or is reviewed.
+2. **Retrieve relevant work and learning evidence**: query the retrieval service for dialogue turns where the mentee speaks or is reviewed.
 3. **Identify concepts taught**: Isolate the architectural ideas introduced by the mentor in those sessions.
 4. **Identify what the trainee attempted**: Document specific scripts, features, or assignments the mentee built.
 5. **Identify demonstrated understanding**: Apply the cognitive ladder (`Taught` → `Attempted` → `Demonstrated` → `Correct`). Stronger states are only claimed with proof.
