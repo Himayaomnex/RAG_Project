@@ -24,8 +24,26 @@ import argparse
 import datetime
 from typing import Optional, List, Dict, Any
 
+# Ensure UTF-8 output on Windows consoles
+if hasattr(sys.stdout, "reconfigure") and sys.stdout is not None:
+    try:
+        sys.stdout.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+if hasattr(sys.stderr, "reconfigure") and sys.stderr is not None:
+    try:
+        sys.stderr.reconfigure(encoding="utf-8")
+    except Exception:
+        pass
+
 # Ensure workspace root is in path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+# Safe redirect for pythonw.exe background runs (where sys.stdout is None)
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
 
 from agents.shared.kb_client import kb_client
 from daily_excel_generator import generate_daily_rollup_excel
@@ -138,7 +156,7 @@ def start_agentic_daemon(
     """
     sched_time = target_time_str or os.getenv("CRON_SCHEDULE_TIME", "17:00")
     print("=" * 70)
-    print(" 🤖 AGENTIC DAILY ROLLUP DAEMON & CRON")
+    print(" [*] AGENTIC DAILY ROLLUP DAEMON & CRON")
     print("=" * 70)
     print(f"  [Folder Watcher] Monitoring: '{watch_dir}'")
     print(f"  [Daily Schedule] Automated trigger at: {sched_time} daily")
