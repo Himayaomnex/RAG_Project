@@ -258,44 +258,56 @@ def generate_daily_rollup_excel(
         ws4.row_dimensions[row_idx].height = 20
     _auto_fit_columns(ws4, max_len_cap=80)
 
-    # ── 5. File Persistence & Google Drive / OneDrive Sync ──────────────────────
-    base_dir = output_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "deliverables", "daily_rollups")
-    os.makedirs(base_dir, exist_ok=True)
-    filename = f"daily_rollup_{date_str}.xlsx"
-    local_file_path = os.path.join(base_dir, filename)
+    # ── 5. File Persistence: Master Workbook + Daily Archive ──────────────────
+    deliverables_dir = output_dir or os.path.join(os.path.dirname(os.path.abspath(__file__)), "deliverables")
+    archive_dir = os.path.join(deliverables_dir, "archive")
+    os.makedirs(deliverables_dir, exist_ok=True)
+    os.makedirs(archive_dir, exist_ok=True)
 
-    # Fail-safe save in case the file is currently open in Excel
+    # Master Workbook (persistent file updated daily for mentor/manager)
+    master_filename = "training_master_rollup.xlsx"
+    master_file_path = os.path.join(deliverables_dir, master_filename)
+
+    # Daily Archive copy
+    archive_filename = f"daily_rollup_{date_str}.xlsx"
+    archive_file_path = os.path.join(archive_dir, archive_filename)
+
+    # Save to Master Workbook (with fallback if open in Excel)
     try:
-        wb.save(local_file_path)
+        wb.save(master_file_path)
+        print(f"[Excel Generator] Master rollup updated: {master_file_path}")
     except PermissionError:
         ts = datetime.datetime.now().strftime("%H%M%S")
-        filename = f"daily_rollup_{date_str}_{ts}.xlsx"
-        local_file_path = os.path.join(base_dir, filename)
-        wb.save(local_file_path)
-    print(f"[Excel Generator] Daily rollup saved locally: {local_file_path}")
+        master_file_path = os.path.join(deliverables_dir, f"training_master_rollup_{ts}.xlsx")
+        wb.save(master_file_path)
+        print(f"[Excel Generator] Master rollup updated (fallback): {master_file_path}")
 
-    # If Cloud folder (OneDrive / Google Drive) path is configured, save a copy there too
+    # Save dated archive copy
+    try:
+        wb.save(archive_file_path)
+        print(f"[Excel Generator] Daily archive saved: {archive_file_path}")
+    except PermissionError:
+        pass
+
+    # If Cloud folder (OneDrive / Google Drive) path is configured, sync Master Workbook
     gdrive_path = gdrive_dir or os.getenv("GOOGLE_DRIVE_FOLDER")
     if gdrive_path:
         os.makedirs(gdrive_path, exist_ok=True)
-        drive_file_path = os.path.join(gdrive_path, filename)
+        drive_file_path = os.path.join(gdrive_path, master_filename)
         try:
             wb.save(drive_file_path)
-            print(f"[Excel Generator] Daily rollup synced to Cloud: {drive_file_path}")
+            print(f"[Excel Generator] Master rollup synced to Cloud: {drive_file_path}")
         except PermissionError:
-            ts = datetime.datetime.now().strftime("%H%M%S")
-            drive_file_path = os.path.join(gdrive_path, f"daily_rollup_{date_str}_{ts}.xlsx")
-            wb.save(drive_file_path)
-            print(f"[Excel Generator] Daily rollup synced to Cloud: {drive_file_path}")
+            pass
 
-    # Direct Google Drive Cloud API Sync
+    # Direct Google Drive Cloud API Sync (Master Workbook)
     try:
         from gdrive_direct_uploader import upload_to_google_drive
-        upload_to_google_drive(local_file_path)
+        upload_to_google_drive(master_file_path)
     except Exception as e:
         print(f"[Google Drive API Hook] {e}")
 
-    return local_file_path
+    return master_file_path
 
 
 if __name__ == "__main__":
