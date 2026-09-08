@@ -39,19 +39,18 @@ def main():
                 if not task:
                     continue
 
-                print(f"\n[*] Auto-routing query & executing LangGraph Dual-Loop agent...")
-                inferred = capability_registry.infer_capability(task)
-                print(f"[*] Inferred Capability: {inferred}")
-                result = run_agent(task=task, capability=inferred)
+                cap = args.capability or "ad_hoc"
+                print(f"\n[*] Executing LangGraph Dual-Loop Agent (Capability: {cap})...")
+                result = run_agent(task=task, capability=cap)
                 print_result(result)
             except KeyboardInterrupt:
                 print("\nExiting.")
                 break
     else:
         task = " ".join(args.query)
-        inferred = args.capability or capability_registry.infer_capability(task)
-        print(f"Running task: {task} (Capability: {inferred})")
-        result = run_agent(task=task, capability=inferred)
+        cap = args.capability or "ad_hoc"
+        print(f"Running task: {task} (Capability: {cap})")
+        result = run_agent(task=task, capability=cap)
         print_result(result)
 
 
