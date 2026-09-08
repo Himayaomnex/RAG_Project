@@ -22,6 +22,12 @@ import sys
 import datetime
 from typing import Optional, Dict, Any, List
 
+# Safe redirect for pythonw.exe background runs (where sys.stdout is None)
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, "w", encoding="utf-8")
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, "w", encoding="utf-8")
+
 try:
     import openpyxl
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
