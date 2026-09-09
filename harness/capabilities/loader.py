@@ -137,7 +137,11 @@ class CapabilityRegistry:
         if not task:
             return "ad_hoc"
 
-        cache_key = task.strip().lower()
+        clean_task = task.strip().strip('"\'')
+        if not clean_task:
+            return "ad_hoc"
+
+        cache_key = clean_task.lower()
         if cache_key in self._infer_cache:
             return self._infer_cache[cache_key]
 
@@ -173,13 +177,18 @@ class CapabilityRegistry:
 
         system_prompt = (
             "You are a capability classifier for an AI agent system.\n"
-            "Your ONLY role is to select the single best capability that matches the consumer and purpose of the query.\n"
-            "If the query is a general or factual lookup, or does not strictly match the specialized purpose of a capability, select the general fallback capability (ad_hoc).\n"
+            "Your role is to select the single best capability that handles the user query.\n"
+            "Selection guidelines (from specification documents):\n"
+            "- Prefer a specialized capability whenever the query relates to its domain:\n"
+            "  * Cross-team decisions, blockers, or cohort progress rollup -> manager_rollup\n"
+            "  * Trainee progress, understanding, misconceptions, or rubric scoring -> mentor_assessment\n"
+            "  * Catching up on missed meetings, digest, or action items -> team_catchup\n"
+            "- Choose 'ad_hoc' as a fallback when none of the specialized capabilities fit (e.g., individual single-person lookups, quotes, or specific factual questions).\n"
             "Respond ONLY with a valid JSON object: {\"capability\": \"<chosen_capability_name>\"}."
         )
         user_prompt = (
             f"Available capabilities (defined from specification docs):\n\n{cap_menu}\n\n"
-            f"User query: \"{task}\"\n\n"
+            f"User query: \"{clean_task}\"\n\n"
             f"Which capability best handles this query? "
             f"Respond with exactly: {{\"capability\": <one of {valid_names_str}>}}"
         )
